@@ -26,6 +26,7 @@ Set up:
   setup [--yes] [--dry-run] [--undo]  Connect Bağlam to every AI tool installed on this machine
   init [--here] [--undo]              Prepare this folder: project id + instructions for agents
   doctor                              Check that everything is connected, with fixes
+  ui [--port n] [--no-open]           Open the review panel in your browser
 
 For AI tools:
   mcp                                 Run the MCP server on stdio (what you register in Claude Code, Cursor, …)
@@ -325,7 +326,15 @@ function isMain(): boolean {
   }
 }
 
-if (isMain() && process.argv[2] === "mcp") {
+if (isMain() && process.argv[2] === "ui") {
+  const { runUi } = await import("./ui/launch.js");
+  try {
+    await runUi(process.argv.slice(3));
+  } catch (err) {
+    console.error(`Error: ${(err as Error).message}`);
+    process.exitCode = 1;
+  }
+} else if (isMain() && process.argv[2] === "mcp") {
   const { startMcpServer } = await import("./mcp.js");
   await startMcpServer();
 } else if (isMain()) {
