@@ -1,3 +1,5 @@
+import { existsSync, statSync } from "node:fs";
+import { isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isUnsafeProjectDir, resolveDirectory, type ProjectRef } from "./project.js";
 
@@ -5,7 +7,7 @@ export type ResolvedVia = "project_path" | "env" | "roots" | "cwd";
 
 export type Resolution =
   | { ok: true; project: ProjectRef; via: ResolvedVia }
-  | { ok: false; reason: "unknown" | "ambiguous"; candidates: ProjectRef[]; message: string };
+  | { ok: false; reason: "unknown" | "ambiguous" | "invalid"; candidates: ProjectRef[]; message: string };
 
 export interface ResolveInput {
   /** Workspace folder the agent passed in the tool call. */
@@ -35,10 +37,24 @@ function rootToPath(uri: string): string | null {
   }
 }
 
+/** Why an explicit project_path cannot be used, or null when it can. */
+function invalidProjectPath(p: string): string | null {
+  if (!isAbsolute(p)) return `project_path must be an absolute path (got "${p}").`;
+  if (!existsSync(p) || !statSync(p).isDirectory()) return `project_path ${p} does not exist or is not a folder.`;
+  if (isUnsafeProjectDir(p)) {
+    return `project_path ${p} is not allowed as a project (home, system or Bağlam's own folder). Pass your workspace folder.`;
+  }
+  return null;
+}
+
 /** Decide which project a tool call belongs to: project_path → env → client roots → cwd. */
 export function resolveProjectFor(input: ResolveInput): Resolution {
-  const explicit = safe(input.projectPath);
-  if (explicit) return { ok: true, project: explicit, via: "project_path" };
+  // An explicit project_path is the agent saying exactly where it is: use it or refuse, never guess past it.
+  if (input.projectPath?.trim()) {
+    const problem = invalidProjectPath(input.projectPath.trim());
+    if (problem) return { ok: false, reason: "invalid", candidates: [], message: problem };
+    return { ok: true, project: resolveDirectory(input.projectPath.trim()), via: "project_path" };
+  }
 
   const fromEnv = safe(input.env);
   if (fromEnv) return { ok: true, project: fromEnv, via: "env" };
@@ -63,8 +79,10 @@ export function resolveProjectFor(input: ResolveInput): Resolution {
     };
   }
 
+  // The working directory is only a guess (GUI apps often start servers in their install folder):
+  // accept it only when it is clearly a project.
   const fromCwd = safe(input.cwd);
-  if (fromCwd) return { ok: true, project: fromCwd, via: "cwd" };
+  if (fromCwd && fromCwd.anchor !== "folder") return { ok: true, project: fromCwd, via: "cwd" };
 
   return { ok: false, reason: "unknown", candidates: [], message: UNKNOWN_MESSAGE };
 }

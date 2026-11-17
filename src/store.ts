@@ -153,8 +153,9 @@ export class ContextStore {
 
   constructor(path: string, private readonly clock: () => number = Date.now) {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
-    this.db = new DatabaseSync(path);
-    this.db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
+    // Busy timeout first: several agents' servers may open (and migrate) the same file at once.
+    this.db = new DatabaseSync(path, { timeout: 5000 });
+    this.db.exec("PRAGMA journal_mode = WAL");
     migrate(this.db, path);
   }
 

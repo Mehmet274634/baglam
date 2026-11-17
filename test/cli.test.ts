@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { ContextStore } from "../src/store.js";
 import { runCli } from "../src/cli.js";
+import { resolveProject } from "../src/project.js";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const P = "c:/work/app";
 
@@ -54,6 +58,16 @@ describe("baglam CLI", () => {
     expect(e.sourceAgent).toBe("ev");
     expect(e.audience).toEqual(["cursor", "codex"]);
     expect(e.expiresAt).not.toBeNull();
+  });
+
+  it("--project=<path> (with =) selects that project", () => {
+    const other = mkdtempSync(join(tmpdir(), "baglam-cli-"));
+    const key = resolveProject(other);
+    const e = store.propose({ project: key, kind: "fact", title: "t", body: "b", sourceAgent: "a" });
+    propose();
+    expect(run("approve", "--all", `--project=${other}`)).toBe(0);
+    expect(store.get(e.id)?.status).toBe("approved");
+    expect(store.pending(P)).toHaveLength(1);
   });
 
   it("returns non-zero with a message on errors and unknown commands", () => {

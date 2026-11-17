@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 
 /** Canonical project key: absolute, forward slashes, lower-case on Windows, no trailing slash. */
 export function normalizeProject(path: string): string {
-  let p = resolve(path).replace(/\\/g, "/");
+  let p = resolve(path).normalize("NFC").replace(/\\/g, "/");
   if (process.platform === "win32") p = p.toLowerCase();
   return p.length > 1 ? p.replace(/\/+$/, "") : p;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -27,6 +27,7 @@ describe("MCP server", () => {
     store = new ContextStore(":memory:");
     closers = [];
     dir = tmp();
+    mkdirSync(join(dir, ".git")); // a real workspace: the cwd fallback only accepts git roots or markers
     P = normalizeProject(dir);
   });
   afterEach(async () => {

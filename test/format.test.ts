@@ -3,7 +3,7 @@ import { formatBrief } from "../src/format.js";
 import type { Entry, Kind } from "../src/store.js";
 import type { ProjectRef } from "../src/project.js";
 
-const project: ProjectRef = { key: "k", name: "app", dir: "c:/work/app", initialized: true };
+const project: ProjectRef = { key: "k", name: "app", dir: "c:/work/app", initialized: true, anchor: "marker" };
 
 let n = 0;
 function entry(kind: Kind, title: string, bodyLen = 400): Entry {

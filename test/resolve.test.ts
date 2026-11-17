@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -18,6 +18,13 @@ describe("resolveProjectFor", () => {
     if (r.ok) expect(r.project.key).toBe(normalizeProject(a));
   });
 
+  it("project_path wins even when cwd is a valid project", () => {
+    const a = tmp(), repo = tmp();
+    mkdirSync(join(repo, ".git"));
+    const r = resolveProjectFor({ projectPath: a, cwd: repo });
+    expect(r).toMatchObject({ ok: true, via: "project_path" });
+  });
+
   it("env wins over roots and cwd", () => {
     const b = tmp(), c = tmp();
     const r = resolveProjectFor({ env: b, roots: [uri(c)], cwd: tmp() });
@@ -30,10 +37,32 @@ describe("resolveProjectFor", () => {
     if (!r.ok) expect(r.message).toMatch(/project_path/);
   });
 
-  it("skips an unsafe project_path and falls through", () => {
+  it("an unsafe project_path is refused, never falls through", () => {
     const d = tmp();
+    mkdirSync(join(d, ".git"));
     const r = resolveProjectFor({ projectPath: homedir(), cwd: d });
-    expect(r).toMatchObject({ ok: true, via: "cwd" });
+    expect(r).toMatchObject({ ok: false, reason: "invalid" });
+    if (!r.ok) expect(r.message).toMatch(/home|not allowed/i);
+  });
+
+  it("a nonexistent project_path is refused", () => {
+    const r = resolveProjectFor({ projectPath: join(tmp(), "typo"), cwd: tmp() });
+    expect(r).toMatchObject({ ok: false, reason: "invalid" });
+    if (!r.ok) expect(r.message).toMatch(/does not exist/);
+  });
+
+  it("a relative project_path is refused", () => {
+    const r = resolveProjectFor({ projectPath: ".", cwd: tmp() });
+    expect(r).toMatchObject({ ok: false, reason: "invalid" });
+    if (!r.ok) expect(r.message).toMatch(/absolute/);
+  });
+
+  it("cwd fallback needs a marker or git root", () => {
+    const plain = tmp();
+    expect(resolveProjectFor({ cwd: plain })).toMatchObject({ ok: false, reason: "unknown" });
+    const repo = tmp();
+    mkdirSync(join(repo, ".git"));
+    expect(resolveProjectFor({ cwd: repo })).toMatchObject({ ok: true, via: "cwd" });
   });
 
   it("ambiguous roots", () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, parse } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -65,10 +65,38 @@ describe("project identity", () => {
     expect(createMarker(d).key).toBe(createMarker(d).key);
   });
 
+  it("createMarker refuses unsafe folders", () => {
+    expect(() => createMarker(homedir())).toThrow(/cannot be a project/);
+  });
+
+  it("markers in unsafe folders are ignored when walking up", () => {
+    // The package root is an unsafe folder we may write to; a marker there must not capture its children.
+    const markerDir = join(packageRoot, ".baglam");
+    mkdirSync(markerDir, { recursive: true });
+    writeFileSync(join(markerDir, "project.json"), JSON.stringify({ id: "11111111-2222-4333-8444-555555555555", name: "x" }));
+    try {
+      const ref = resolveDirectory(join(packageRoot, "test"));
+      expect(ref.key).not.toBe("11111111-2222-4333-8444-555555555555");
+      expect(ref.initialized).toBe(false);
+    } finally {
+      rmSync(markerDir, { recursive: true, force: true });
+    }
+  });
+
+  it("normalises Unicode so NFC and NFD paths give the same key", () => {
+    const nfc = "C:/work/BA\u011ELAM";
+    const nfd = "C:/work/BAG\u0306LAM";
+    expect(normalizeProject(nfd)).toBe(normalizeProject(nfc));
+  });
+
   it("isUnsafeProjectDir flags home, filesystem root and the package itself", () => {
     expect(isUnsafeProjectDir(homedir())).toBe(true);
     expect(isUnsafeProjectDir(parse(process.cwd()).root)).toBe(true);
     expect(isUnsafeProjectDir(packageRoot)).toBe(true);
     expect(isUnsafeProjectDir(tmp())).toBe(false);
+    if (process.platform === "win32") {
+      expect(isUnsafeProjectDir(process.env.WINDIR ?? "C:\\Windows")).toBe(true);
+      expect(isUnsafeProjectDir(join(process.env.WINDIR ?? "C:\\Windows", "System32"))).toBe(true);
+    }
   });
 });

@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { copyFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 
 /** The v0.1 schema, exactly as shipped. Version 1. */
 export const V1_SCHEMA = `
@@ -93,27 +93,39 @@ function currentVersion(db: DatabaseSync): number {
  * copied to `<path>.v<from>-backup` before it is changed.
  */
 export function migrate(db: DatabaseSync, filePath: string): { from: number; to: number } {
-  const from = currentVersion(db);
-  if (from > SCHEMA_VERSION) {
-    throw new Error(
-      `This database was written by a newer version of Bağlam (schema ${from}, this version supports ${SCHEMA_VERSION}). Update Bağlam.`,
-    );
-  }
-  if (from === SCHEMA_VERSION) return { from, to: from };
+  const seen = checkVersion(currentVersion(db));
+  if (seen === SCHEMA_VERSION) return { from: seen, to: seen };
 
-  if (from >= 1 && filePath !== ":memory:") {
-    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-    copyFileSync(filePath, `${filePath}.v${from}-backup`);
+  // Consistent snapshot (includes WAL content) before anything changes. Several processes may get
+  // here at once; the first one writes the backup, the others find it already there.
+  const backup = `${filePath}.v${seen}-backup`;
+  if (seen >= 1 && filePath !== ":memory:" && !existsSync(backup)) {
+    try {
+      db.exec(`VACUUM INTO '${backup.replace(/'/g, "''")}'`);
+    } catch (err) {
+      if (!existsSync(backup)) throw err;
+    }
   }
 
   db.exec("BEGIN IMMEDIATE");
   try {
+    // Re-read under the write lock: another process may have migrated while we waited.
+    const from = checkVersion(currentVersion(db));
     for (let v = from; v < SCHEMA_VERSION; v++) STEPS[v](db);
     db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
     db.exec("COMMIT");
+    return { from, to: SCHEMA_VERSION };
   } catch (err) {
     db.exec("ROLLBACK");
     throw err;
   }
-  return { from, to: SCHEMA_VERSION };
+}
+
+function checkVersion(v: number): number {
+  if (v > SCHEMA_VERSION) {
+    throw new Error(
+      `This database was written by a newer version of Bağlam (schema ${v}, this version supports ${SCHEMA_VERSION}). Update Bağlam.`,
+    );
+  }
+  return v;
 }

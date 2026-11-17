@@ -46,7 +46,7 @@ function summary(e: Entry): string {
 }
 
 export function runCli(argv: string[], ctx: CliContext): number {
-  const { store, project, user, print } = ctx;
+  const { store, user, print } = ctx;
   let parsed;
   try {
     parsed = parseArgs({
@@ -71,6 +71,7 @@ export function runCli(argv: string[], ctx: CliContext): number {
     return 1;
   }
   const { values: o, positionals } = parsed;
+  const project = o.project ? resolveProject(o.project) : ctx.project;
   const [cmd, ...args] = positionals;
 
   try {
@@ -173,11 +174,10 @@ if (isMain() && process.argv[2] === "mcp") {
   await startMcpServer();
 } else if (isMain()) {
   const argv = process.argv.slice(2);
-  const projectIdx = argv.indexOf("--project");
   const store = new ContextStore(resolveDbPath());
   const code = runCli(argv, {
     store,
-    project: resolveProject(projectIdx >= 0 ? argv[projectIdx + 1] : undefined),
+    project: resolveProject(),
     user: process.env.BAGLAM_USER?.trim() || `human:${userInfo().username}`,
     print: (s) => console.log(s),
   });

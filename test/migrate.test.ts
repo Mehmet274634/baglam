@@ -3,6 +3,10 @@ import { DatabaseSync } from "node:sqlite";
 import { existsSync, mkdtempSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execFile, execSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
+
+const root = join(import.meta.dirname, "..");
 import { ContextStore } from "../src/store.js";
 import { SCHEMA_VERSION, V1_SCHEMA, migrate } from "../src/migrate.js";
 
@@ -52,6 +56,37 @@ describe("schema migrations", () => {
     db.close();
     expect(readdirSync(join(path, "..")).filter((f) => f.includes("backup"))).toEqual([]);
   });
+
+  it("several processes opening a v0.1 file at once all succeed", async () => {
+    execSync("npm run build", { cwd: root, stdio: "ignore" });
+    const path = tempDb();
+    const old = new DatabaseSync(path);
+    old.exec("PRAGMA journal_mode = WAL");
+    old.exec(V1_SCHEMA);
+    old.prepare(
+      `INSERT INTO entries (id, project, kind, title, body, status, source_agent, created_at)
+       VALUES ('cold1', 'c:/p', 'decision', 'Use pnpm', 'b', 'approved', 'claude-code', 1)`,
+    ).run();
+    old.close();
+
+    const storeUrl = pathToFileURL(join(root, "dist", "store.js")).href;
+    const script = `import { ContextStore } from ${JSON.stringify(storeUrl)}; new ContextStore(${JSON.stringify(path)}).close();`;
+    const run = () =>
+      new Promise<string>((done) => {
+        execFile(process.execPath, ["--input-type=module", "-e", script], (err, _out, stderr) =>
+          done(err ? stderr.split("\n").find((l) => /Error/.test(l)) ?? String(err) : "ok"),
+        );
+      });
+    const results = await Promise.all(Array.from({ length: 8 }, run));
+    expect(results).toEqual(Array(8).fill("ok"));
+
+    const store = new ContextStore(path);
+    expect(store.get("cold1")?.title).toBe("Use pnpm");
+    store.close();
+    const backup = new DatabaseSync(path + ".v1-backup");
+    expect((backup.prepare("SELECT title FROM entries WHERE id='cold1'").get() as { title: string }).title).toBe("Use pnpm");
+    backup.close();
+  }, 60_000);
 
   it("refuses a newer schema", () => {
     const path = tempDb();
