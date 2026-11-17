@@ -22,39 +22,46 @@ import type { Change } from "./clients/types.js";
 
 const USAGE = `Usage: baglam <command> [options]
 
+Get started:
+  setup [--yes] [--dry-run] [--undo]  Connect Bağlam to every AI tool installed on this machine
+  init [--here] [--undo]              Prepare this folder: project id + instructions for agents
+  ui [--port n] [--no-open]           Open the review panel in your browser
+  doctor                              Check that everything is connected, with fixes
+
 Review what agents proposed:
   pending [--all-projects]            List proposals waiting for review
   approve <id...> | --all [--note t]  Approve proposals (they become visible to agents)
   reject <id> [--note text]           Reject a proposal
 
-Set up:
-  setup [--yes] [--dry-run] [--undo]  Connect Bağlam to every AI tool installed on this machine
-  init [--here] [--undo]              Prepare this folder: project id + instructions for agents
-  doctor                              Check that everything is connected, with fixes
-  ui [--port n] [--no-open]           Open the review panel in your browser
-
-For AI tools:
-  mcp                                 Run the MCP server on stdio (what you register in Claude Code, Cursor, …)
-
-Move data:
-  export [--format md|json] [--out file] [--all-projects]   CONTEXT.md or a full JSON backup
-  import <file.json> [--force]        Merge a JSON export (existing records are kept)
-
-Trust (opt-in auto-approval):
-  trust add [--agent id] [--kind k] [--global]  Let matching records skip review
-  trust list | trust remove <id>
-
 Manage context yourself:
-  add <kind> <title> <body> [--why text] [--tags a,b] [--to agent,agent] [--ttl days] [--replaces id]
+  add <kind> <title> <body> [--why text] [--tags a,b] [--to agent,agent] [--ttl days] [--replaces id] [--force]
                                       Add an approved record (kind: ${KINDS.join(" | ")})
   list [--everything]                 Show active records (--everything: all statuses)
   show <id>                           Show one record in full
   projects                            Projects in the database with counts
 
-Options:
-  --project <path>                    Project to act on (default: git root of the current folder)
+Trust (opt-in auto-approval):
+  trust add [--agent id] [--kind k] [--global]  Let matching records skip review
+  trust list | trust remove <id>
 
-Environment: BAGLAM_DB (database path), BAGLAM_PROJECT (project override)`;
+Move data:
+  export [--format md|json] [--out file] [--all-projects]   CONTEXT.md or a full JSON backup
+  import <file.json> [--force]        Merge a JSON export (existing records are kept)
+
+For AI tools:
+  mcp                                 Run the MCP server on stdio (what setup registers)
+
+Options:
+  --project <path>                    Project to act on (default: the project of the current folder)
+  --version, --help
+
+Environment:
+  BAGLAM_DB            database file (default ~/.baglam/baglam.db)
+  BAGLAM_PROJECT       project folder override
+  BAGLAM_AGENT         agent id (set by setup for each tool)
+  BAGLAM_USER          name recorded for your approvals (default human:<os user>)
+  BAGLAM_FLOOD_LIMIT   pending proposals allowed per agent (default 20)
+  BAGLAM_BRIEF_BUDGET  token budget of context_brief (default 2000)`;
 
 export interface CliContext {
   store: ContextStore;
