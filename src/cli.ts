@@ -2,7 +2,7 @@
 import { parseArgs } from "node:util";
 import { userInfo } from "node:os";
 import { pathToFileURL } from "node:url";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { ContextStore, KINDS, type Entry, type Kind, type TrustRule } from "./store.js";
 import { day, formatEntry } from "./format.js";
 import { resolveDbPath } from "./config.js";
@@ -11,6 +11,7 @@ import { realHost, type HostEnv } from "./host.js";
 import { detectClients, runSetup } from "./setup.js";
 import { runInit } from "./init.js";
 import { describeFindings, scanEntryFields } from "./guards.js";
+import { exportJson, exportMarkdown, importJson } from "./portable.js";
 import { formatCheck, runDoctor, type Handshake } from "./doctor.js";
 import { basename } from "node:path";
 import type { Change } from "./clients/types.js";
@@ -30,6 +31,10 @@ Set up:
 
 For AI tools:
   mcp                                 Run the MCP server on stdio (what you register in Claude Code, Cursor, …)
+
+Move data:
+  export [--format md|json] [--out file] [--all-projects]   CONTEXT.md or a full JSON backup
+  import <file.json> [--force]        Merge a JSON export (existing records are kept)
 
 Trust (opt-in auto-approval):
   trust add [--agent id] [--kind k] [--global]  Let matching records skip review
@@ -113,6 +118,8 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
         global: { type: "boolean" },
         agent: { type: "string" },
         kind: { type: "string" },
+        format: { type: "string" },
+        out: { type: "string" },
         help: { type: "boolean", short: "h" },
       },
     });
@@ -236,6 +243,32 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
         if (!o["dry-run"]) print(`
 Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need attention (see ✗ above).` : ""}`);
         return failed ? 1 : 0;
+      }
+      case "export": {
+        const format = o.format ?? "md";
+        if (format !== "md" && format !== "json") throw new Error("--format must be md or json");
+        const text =
+          format === "json"
+            ? JSON.stringify(exportJson(store, { project: o["all-projects"] ? undefined : project }), null, 2) + "\n"
+            : exportMarkdown(store, project);
+        if (o.out) {
+          writeFileSync(o.out, text);
+          print(`Wrote ${o.out}`);
+        } else print(text.trimEnd());
+        return 0;
+      }
+      case "import": {
+        if (args.length !== 1) throw new Error("give the export file: baglam import <file.json>");
+        let data: unknown;
+        try {
+          data = JSON.parse(readFileSync(args[0], "utf8"));
+        } catch (err) {
+          throw new Error(`cannot read ${args[0]} as JSON (${(err as Error).message})`);
+        }
+        const r = importJson(store, data, { force: o.force, by: user });
+        print(`Imported ${r.imported} record(s); ${r.skipped} skipped (already present or unreadable).`);
+        for (const b of r.blocked) print(`✗ ${b.id} not imported: looks like a secret (${describeFindings(b.findings)}). Use --force to import anyway.`);
+        return r.blocked.length ? 1 : 0;
       }
       case "trust": {
         const [sub, id] = args;

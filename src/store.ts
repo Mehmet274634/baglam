@@ -301,6 +301,65 @@ export class ContextStore {
   }
 
   /** Audit trail of one record, oldest first. */
+  /** Register a project known only by id and name (from an import); leaves an existing one untouched. */
+  ensureProject(key: string, name: string): void {
+    if (!UUID.test(key)) return;
+    this.db
+      .prepare("INSERT INTO projects (id, name, last_path, created_at) VALUES (?, ?, NULL, ?) ON CONFLICT(id) DO NOTHING")
+      .run(key, requireText(name, "name", 100), this.clock());
+  }
+
+  /** Raw audit rows for export. */
+  eventsOf(entryIds: string[]): (HistoryEvent & { entryId: string; project: string })[] {
+    if (!entryIds.length) return [];
+    const rows = this.db
+      .prepare(
+        `SELECT entry_id, project, type, actor, at, detail FROM events
+         WHERE entry_id IN (SELECT value FROM json_each(?)) ORDER BY seq`,
+      )
+      .all(JSON.stringify(entryIds)) as Row[];
+    return rows.map((r) => ({
+      entryId: r.entry_id as string,
+      project: r.project as string,
+      type: r.type as EventType,
+      actor: r.actor as string,
+      at: Number(r.at),
+      detail: (r.detail as string | null) ?? null,
+    }));
+  }
+
+  /**
+   * Insert a record exactly as exported elsewhere (id, status and history kept).
+   * Returns false when the id already exists. Fields are validated like any other record.
+   */
+  importEntry(e: Entry, events: { type: EventType; actor: string; at: number; detail: string | null }[]): boolean {
+    if (this.get(e.id)) return false;
+    const v = validate(e);
+    const STATUSES: Status[] = ["proposed", "approved", "rejected", "superseded", "retired"];
+    if (!STATUSES.includes(e.status)) throw new Error(`unknown status ${e.status}`);
+    this.transaction(() => {
+      this.db
+        .prepare(
+          `INSERT INTO entries (id, project, kind, title, body, rationale, tags, audience, status, source_agent,
+             created_at, decided_at, decided_by, decision_note, expires_at, supersedes, superseded_by,
+             edited_at, auto_approved, similar_to)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          e.id, requireText(e.project, "project", 1000), v.kind, v.title, v.body, v.rationale, v.tags, v.audience,
+          e.status, requireText(e.sourceAgent, "sourceAgent", 100), e.createdAt, e.decidedAt ?? null,
+          e.decidedBy ?? null, e.decisionNote ?? null, e.expiresAt ?? null, e.supersedes ?? null,
+          e.supersededBy ?? null, e.editedAt ?? null, e.autoApproved ? 1 : 0, JSON.stringify(cleanList(e.similarTo)),
+        );
+      for (const ev of events) {
+        this.db
+          .prepare("INSERT INTO events (entry_id, project, type, actor, at, detail) VALUES (?, ?, ?, ?, ?, ?)")
+          .run(e.id, e.project, ev.type, ev.actor, ev.at, ev.detail);
+      }
+    });
+    return true;
+  }
+
   history(id: string): HistoryEvent[] {
     const rows = this.db
       .prepare("SELECT type, actor, at, detail FROM events WHERE entry_id = ? ORDER BY seq ASC")
