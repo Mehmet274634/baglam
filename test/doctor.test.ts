@@ -1,0 +1,94 @@
+import { describe, it, expect } from "vitest";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { testHost } from "./helpers.js";
+import { ContextStore } from "../src/store.js";
+import { runSetup } from "../src/setup.js";
+import { runInit } from "../src/init.js";
+import { runDoctor, type Check } from "../src/doctor.js";
+import { runCli } from "../src/cli.js";
+
+function machine() {
+  const host = testHost();
+  mkdirSync(join(host.home, ".cursor"));
+  const base = mkdtempSync(join(tmpdir(), "baglam-doc-"));
+  const dbPath = join(base, "baglam.db");
+  const project = join(base, "proj");
+  mkdirSync(project);
+  return { host, dbPath, project };
+}
+
+const failed = (checks: Check[]) => checks.filter((c) => !c.ok);
+
+describe("baglam doctor", () => {
+  it("all green on a set-up machine", async () => {
+    const { host, dbPath, project } = machine();
+    const store = new ContextStore(dbPath);
+    runSetup(host, { confirm: () => true });
+    runInit(project, { store, host });
+    store.close();
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    expect(failed(checks)).toEqual([]);
+    expect(checks.map((c) => c.name)).toEqual(
+      expect.arrayContaining(["Node.js", "Database", "Cursor: registered", "Cursor: connects", "This folder", "Agent instructions"]),
+    );
+  });
+
+  it("reports an unregistered client with the fix", async () => {
+    const { host, dbPath, project } = machine();
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    const c = checks.find((x) => x.name === "Cursor: registered");
+    expect(c).toMatchObject({ ok: false, fix: "baglam setup" });
+  });
+
+  it("reports a stale entry path", async () => {
+    const { host, dbPath, project } = machine();
+    writeFileSync(
+      join(host.home, ".cursor", "mcp.json"),
+      JSON.stringify({ mcpServers: { baglam: { command: "node", args: ["C:/old/dist/mcp.js"] } } }),
+    );
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    const c = checks.find((x) => x.name === "Cursor: registered");
+    expect(c?.ok).toBe(false);
+    expect(c?.detail).toMatch(/old/);
+    expect(c?.fix).toBe("baglam setup");
+  });
+
+  it("reports a failed handshake", async () => {
+    const { host, dbPath, project } = machine();
+    runSetup(host, { confirm: () => true });
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => "spawn ENOENT" });
+    expect(checks.find((x) => x.name === "Cursor: connects")).toMatchObject({ ok: false, detail: expect.stringMatching(/ENOENT/) });
+  });
+
+  it("reports an uninitialised folder", async () => {
+    const { host, dbPath, project } = machine();
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    expect(checks.find((x) => x.name === "This folder")).toMatchObject({ ok: false, fix: "baglam init" });
+    expect(checks.find((x) => x.name === "Agent instructions")).toMatchObject({ ok: false, fix: "baglam init" });
+  });
+
+  it("reports a database from a newer version", async () => {
+    const { host, dbPath, project } = machine();
+    new ContextStore(dbPath).close();
+    const { DatabaseSync } = await import("node:sqlite");
+    const db = new DatabaseSync(dbPath);
+    db.exec("PRAGMA user_version = 99");
+    db.close();
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    expect(checks.find((x) => x.name === "Database")).toMatchObject({ ok: false, detail: expect.stringMatching(/newer/) });
+  });
+
+  it("cli: doctor exits 1 on failure", async () => {
+    const { host, project } = machine();
+    const out: string[] = [];
+    const code = await runCli(["doctor", "--project", project], {
+      store: new ContextStore(":memory:"), project: "x", user: "ev", print: (s) => out.push(s), host,
+      doctor: { handshake: async () => null, dbPath: join(mkdtempSync(join(tmpdir(), "d-")), "x.db") },
+    });
+    expect(code).toBe(1);
+    expect(out.join("\n")).toMatch(/✗ Cursor: registered/);
+    expect(out.join("\n")).toMatch(/baglam setup/);
+  });
+});

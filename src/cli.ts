@@ -7,6 +7,12 @@ import { ContextStore, KINDS, type Entry, type Kind } from "./store.js";
 import { day, formatEntry } from "./format.js";
 import { resolveDbPath } from "./config.js";
 import { resolveProject } from "./project.js";
+import { realHost, type HostEnv } from "./host.js";
+import { detectClients, runSetup } from "./setup.js";
+import { runInit } from "./init.js";
+import { formatCheck, runDoctor, type Handshake } from "./doctor.js";
+import { basename } from "node:path";
+import type { Change } from "./clients/types.js";
 
 const USAGE = `Usage: baglam <command> [options]
 
@@ -14,6 +20,11 @@ Review what agents proposed:
   pending [--all-projects]            List proposals waiting for review
   approve <id...> | --all [--note t]  Approve proposals (they become visible to agents)
   reject <id> [--note text]           Reject a proposal
+
+Set up:
+  setup [--yes] [--dry-run] [--undo]  Connect Bağlam to every AI tool installed on this machine
+  init [--here] [--undo]              Prepare this folder: project id + instructions for agents
+  doctor                              Check that everything is connected, with fixes
 
 For AI tools:
   mcp                                 Run the MCP server on stdio (what you register in Claude Code, Cursor, …)
@@ -35,6 +46,24 @@ export interface CliContext {
   project: string;
   user: string;
   print: (line: string) => void;
+  /** Machine access for setup/init/doctor (default: the real machine). */
+  host?: HostEnv;
+  /** False when nobody can answer a question (CI, piped input). */
+  interactive?: boolean;
+  /** Answer to "connect these tools?" collected before runCli (interactive shells). */
+  confirm?: (labels: string[]) => boolean;
+  /** Test seams for doctor. */
+  doctor?: { handshake?: Handshake; dbPath?: string };
+}
+
+const MARK: Record<Change["action"], string> = {
+  added: "✓", updated: "✓", removed: "✓", unchanged: "·", absent: "·", skipped: "✗",
+};
+
+export function formatChange(c: Change, label: string): string {
+  const line = `${MARK[c.action]} ${label.padEnd(12)} ${c.action.padEnd(9)} ${c.file}`;
+  return c.note ? `${line}
+    ${c.note}` : line;
 }
 
 const list = (v: string | undefined) => (v ? v.split(",").map((s) => s.trim()).filter(Boolean) : undefined);
@@ -45,7 +74,7 @@ function summary(e: Entry): string {
   }${e.audience.includes("*") ? "" : ` · only for ${e.audience.join(", ")}`}`;
 }
 
-export function runCli(argv: string[], ctx: CliContext): number {
+export function runCli(argv: string[], ctx: CliContext): number | Promise<number> {
   const { store, user, print } = ctx;
   let parsed;
   try {
@@ -63,6 +92,10 @@ export function runCli(argv: string[], ctx: CliContext): number {
         ttl: { type: "string" },
         replaces: { type: "string" },
         project: { type: "string" },
+        yes: { type: "boolean", short: "y" },
+        "dry-run": { type: "boolean" },
+        undo: { type: "boolean" },
+        here: { type: "boolean" },
         help: { type: "boolean", short: "h" },
       },
     });
@@ -141,6 +174,75 @@ export function runCli(argv: string[], ctx: CliContext): number {
         print(`${formatEntry(e, { full: true })}\nProject: ${e.project}`);
         return 0;
       }
+      case "setup": {
+        const host = ctx.host ?? realHost();
+        if (!o.undo && /[\\/]_npx[\\/]/.test(host.cliPath)) {
+          print(
+            "This copy of Bağlam runs from npm's temporary npx cache, which npm may delete at any time;\n" +
+              "registering it would break every tool later. Install it permanently first:\n\n" +
+              "  npm i -g baglam\n  baglam setup",
+          );
+          return 1;
+        }
+        const found = detectClients(host);
+        if (!found.length) {
+          print("No supported AI tools found (Claude Code, Codex, Antigravity, Gemini CLI, Cursor, Windsurf, VS Code).");
+          return 0;
+        }
+        const labels = found.map((c) => c.label);
+        print(`Found: ${labels.join(", ")}`);
+        let confirm: () => boolean;
+        if (o.yes || o["dry-run"]) confirm = () => true;
+        else if (ctx.confirm) confirm = () => ctx.confirm!(labels);
+        else {
+          print("Run again with --yes to confirm (this shell cannot ask).");
+          return 1;
+        }
+        const result = runSetup(host, { undo: o.undo, dryRun: o["dry-run"], confirm });
+        if (!result.changes.length) {
+          print("Nothing changed.");
+          return 0;
+        }
+        const label = (id: string) => found.find((c) => c.id === id)?.label ?? id;
+        if (o["dry-run"]) print("Dry run, nothing was written:");
+        for (const c of result.changes) print(formatChange(c, label(c.client)));
+        const failed = result.changes.filter((c) => c.action === "skipped").length;
+        if (!o["dry-run"]) print(`
+Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need attention (see ✗ above).` : ""}`);
+        return failed ? 1 : 0;
+      }
+      case "doctor": {
+        const host = ctx.host ?? realHost();
+        return runDoctor({
+          host,
+          dbPath: ctx.doctor?.dbPath ?? resolveDbPath(),
+          cwd: o.project ?? process.cwd(),
+          handshake: ctx.doctor?.handshake,
+        }).then(
+          (checks) => {
+            for (const c of checks) print(formatCheck(c));
+            const bad = checks.filter((c) => !c.ok).length;
+            print(bad ? `\n${bad} problem(s) found.` : "\nEverything looks good.");
+            return bad ? 1 : 0;
+          },
+          (err: Error) => {
+            print(`Error: ${err.message}`);
+            return 1;
+          },
+        );
+      }
+      case "init": {
+        const host = ctx.host ?? realHost();
+        const dir = o.project ?? process.cwd();
+        const r = runInit(dir, { store, host, undo: o.undo, here: o.here });
+        print(`Project: ${r.project.name}  (id ${r.project.key})`);
+        print(`Folder:  ${r.project.dir}`);
+        if (r.moved) print(`Moved ${r.moved} existing record(s) to this project id.`);
+        for (const c of r.changes) print(formatChange(c, basename(c.file)));
+        if (o.undo) print("\nInstructions removed. The project id (.baglam/project.json) is kept so its history stays linked.");
+        else print("\nAgents in this folder will now load the shared context at the start of each task.\nCommit .baglam/project.json so the project keeps its identity everywhere.");
+        return 0;
+      }
       case "projects": {
         const rows = store.projects();
         if (!rows.length) print("No projects yet.");
@@ -174,12 +276,28 @@ if (isMain() && process.argv[2] === "mcp") {
   await startMcpServer();
 } else if (isMain()) {
   const argv = process.argv.slice(2);
+  const interactive = !!process.stdin.isTTY && !!process.stdout.isTTY;
+  let confirm: CliContext["confirm"];
+  if (argv[0] === "setup" && interactive && !argv.includes("--yes") && !argv.includes("-y") && !argv.includes("--dry-run")) {
+    const labels = detectClients(realHost()).map((c) => c.label);
+    if (labels.length) {
+      const { createInterface } = await import("node:readline/promises");
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      const verb = argv.includes("--undo") ? "Disconnect Bağlam from" : "Connect Bağlam to";
+      const answer = (await rl.question(`${verb} ${labels.join(", ")}? [Y/n] `)).trim().toLowerCase();
+      rl.close();
+      const yes = answer === "" || answer === "y" || answer === "yes" || answer === "e" || answer === "evet";
+      confirm = () => yes;
+    }
+  }
   const store = new ContextStore(resolveDbPath());
-  const code = runCli(argv, {
+  const code = await runCli(argv, {
     store,
     project: resolveProject(),
     user: process.env.BAGLAM_USER?.trim() || `human:${userInfo().username}`,
     print: (s) => console.log(s),
+    interactive,
+    confirm,
   });
   store.close();
   process.exitCode = code;
