@@ -171,6 +171,34 @@ describe("MCP server", () => {
     expect(JSON.stringify(prompt.messages)).toContain("context_brief");
   });
 
+  it("blocked proposal is a tool error and stores nothing", async () => {
+    const res = await propose(await agent("cursor"), { body: `token ${["AKIA", "IOSFODNN7EXAMPLE"].join("")}` });
+    expect(res.isError).toBe(true);
+    expect(text(res)).toMatch(/Not stored.*secret.*AWS access key \(AKIA…\)/s);
+    expect(store.pending(P)).toEqual([]);
+  });
+
+  it("duplicate reply lists the similar record", async () => {
+    const e = store.addApproved({ project: P, kind: "fact", title: "Build uses Node 24", body: "Use Node 24 LTS for builds." }, "human");
+    const res = await propose(await agent("cursor"), { title: "Build uses Node 24", body: "Use Node 24 LTS for builds." });
+    expect(res.isError).toBeFalsy();
+    expect(text(res)).toContain(e.id);
+    expect(text(res)).toMatch(/supersedes/);
+  });
+
+  it("auto-approved reply with BAGLAM_AGENT set", async () => {
+    store.addTrustRule({ projectId: null, agent: "codex" });
+    const res = await propose(await agent("whatever-client", { agent: "codex" }));
+    expect(text(res)).toMatch(/auto-approved/);
+    expect(store.visible(P, "cursor")).toHaveLength(1);
+  });
+
+  it("client-reported names never trigger trust rules", async () => {
+    store.addTrustRule({ projectId: null, agent: "codex" });
+    await propose(await agent("codex"));
+    expect(store.pending(P)).toHaveLength(1);
+  });
+
   it("roots change is picked up", async () => {
     const a = tmp(), b = tmp();
     const ka = createMarker(a).key, kb = createMarker(b).key;

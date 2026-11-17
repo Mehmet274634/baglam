@@ -2,7 +2,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { RootsListChangedNotificationSchema, type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { KINDS, type ContextStore } from "./store.js";
-import { FRAMING, formatBrief, formatEntry } from "./format.js";
+import { FRAMING, briefBudgetFromEnv, formatBrief, formatEntry } from "./format.js";
+import { floodLimitFromEnv, submitProposal } from "./policy.js";
+import { describeFindings } from "./guards.js";
 import { resolveProjectFor, type Resolution } from "./resolve.js";
 import type { ProjectRef } from "./project.js";
 
@@ -86,6 +88,7 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
       project,
       agent,
       entries: store.visible(project.key, agent, { limit: 1000 }),
+      budgetTokens: briefBudgetFromEnv(),
       pendingCount: store.pending(project.key).length,
     });
   }
@@ -223,8 +226,29 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
     guard(async ({ ttl_days, project_path, ...rest }) => {
       const r = await resolve(project_path);
       if (!r.ok) throw new Error(r.message);
-      const e = store.propose({ ...rest, ttlDays: ttl_days, project: r.project.key, sourceAgent: agentName() });
-      return `Proposed ${e.id} ("${e.title}") for ${label(r.project)}. It is pending human approval and is not yet visible to other agents.`;
+      const outcome = submitProposal(
+        store,
+        { ...rest, ttlDays: ttl_days, project: r.project.key, sourceAgent: agentName() },
+        { agentVerified: opts.agent !== undefined, floodLimit: floodLimitFromEnv() },
+      );
+      switch (outcome.status) {
+        case "blocked":
+          throw new Error(
+            `Not stored: it looks like it contains a secret (${describeFindings(outcome.findings)}). ` +
+              "Remove it and propose again.",
+          );
+        case "refused":
+          throw new Error(outcome.reason);
+        case "auto-approved":
+          return `Saved ${outcome.entry.id} ("${outcome.entry.title}") for ${label(r.project)} and shared with other agents (auto-approved by a trust rule the owner set).`;
+        case "pending": {
+          const e = outcome.entry;
+          const base = `Proposed ${e.id} ("${e.title}") for ${label(r.project)}. It is pending human approval and is not yet visible to other agents.`;
+          if (!outcome.similar.length) return base;
+          const list = outcome.similar.map((s) => `${s.id} "${s.title}" (${s.status === "proposed" ? "pending" : s.status})`).join(", ");
+          return `${base}\nSimilar records already exist: ${list}. If yours replaces one, propose again with supersedes set to its id.`;
+        }
+      }
     }),
   );
 

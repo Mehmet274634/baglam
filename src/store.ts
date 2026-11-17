@@ -58,6 +58,15 @@ export interface HistoryEvent {
 
 export type EntryPatch = Partial<Pick<NewEntry, "title" | "body" | "rationale" | "tags" | "audience" | "kind">>;
 
+export interface TrustRule {
+  id: string;
+  /** null = applies to every project. */
+  projectId: string | null;
+  agent: string | null;
+  kind: Kind | null;
+  createdAt: number;
+}
+
 export interface ProjectInfo {
   id: string;
   name: string;
@@ -197,13 +206,15 @@ export class ContextStore {
     return r ? toEntry(r) : undefined;
   }
 
-  approve(id: string, by: string, note?: string): Entry {
+  approve(id: string, by: string, note?: string, opts: { auto?: boolean } = {}): Entry {
     const e = this.mustBePending(id);
     const now = this.clock();
     this.transaction(() => {
       this.db
-        .prepare("UPDATE entries SET status='approved', decided_at=?, decided_by=?, decision_note=? WHERE id=?")
-        .run(now, by, note ?? null, id);
+        .prepare(
+          "UPDATE entries SET status='approved', decided_at=?, decided_by=?, decision_note=?, auto_approved=? WHERE id=?",
+        )
+        .run(now, by, note ?? null, opts.auto ? 1 : 0, id);
       this.event(id, e.project, "approved", by, note ?? null);
       if (e.supersedes) {
         const res = this.db
@@ -258,6 +269,55 @@ export class ContextStore {
       at: Number(r.at),
       detail: (r.detail as string | null) ?? null,
     }));
+  }
+
+  /** Proposals from `agent` in `project` still waiting for review. */
+  countPending(project: string, agent: string): number {
+    const r = this.db
+      .prepare("SELECT count(*) AS n FROM entries WHERE project = ? AND source_agent = ? AND status = 'proposed'")
+      .get(project, agent) as Row;
+    return Number(r.n);
+  }
+
+  /** Owner-defined rule: records from `agent` and/or of `kind` skip review. null projectId = every project. */
+  addTrustRule(r: { projectId: string | null; agent?: string; kind?: Kind }): TrustRule {
+    const agent = r.agent?.trim() || null;
+    const kind = r.kind ?? null;
+    if (!agent && !kind) throw new Error("a trust rule needs an agent or kind (or both)");
+    if (kind && !KINDS.includes(kind)) throw new Error(`kind must be one of: ${KINDS.join(", ")}`);
+    const id = `t${newId().slice(1)}`;
+    this.db
+      .prepare("INSERT INTO trust_rules (id, project_id, agent, kind, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run(id, r.projectId, agent, kind, this.clock());
+    return { id, projectId: r.projectId, agent, kind, createdAt: this.clock() };
+  }
+
+  /** Rules for `projectId` plus global ones; every rule when omitted. */
+  listTrustRules(projectId?: string): TrustRule[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM trust_rules WHERE (:p IS NULL OR project_id IS NULL OR project_id = :p)
+         ORDER BY created_at, rowid`,
+      )
+      .all({ p: projectId ?? null }) as Row[];
+    return rows.map((r) => ({
+      id: r.id as string,
+      projectId: (r.project_id as string | null) ?? null,
+      agent: (r.agent as string | null) ?? null,
+      kind: (r.kind as Kind | null) ?? null,
+      createdAt: Number(r.created_at),
+    }));
+  }
+
+  removeTrustRule(id: string): boolean {
+    return Number(this.db.prepare("DELETE FROM trust_rules WHERE id = ?").run(id).changes) > 0;
+  }
+
+  /** The first rule that lets this agent's record of this kind skip review in this project. */
+  matchTrustRule(project: string, agent: string, kind: Kind): TrustRule | undefined {
+    return this.listTrustRules(project).find(
+      (r) => (r.agent === null || r.agent === agent) && (r.kind === null || r.kind === kind),
+    );
   }
 
   /** Move every record (and its history) from one project key to another. Returns moved records. */

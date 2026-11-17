@@ -22,7 +22,9 @@ export function day(ms: number): string {
 
 export function formatEntry(e: Entry, opts: { full?: boolean } = {}): string {
   const meta = [`id ${e.id}`, `from ${e.sourceAgent}`];
-  if (e.decidedBy && e.status === "approved") meta.push(`approved by ${e.decidedBy} ${day(e.decidedAt!)}`);
+  if (e.decidedBy && e.status === "approved") {
+    meta.push(e.autoApproved ? `auto-approved ${day(e.decidedAt!)}` : `approved by ${e.decidedBy} ${day(e.decidedAt!)}`);
+  }
   if (e.status !== "approved") meta.push(`status ${e.status}`);
   if (e.expiresAt) meta.push(`expires ${day(e.expiresAt)}`);
   const lines = [`### [${e.kind}] ${e.title}`, `(${meta.join(" · ")})`, e.body];
@@ -38,6 +40,11 @@ export function formatEntry(e: Entry, opts: { full?: boolean } = {}): string {
 }
 
 export const DEFAULT_BRIEF_BUDGET = 2000;
+
+export function briefBudgetFromEnv(): number {
+  const n = Number(process.env.BAGLAM_BRIEF_BUDGET);
+  return Number.isInteger(n) && n >= 200 ? n : DEFAULT_BRIEF_BUDGET;
+}
 const CHARS_PER_TOKEN = 4;
 const SEP = "\n\n";
 
