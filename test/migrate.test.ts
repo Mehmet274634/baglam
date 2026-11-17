@@ -20,7 +20,7 @@ describe("schema migrations", () => {
   it("fresh in-memory db ends at SCHEMA_VERSION", () => {
     const db = new DatabaseSync(":memory:");
     expect(migrate(db, ":memory:")).toEqual({ from: 0, to: SCHEMA_VERSION });
-    expect(userVersion(db)).toBe(2);
+    expect(userVersion(db)).toBe(SCHEMA_VERSION);
     const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map((t) => t.name);
     expect(tables).toEqual(expect.arrayContaining(["entries", "projects", "events", "trust_rules"]));
   });
@@ -43,16 +43,31 @@ describe("schema migrations", () => {
     store.close();
 
     const db = new DatabaseSync(path);
-    expect(userVersion(db)).toBe(2);
+    expect(userVersion(db)).toBe(SCHEMA_VERSION);
     db.close();
     expect(existsSync(path + ".v1-backup")).toBe(true);
+  });
+
+  it("schema 3 adds similar_to, defaulting to [] for existing rows", () => {
+    expect(SCHEMA_VERSION).toBe(3);
+    const path = tempDb();
+    const old = new DatabaseSync(path);
+    old.exec(V1_SCHEMA);
+    old.prepare(
+      `INSERT INTO entries (id, project, kind, title, body, status, source_agent, created_at)
+       VALUES ('cold2', 'c:/p', 'fact', 't', 'b', 'approved', 'a', 1)`,
+    ).run();
+    old.close();
+    const store = new ContextStore(path);
+    expect(store.get("cold2")?.similarTo).toEqual([]);
+    store.close();
   });
 
   it("is idempotent", () => {
     const path = tempDb();
     new ContextStore(path).close();
     const db = new DatabaseSync(path);
-    expect(migrate(db, path)).toEqual({ from: 2, to: 2 });
+    expect(migrate(db, path)).toEqual({ from: SCHEMA_VERSION, to: SCHEMA_VERSION });
     db.close();
     expect(readdirSync(join(path, "..")).filter((f) => f.includes("backup"))).toEqual([]);
   });

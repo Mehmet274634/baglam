@@ -72,10 +72,15 @@ ALTER TABLE entries ADD COLUMN edited_at INTEGER;
 ALTER TABLE entries ADD COLUMN auto_approved INTEGER NOT NULL DEFAULT 0;
 `;
 
+const V3_SCHEMA = `
+ALTER TABLE entries ADD COLUMN similar_to TEXT NOT NULL DEFAULT '[]';
+`;
+
 /** Index i upgrades the database from version i to version i + 1. */
 const STEPS: ((db: DatabaseSync) => void)[] = [
   (db) => db.exec(V1_SCHEMA),
   (db) => db.exec(V2_SCHEMA),
+  (db) => db.exec(V3_SCHEMA),
 ];
 
 export const SCHEMA_VERSION = STEPS.length;

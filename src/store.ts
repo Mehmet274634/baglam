@@ -28,6 +28,8 @@ export interface Entry {
   supersededBy: string | null;
   editedAt: number | null;
   autoApproved: boolean;
+  /** Ids of records that looked like this one when it was proposed. */
+  similarTo: string[];
 }
 
 export interface NewEntry {
@@ -41,6 +43,8 @@ export interface NewEntry {
   audience?: string[];
   ttlDays?: number;
   supersedes?: string;
+  /** Ids of similar records found at proposal time (set by the proposal policy). */
+  similarTo?: string[];
 }
 
 export type EventType = "proposed" | "approved" | "rejected" | "superseded" | "edited" | "expired" | "deleted";
@@ -129,7 +133,21 @@ function toEntry(r: Row): Entry {
     supersededBy: (r.superseded_by as string | null) ?? null,
     editedAt: r.edited_at == null ? null : Number(r.edited_at),
     autoApproved: Number(r.auto_approved ?? 0) === 1,
+    similarTo: JSON.parse((r.similar_to as string | undefined) ?? "[]"),
   };
+}
+
+/** Lower-cased words of 3+ letters/digits (Unicode-aware), as a set. */
+function wordSet(text: string): Set<string> {
+  // Plain toLowerCase, not Turkish locale: words feed an FTS query whose tokenizer folds I→i.
+  return new Set(text.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []);
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  for (const w of a) if (b.has(w)) shared++;
+  return shared / (a.size + b.size - shared);
 }
 
 /** Validate the editable fields of a record; returns DB-ready values. */
@@ -302,6 +320,44 @@ export class ContextStore {
     return rows.map(toEntry);
   }
 
+  /**
+   * Active (approved, unexpired) or pending records in `project` that say nearly the same thing.
+   * Word-set Jaccard on title+body ≥ 0.5, or on titles ≥ 0.8. Best match first.
+   */
+  findSimilar(
+    project: string,
+    text: { title: string; body: string },
+    opts: { kind?: Kind; excludeId?: string; limit?: number } = {},
+  ): Entry[] {
+    const all = wordSet(`${text.title} ${text.body}`);
+    const titleWords = wordSet(text.title);
+    const query = [...all].slice(0, 24).map((w) => `"${w}"`).join(" OR ");
+    if (!query) return [];
+    const rows = this.db
+      .prepare(
+        `SELECT e.* FROM entries_fts f JOIN entries e ON e.rowid = f.rowid
+         WHERE entries_fts MATCH :query AND e.project = :project
+           AND (e.status = 'proposed' OR (e.status = 'approved' AND (e.expires_at IS NULL OR e.expires_at > :now)))
+           AND (:kind IS NULL OR e.kind = :kind)
+           AND (:exclude IS NULL OR e.id != :exclude)
+         ORDER BY bm25(entries_fts) LIMIT 10`,
+      )
+      .all({ query, project, now: this.clock(), kind: opts.kind ?? null, exclude: opts.excludeId ?? null }) as Row[];
+    return rows
+      .map(toEntry)
+      .map((e) => ({
+        e,
+        score: Math.max(
+          jaccard(all, wordSet(`${e.title} ${e.body}`)),
+          jaccard(titleWords, wordSet(e.title)) >= 0.8 ? 1 : 0,
+        ),
+      }))
+      .filter((x) => x.score >= 0.5)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, opts.limit ?? 3)
+      .map((x) => x.e);
+  }
+
   /** Pending proposals; all projects when `project` is omitted. Oldest first. */
   pending(project?: string): Entry[] {
     const rows = this.db
@@ -348,14 +404,15 @@ export class ContextStore {
       this.db
         .prepare(
           `INSERT INTO entries (id, project, kind, title, body, rationale, tags, audience, status,
-                                source_agent, created_at, expires_at, supersedes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                source_agent, created_at, expires_at, supersedes, similar_to)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id, project, v.kind, v.title, v.body, v.rationale, v.tags, v.audience,
           status, sourceAgent, now,
           input.ttlDays ? now + Math.round(input.ttlDays * DAY_MS) : null,
           input.supersedes ?? null,
+          JSON.stringify(cleanList(input.similarTo)),
         );
       this.event(id, project, "proposed", sourceAgent, null);
     });
