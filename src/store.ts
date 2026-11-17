@@ -1,12 +1,12 @@
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { basename, dirname } from "node:path";
 import { migrate } from "./migrate.js";
 
 export const KINDS = ["decision", "convention", "preference", "fact", "warning"] as const;
 export type Kind = (typeof KINDS)[number];
-export type Status = "proposed" | "approved" | "rejected" | "superseded";
+export type Status = "proposed" | "approved" | "rejected" | "superseded" | "retired";
 
 export interface Entry {
   id: string;
@@ -47,7 +47,9 @@ export interface NewEntry {
   similarTo?: string[];
 }
 
-export type EventType = "proposed" | "approved" | "rejected" | "superseded" | "edited" | "expired" | "deleted";
+export type EventType =
+  | "proposed" | "approved" | "rejected" | "superseded" | "edited" | "expired" | "deleted"
+  | "retired" | "archived" | "restored";
 
 export interface HistoryEvent {
   type: EventType;
@@ -65,6 +67,16 @@ export interface TrustRule {
   agent: string | null;
   kind: Kind | null;
   createdAt: number;
+}
+
+export interface ProjectRow {
+  key: string;
+  name: string;
+  path: string | null;
+  archived: boolean;
+  approved: number;
+  pending: number;
+  lastActivity: number | null;
 }
 
 export interface ProjectInfo {
@@ -209,33 +221,61 @@ export class ContextStore {
   approve(id: string, by: string, note?: string, opts: { auto?: boolean } = {}): Entry {
     const e = this.mustBePending(id);
     const now = this.clock();
+    this.transaction(() => this.approveRow(e, by, note, opts.auto ?? false, now));
+    return this.get(id)!;
+  }
+
+  /** Approve the listed proposals that are still pending, all in one transaction; others are skipped. */
+  approveMany(ids: string[], by: string): { approved: string[]; skipped: string[] } {
+    const approved: string[] = [];
+    const skipped: string[] = [];
+    const now = this.clock();
     this.transaction(() => {
-      this.db
-        .prepare(
-          "UPDATE entries SET status='approved', decided_at=?, decided_by=?, decision_note=?, auto_approved=? WHERE id=?",
-        )
-        .run(now, by, note ?? null, opts.auto ? 1 : 0, id);
-      this.event(id, e.project, "approved", by, note ?? null);
-      if (e.supersedes) {
-        const res = this.db
-          .prepare("UPDATE entries SET status='superseded', superseded_by=? WHERE id=? AND status='approved'")
-          .run(id, e.supersedes);
-        if (Number(res.changes) > 0) this.event(e.supersedes, e.project, "superseded", by, id);
+      for (const id of ids) {
+        const e = this.get(id);
+        if (e?.status === "proposed") {
+          this.approveRow(e, by, undefined, false, now);
+          approved.push(id);
+        } else skipped.push(id);
       }
     });
-    return this.get(id)!;
+    return { approved, skipped };
+  }
+
+  /** Inside a transaction. The status guard in the UPDATE makes a concurrent decision lose cleanly. */
+  private approveRow(e: Entry, by: string, note: string | undefined, auto: boolean, now: number): void {
+    const res = this.db
+      .prepare(
+        "UPDATE entries SET status='approved', decided_at=?, decided_by=?, decision_note=?, auto_approved=? WHERE id=? AND status='proposed'",
+      )
+      .run(now, by, note ?? null, auto ? 1 : 0, e.id);
+    if (!Number(res.changes)) this.notPending(e.id);
+    this.event(e.id, e.project, "approved", by, note ?? null);
+    if (e.supersedes) {
+      const sup = this.db
+        .prepare("UPDATE entries SET status='superseded', superseded_by=? WHERE id=? AND status='approved'")
+        .run(e.id, e.supersedes);
+      if (Number(sup.changes) > 0) this.event(e.supersedes, e.project, "superseded", by, e.id);
+    }
+  }
+
+  private notPending(id: string): never {
+    throw new Error(`entry ${id} is not pending (status: ${this.get(id)?.status ?? "deleted"})`);
   }
 
   reject(id: string, by: string, note?: string): Entry {
     const e = this.mustBePending(id);
+    const now = this.clock();
     this.transaction(() => {
-      this.db
-        .prepare("UPDATE entries SET status='rejected', decided_at=?, decided_by=?, decision_note=? WHERE id=?")
-        .run(this.clock(), by, note ?? null, id);
+      const res = this.db
+        .prepare("UPDATE entries SET status='rejected', decided_at=?, decided_by=?, decision_note=? WHERE id=? AND status='proposed'")
+        .run(now, by, note ?? null, id);
+      if (!Number(res.changes)) this.notPending(id);
       this.event(id, e.project, "rejected", by, note ?? null);
     });
     return this.get(id)!;
   }
+
 
   /** Change a pending or active record. Only humans call this (CLI/panel); agents cannot. */
   edit(id: string, patch: EntryPatch, by: string): Entry {
@@ -244,8 +284,10 @@ export class ContextStore {
     if (e.status !== "proposed" && e.status !== "approved") {
       throw new Error(`cannot edit entry ${id} (status: ${e.status})`);
     }
-    const next = validate({ ...e, rationale: e.rationale ?? undefined, ...patch });
-    const changed = (Object.keys(patch) as (keyof EntryPatch)[]).filter((k) => patch[k] !== undefined);
+    // Fields left undefined mean "unchanged", never "clear".
+    const given = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as EntryPatch;
+    const next = validate({ ...e, rationale: e.rationale ?? undefined, ...given });
+    const changed = Object.keys(given) as (keyof EntryPatch)[];
     if (!changed.length) return e;
     this.transaction(() => {
       this.db
@@ -334,12 +376,141 @@ export class ContextStore {
   /** Remember an initialised project (marker id) and where it was last seen. */
   touchProject(ref: { key: string; name: string; dir: string }): void {
     if (!UUID.test(ref.key)) return;
+    // Writes only when something changed (reads call this on every tool call), and never
+    // overwrites a name the owner chose in the panel.
     this.db
       .prepare(
         `INSERT INTO projects (id, name, last_path, created_at) VALUES (?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET name = excluded.name, last_path = excluded.last_path`,
+         ON CONFLICT(id) DO UPDATE SET
+           name = CASE WHEN projects.custom_name = 1 THEN projects.name ELSE excluded.name END,
+           last_path = excluded.last_path
+         WHERE projects.last_path IS NOT excluded.last_path
+            OR (projects.custom_name = 0 AND projects.name IS NOT excluded.name)`,
       )
       .run(ref.key, ref.name, ref.dir, this.clock());
+  }
+
+  /** Every project the owner has: registered ones and path-keyed ones that hold records. */
+  listProjects(opts: { includeArchived?: boolean } = {}): ProjectRow[] {
+    const rows = this.db
+      .prepare(
+        `WITH keys AS (
+           SELECT id AS key FROM projects
+           UNION SELECT DISTINCT project FROM entries
+         )
+         SELECT k.key, p.name, p.last_path, p.archived_at,
+           (SELECT count(*) FROM entries e WHERE e.project = k.key AND e.status = 'approved'
+              AND (e.expires_at IS NULL OR e.expires_at > :now)) AS approved,
+           (SELECT count(*) FROM entries e WHERE e.project = k.key AND e.status = 'proposed') AS pending,
+           (SELECT max(at) FROM events v WHERE v.project = k.key) AS last_activity
+         FROM keys k LEFT JOIN projects p ON p.id = k.key
+         ORDER BY last_activity DESC NULLS LAST, k.key`,
+      )
+      .all({ now: this.clock() }) as Row[];
+    return rows
+      .map((r) => {
+        const key = r.key as string;
+        const path = (r.last_path as string | null) ?? (UUID.test(key) ? null : key);
+        return {
+          key,
+          name: (r.name as string | null) ?? (path ? basename(path) || path : key),
+          path,
+          archived: r.archived_at != null,
+          approved: Number(r.approved),
+          pending: Number(r.pending),
+          lastActivity: r.last_activity == null ? null : Number(r.last_activity),
+        };
+      })
+      .filter((p) => opts.includeArchived || !p.archived);
+  }
+
+  renameProject(id: string, name: string): void {
+    const clean = requireText(name, "name", 100);
+    const res = this.db.prepare("UPDATE projects SET name = ?, custom_name = 1 WHERE id = ?").run(clean, id);
+    if (!Number(res.changes)) throw new Error(`unknown project ${id} (only initialised projects can be renamed)`);
+  }
+
+  archiveProject(id: string, by: string): void {
+    this.setArchived(id, by, true);
+  }
+
+  restoreProject(id: string, by: string): void {
+    this.setArchived(id, by, false);
+  }
+
+  private setArchived(id: string, by: string, archived: boolean): void {
+    this.transaction(() => {
+      const res = this.db
+        .prepare("UPDATE projects SET archived_at = ? WHERE id = ?")
+        .run(archived ? this.clock() : null, id);
+      if (!Number(res.changes)) throw new Error(`unknown project ${id} (only initialised projects can be archived)`);
+      this.event(null, id, archived ? "archived" : "restored", by, null);
+    });
+  }
+
+  /** Permanently delete a project's records (history stays). Returns deleted record count. */
+  deleteProject(key: string, by: string): number {
+    let n = 0;
+    this.transaction(() => {
+      const ids = (this.db.prepare("SELECT id FROM entries WHERE project = ?").all(key) as Row[]).map((r) => r.id as string);
+      for (const id of ids) this.event(id, key, "deleted", by, null);
+      n = Number(this.db.prepare("DELETE FROM entries WHERE project = ?").run(key).changes);
+      this.db.prepare("DELETE FROM projects WHERE id = ?").run(key);
+      this.db.prepare("DELETE FROM trust_rules WHERE project_id = ?").run(key);
+    });
+    return n;
+  }
+
+  /** Approved record → retired: kept for history, hidden from agents. */
+  retire(id: string, by: string, note?: string): Entry {
+    const e = this.get(id);
+    if (!e) throw new Error(`unknown entry ${id}`);
+    if (e.status !== "approved") throw new Error(`entry ${id} is not active (status: ${e.status}); only active records can be retired`);
+    this.transaction(() => {
+      const res = this.db.prepare("UPDATE entries SET status = 'retired' WHERE id = ? AND status = 'approved'").run(id);
+      if (!Number(res.changes)) throw new Error(`entry ${id} is not active (status: ${this.get(id)?.status ?? "deleted"}); only active records can be retired`);
+      this.event(id, e.project, "retired", by, note ?? null);
+    });
+    return this.get(id)!;
+  }
+
+  /** Filtered, paginated listing for humans. Newest first. */
+  query(opts: {
+    project?: string;
+    status?: Status | "active";
+    kind?: Kind;
+    agent?: string;
+    text?: string;
+    limit?: number;
+    offset?: number;
+  }): { items: Entry[]; total: number } {
+    const where: string[] = [];
+    const params: Record<string, SQLInputValue> = {};
+    if (opts.project) (where.push("e.project = :project"), (params.project = opts.project));
+    if (opts.status === "active") {
+      where.push("e.status = 'approved' AND (e.expires_at IS NULL OR e.expires_at > :now)");
+      params.now = this.clock();
+    } else if (opts.status) (where.push("e.status = :status"), (params.status = opts.status));
+    if (opts.kind) (where.push("e.kind = :kind"), (params.kind = opts.kind));
+    if (opts.agent) (where.push("e.source_agent = :agent"), (params.agent = opts.agent));
+    const match = opts.text ? toFtsQuery(opts.text) : null;
+    if (match) {
+      where.push("e.rowid IN (SELECT rowid FROM entries_fts WHERE entries_fts MATCH :match)");
+      params.match = match;
+    }
+    const sqlWhere = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const total = Number((this.db.prepare(`SELECT count(*) AS n FROM entries e ${sqlWhere}`).get(params) as Row).n);
+    const items = (
+      this.db
+        .prepare(`SELECT e.* FROM entries e ${sqlWhere} ORDER BY e.created_at DESC, e.rowid DESC LIMIT :limit OFFSET :offset`)
+        .all({ ...params, limit: Math.min(opts.limit ?? 50, 500), offset: opts.offset ?? 0 }) as Row[]
+    ).map(toEntry);
+    return { items, total };
+  }
+
+  /** Changes whenever any connection commits; the panel uses it to push live updates. */
+  dataVersion(): number {
+    return Number((this.db.prepare("PRAGMA data_version").get() as Row).data_version);
   }
 
   projectInfo(id: string): ProjectInfo | undefined {
@@ -509,7 +680,7 @@ export class ContextStore {
     return this.get(id)!;
   }
 
-  private event(entryId: string, project: string, type: EventType, actor: string, detail: string | null): void {
+  private event(entryId: string | null, project: string, type: EventType, actor: string, detail: string | null): void {
     this.db
       .prepare("INSERT INTO events (entry_id, project, type, actor, at, detail) VALUES (?, ?, ?, ?, ?, ?)")
       .run(entryId, project, type, actor, this.clock(), detail);

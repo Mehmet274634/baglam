@@ -49,7 +49,7 @@ describe("schema migrations", () => {
   });
 
   it("schema 3 adds similar_to, defaulting to [] for existing rows", () => {
-    expect(SCHEMA_VERSION).toBe(3);
+    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(3);
     const path = tempDb();
     const old = new DatabaseSync(path);
     old.exec(V1_SCHEMA);
