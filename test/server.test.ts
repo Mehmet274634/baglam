@@ -157,6 +157,19 @@ describe("MCP server", () => {
     expect(brief).toContain("Beta fact");
   });
 
+  it("lists brief resource and start prompt", async () => {
+    store.addApproved({ project: P, kind: "decision", title: "Use pnpm", body: "b" }, "human");
+    const c = await agent("cursor");
+    const { resources } = await c.listResources();
+    expect(resources.map((r) => r.uri)).toContain("baglam://brief");
+    const read = await c.readResource({ uri: "baglam://brief" });
+    expect((read.contents[0] as { text: string }).text).toContain("Use pnpm");
+    const { prompts } = await c.listPrompts();
+    expect(prompts.map((p) => p.name)).toContain("baglam_start");
+    const prompt = await c.getPrompt({ name: "baglam_start" });
+    expect(JSON.stringify(prompt.messages)).toContain("context_brief");
+  });
+
   it("roots change is picked up", async () => {
     const a = tmp(), b = tmp();
     const ka = createMarker(a).key, kb = createMarker(b).key;

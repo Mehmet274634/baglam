@@ -82,8 +82,57 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
     };
 
   function briefFor(project: ProjectRef, agent: string): string {
-    return formatBrief(label(project), agent, store.visible(project.key, agent), store.pending(project.key).length);
+    return formatBrief({
+      project,
+      agent,
+      entries: store.visible(project.key, agent, { limit: 1000 }),
+      pendingCount: store.pending(project.key).length,
+    });
   }
+
+  async function brief(projectPath: string | undefined): Promise<string> {
+    const agent = agentName();
+    const r = await resolve(projectPath);
+    if (r.ok) return briefFor(r.project, agent);
+    const known = r.candidates.filter((c) => c.initialized);
+    if (r.reason === "ambiguous" && known.length) {
+      return [r.message, ...known.map((p) => briefFor(p, agent))].join("\n\n---\n\n");
+    }
+    return r.message;
+  }
+
+  server.registerResource(
+    "brief",
+    "baglam://brief",
+    {
+      title: "Shared project context",
+      description: "Approved Bağlam records for the current project (same as the context_brief tool).",
+      mimeType: "text/markdown",
+    },
+    async (uri) => ({ contents: [{ uri: uri.href, mimeType: "text/markdown", text: await brief(undefined) }] }),
+  );
+
+  server.registerPrompt(
+    "baglam_start",
+    {
+      title: "Start with shared context",
+      description: "Load the project's shared Bağlam context before starting work.",
+    },
+    () => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text:
+              "Before you start, call the context_brief tool (pass project_path with this workspace's folder) and " +
+              "follow the decisions, conventions and warnings it returns. When you settle something other agents " +
+              "should know, propose it with context_propose.",
+          },
+        },
+      ],
+    }),
+  );
 
   server.registerTool(
     "context_brief",
@@ -95,16 +144,7 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
       inputSchema: { project_path: projectPathSchema },
       annotations: { readOnlyHint: true },
     },
-    guard(async ({ project_path }) => {
-      const agent = agentName();
-      const r = await resolve(project_path);
-      if (r.ok) return briefFor(r.project, agent);
-      const known = r.candidates.filter((c) => c.initialized);
-      if (r.reason === "ambiguous" && known.length) {
-        return [r.message, ...known.map((p) => briefFor(p, agent))].join("\n\n---\n\n");
-      }
-      return r.message;
-    }),
+    guard(({ project_path }) => brief(project_path)),
   );
 
   server.registerTool(
