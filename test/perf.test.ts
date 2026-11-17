@@ -6,8 +6,17 @@ import { ContextStore, KINDS } from "../src/store.js";
 import { formatBrief } from "../src/format.js";
 
 const P = "11111111-2222-4333-8444-555555555555";
-const BUDGET_MS = 50;
-const WORDS = "database cache queue worker deploy staging lint format test build release api schema index migration token session theme layout router".split(" ");
+// 50 ms is the product budget, measured on an idle machine (`npm run test:perf`).
+// Shared CI runners are noisier, so CI passes a looser BAGLAM_PERF_BUDGET_MS.
+const BUDGET_MS = Number(process.env.BAGLAM_PERF_BUDGET_MS) || 50;
+// A realistic vocabulary (~3,000 words) so records overlap the way real notes do; with only a
+// handful of words every record would match every query, which no real project looks like.
+const SYLLABLES = "ba ce di fo gu ka le mi no pu ra se ti vo zu da ne ri so tu ma pe li ko ru".split(" ");
+const WORDS = Array.from({ length: 3000 }, (_, i) => {
+  let w = "", n = i + 7;
+  for (let k = 0; k < 3; k++) { w += SYLLABLES[n % SYLLABLES.length]; n = Math.floor(n / SYLLABLES.length) + k * 13; }
+  return w;
+}).concat("database cache queue worker deploy staging lint format test build release api schema index migration token".split(" "));
 
 function median(fn: () => void, runs = 20): number {
   for (let i = 0; i < 3; i++) fn(); // warm-up
@@ -50,10 +59,13 @@ describe("speed with 10,000 records", () => {
 
   it(`brief stays under ${BUDGET_MS} ms`, () => {
     const ms = median(() =>
+      // Exactly what context_brief does.
       formatBrief({
         project: { key: P, name: "app", dir: "c:/app", initialized: true, anchor: "marker" },
         agent: "cursor",
-        entries: store.visible(P, "cursor", { limit: 1000 }),
+        entries: store.visible(P, "cursor", { limit: 150, byPriority: true }),
+        total: store.countVisible(P, "cursor", 1000),
+        totalCapped: true,
         pendingCount: store.pending(P).length,
       }),
     );

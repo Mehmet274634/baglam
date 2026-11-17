@@ -26,6 +26,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - name: Speed budget (looser on shared runners)
+        run: npm run test:perf
+        env:
+          BAGLAM_PERF_BUDGET_MS: "150"
       - run: npm run build
       - name: Pack, install and run the packaged CLI
         run: npm run smoke

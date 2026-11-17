@@ -5,6 +5,23 @@ import { day } from "./format.js";
 
 export const EXPORT_FORMAT = "baglam/1";
 
+const EVENT_TYPES: EventType[] = [
+  "proposed", "approved", "rejected", "superseded", "edited", "expired", "deleted", "retired", "archived", "restored", "imported",
+];
+
+/** Every row a query matches, fetched page by page (each call counts its own rows). */
+function allOf(store: ContextStore, q: Omit<Parameters<ContextStore["query"]>[0], "limit" | "offset">): Entry[] {
+  const out: Entry[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const page = store.query({ ...q, limit: 500, offset });
+    out.push(...page.items);
+    if (!page.items.length || offset + page.items.length >= page.total) return out;
+  }
+}
+
+const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const oneLine = (s: string) => escapeHtml(s.replace(/\r?\n/g, " "));
+
 export interface ExportedEvent {
   entryId: string;
   type: EventType;
@@ -27,14 +44,7 @@ export function exportJson(store: ContextStore, opts: { project?: string } = {})
     .listProjects({ includeArchived: true })
     .filter((p) => !opts.project || p.key === opts.project)
     .map((p) => ({ key: p.key, name: p.name }));
-  const entries: Entry[] = [];
-  for (const p of projects) {
-    for (let offset = 0; ; offset += 500) {
-      const page = store.query({ project: p.key, limit: 500, offset });
-      entries.push(...page.items);
-      if (entries.length >= page.total || !page.items.length) break;
-    }
-  }
+  const entries = projects.flatMap((p) => allOf(store, { project: p.key }));
   entries.sort((a, b) => a.createdAt - b.createdAt);
   const events = store.eventsOf(entries.map((e) => e.id)).map(({ project: _p, ...ev }) => ev);
   return { format: EXPORT_FORMAT, exportedAt: new Date().toISOString(), projects, entries, events };
@@ -59,19 +69,19 @@ const quote = (text: string) =>
 /** A readable CONTEXT.md of the project's active records. */
 export function exportMarkdown(store: ContextStore, project: string): string {
   const name = store.listProjects({ includeArchived: true }).find((p) => p.key === project)?.name ?? project;
-  const active = store.query({ project, status: "active", limit: 500 }).items;
-  const out = [`# Shared project context: ${name}`, "", `_Exported from Bağlam on ${day(Date.now())}. ${active.length} active record(s)._`];
+  const active = allOf(store, { project, status: "active" });
+  const out = [`# Shared project context: ${oneLine(name)}`, "", `_Exported from Bağlam on ${day(Date.now())}. ${active.length} active record(s)._`];
   for (const kind of KIND_ORDER) {
     const group = active.filter((e) => e.kind === kind);
     if (!group.length) continue;
     out.push("", `## ${HEADINGS[kind]}`);
     for (const e of group) {
-      out.push("", `### ${e.title.replace(/\r?\n/g, " ")}`, "", quote(e.body));
-      if (e.rationale) out.push("", `**Why:** ${e.rationale.replace(/\r?\n/g, " ")}`);
+      out.push("", `### ${oneLine(e.title)}`, "", quote(e.body));
+      if (e.rationale) out.push("", `**Why:** ${oneLine(e.rationale)}`);
       const meta = [`\`${e.id}\``, `from ${e.sourceAgent}`];
       if (e.decidedBy) meta.push(e.autoApproved ? "auto-approved" : `approved by ${e.decidedBy}`);
       if (e.tags.length) meta.push(e.tags.map((t) => `#${t}`).join(" "));
-      out.push("", `<sub>${meta.join(" · ")}</sub>`);
+      out.push("", `<sub>${escapeHtml(meta.join(" · "))}</sub>`);
     }
   }
   return out.join("\n") + "\n";
@@ -79,6 +89,8 @@ export function exportMarkdown(store: ContextStore, project: string): string {
 
 export interface ImportResult {
   imported: number;
+  /** Imported records that arrived approved, so agents can see them right away. */
+  approvedNow: number;
   skipped: number;
   blocked: { id: string; findings: SecretFinding[] }[];
 }
@@ -106,12 +118,16 @@ function toEntry(raw: unknown): Entry | null {
 }
 
 /** Merge an export into this database by record id. Existing ids are never overwritten. */
-export function importJson(store: ContextStore, data: unknown, opts: { force?: boolean; by: string }): ImportResult {
+export function importJson(
+  store: ContextStore,
+  data: unknown,
+  opts: { force?: boolean; by: string; source?: string },
+): ImportResult {
   if (!isObj(data) || data.format !== EXPORT_FORMAT || !Array.isArray(data.entries)) {
     throw new Error(`not a Bağlam export (expected "format": "${EXPORT_FORMAT}")`);
   }
   const events = Array.isArray(data.events) ? data.events.filter(isObj) : [];
-  const result: ImportResult = { imported: 0, skipped: 0, blocked: [] };
+  const result: ImportResult = { imported: 0, approvedNow: 0, skipped: 0, blocked: [] };
   if (Array.isArray(data.projects)) {
     for (const p of data.projects.filter(isObj)) {
       if (typeof p.key === "string" && typeof p.name === "string") store.ensureProject(p.key, p.name);
@@ -129,11 +145,16 @@ export function importJson(store: ContextStore, data: unknown, opts: { force?: b
       continue;
     }
     const history = events
-      .filter((ev) => ev.entryId === e.id && typeof ev.type === "string" && typeof ev.actor === "string" && typeof ev.at === "number")
+      .filter(
+        (ev) =>
+          ev.entryId === e.id && EVENT_TYPES.includes(ev.type as EventType) && typeof ev.actor === "string" && typeof ev.at === "number",
+      )
       .map((ev) => ({ type: ev.type as EventType, actor: ev.actor as string, at: ev.at as number, detail: typeof ev.detail === "string" ? ev.detail : null }));
     try {
-      if (store.importEntry(e, history)) result.imported++;
-      else result.skipped++;
+      if (store.importEntry(e, history, { actor: opts.by, detail: opts.source ?? null })) {
+        result.imported++;
+        if (e.status === "approved") result.approvedNow++;
+      } else result.skipped++;
     } catch {
       result.skipped++;
     }

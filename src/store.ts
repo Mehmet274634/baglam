@@ -6,6 +6,9 @@ import { migrate } from "./migrate.js";
 
 export const KINDS = ["decision", "convention", "preference", "fact", "warning"] as const;
 export type Kind = (typeof KINDS)[number];
+
+/** The order a brief keeps records in when it has to cut. */
+const PRIORITY: Kind[] = ["warning", "decision", "convention", "preference", "fact"];
 export type Status = "proposed" | "approved" | "rejected" | "superseded" | "retired";
 
 export interface Entry {
@@ -49,7 +52,7 @@ export interface NewEntry {
 
 export type EventType =
   | "proposed" | "approved" | "rejected" | "superseded" | "edited" | "expired" | "deleted"
-  | "retired" | "archived" | "restored";
+  | "retired" | "archived" | "restored" | "imported";
 
 export interface HistoryEvent {
   type: EventType;
@@ -103,7 +106,7 @@ const VISIBLE = `
   e.project = :project
   AND e.status = 'approved'
   AND (e.expires_at IS NULL OR e.expires_at > :now)
-  AND EXISTS (SELECT 1 FROM json_each(e.audience) WHERE value IN ('*', :agent))
+  AND (e.audience = '["*"]' OR EXISTS (SELECT 1 FROM json_each(e.audience) WHERE value IN ('*', :agent)))
 `;
 
 type Row = Record<string, SQLInputValue>;
@@ -322,7 +325,8 @@ export class ContextStore {
   ensureProject(key: string, name: string): void {
     if (!UUID.test(key)) return;
     this.db
-      .prepare("INSERT INTO projects (id, name, last_path, created_at) VALUES (?, ?, NULL, ?) ON CONFLICT(id) DO NOTHING")
+      // An archived project that comes back through an import is restored (spec §8).
+      .prepare("INSERT INTO projects (id, name, last_path, created_at) VALUES (?, ?, NULL, ?) ON CONFLICT(id) DO UPDATE SET archived_at = NULL")
       .run(key, requireText(name, "name", 100), this.clock());
   }
 
@@ -349,7 +353,11 @@ export class ContextStore {
    * Insert a record exactly as exported elsewhere (id, status and history kept).
    * Returns false when the id already exists. Fields are validated like any other record.
    */
-  importEntry(e: Entry, events: { type: EventType; actor: string; at: number; detail: string | null }[]): boolean {
+  importEntry(
+    e: Entry,
+    events: { type: EventType; actor: string; at: number; detail: string | null }[],
+    importedBy?: { actor: string; detail: string | null },
+  ): boolean {
     if (this.get(e.id)) return false;
     const v = validate(e);
     const STATUSES: Status[] = ["proposed", "approved", "rejected", "superseded", "retired"];
@@ -373,6 +381,8 @@ export class ContextStore {
           .prepare("INSERT INTO events (entry_id, project, type, actor, at, detail) VALUES (?, ?, ?, ?, ?, ?)")
           .run(e.id, e.project, ev.type, ev.actor, ev.at, ev.detail);
       }
+      // The import itself is part of the record's history: who brought it in, and from where.
+      if (importedBy) this.event(e.id, e.project, "imported", importedBy.actor, importedBy.detail);
     });
     return true;
   }
@@ -602,15 +612,47 @@ export class ContextStore {
   }
 
   /** Approved, unexpired entries this agent may see, newest first. */
-  visible(project: string, agent: string, opts: { kind?: Kind; limit?: number } = {}): Entry[] {
-    const rows = this.db
-      .prepare(
-        `SELECT e.* FROM entries e WHERE ${VISIBLE}
-         AND (:kind IS NULL OR e.kind = :kind)
-         ORDER BY e.decided_at DESC, e.rowid DESC LIMIT :limit`,
-      )
-      .all({ project, agent, now: this.clock(), kind: opts.kind ?? null, limit: opts.limit ?? 200 }) as Row[];
-    return rows.map(toEntry);
+  /**
+   * Approved, unexpired entries this agent may see. Newest first, or with `byPriority`
+   * warnings → decisions → conventions → preferences → facts (newest first within each),
+   * which is the order the brief keeps when it has to cut.
+   */
+  visible(project: string, agent: string, opts: { kind?: Kind; limit?: number; byPriority?: boolean } = {}): Entry[] {
+    const limit = opts.limit ?? 200;
+    const page = (kind: Kind | null, n: number) =>
+      (
+        this.db
+          .prepare(
+            `SELECT e.* FROM entries e WHERE ${VISIBLE}
+             AND (:kind IS NULL OR e.kind = :kind)
+             ORDER BY e.decided_at DESC, e.rowid DESC LIMIT :limit`,
+          )
+          .all({ project, agent, now: this.clock(), kind, limit: n }) as Row[]
+      ).map(toEntry);
+    if (!opts.byPriority || opts.kind) return page(opts.kind ?? null, limit);
+    // One indexed query per kind, in priority order, until the slice is full.
+    const out: Entry[] = [];
+    for (const kind of PRIORITY) {
+      if (out.length >= limit) break;
+      out.push(...page(kind, limit - out.length));
+    }
+    return out;
+  }
+
+  /** Visible records, counted up to `cap` (counting stops there; the brief only needs "how many more"). */
+  countVisible(project: string, agent: string, cap = Number.MAX_SAFE_INTEGER): number {
+    return Number(
+      (
+        this.db
+          .prepare(`SELECT count(*) AS n FROM (SELECT 1 FROM entries e WHERE ${VISIBLE} LIMIT :cap)`)
+          .get({ project, agent, now: this.clock(), cap }) as Row
+      ).n,
+    );
+  }
+
+  /** Names of the indexes in the database (for health checks and tests). */
+  indexNames(): string[] {
+    return (this.db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as Row[]).map((r) => r.name as string);
   }
 
   search(project: string, agent: string, text: string, opts: { kind?: Kind; limit?: number } = {}): Entry[] {

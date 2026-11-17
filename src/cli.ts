@@ -264,6 +264,9 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
       case "export": {
         const format = o.format ?? "md";
         if (format !== "md" && format !== "json") throw new Error("--format must be md or json");
+        if (format === "md" && o["all-projects"]) {
+          throw new Error("Markdown export covers one project at a time; use --format json --all-projects for everything");
+        }
         const text =
           format === "json"
             ? JSON.stringify(exportJson(ctx.store, { project: o["all-projects"] ? undefined : project }), null, 2) + "\n"
@@ -282,8 +285,11 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
         } catch (err) {
           throw new Error(`cannot read ${args[0]} as JSON (${(err as Error).message})`);
         }
-        const r = importJson(ctx.store, data, { force: o.force, by: user });
+        const r = importJson(ctx.store, data, { force: o.force, by: user, source: basename(args[0]) });
         print(`Imported ${r.imported} record(s); ${r.skipped} skipped (already present or unreadable).`);
+        if (r.approvedNow) {
+          print(`${r.approvedNow} of them ${r.approvedNow === 1 ? "is" : "are"} approved and visible to agents now (as in the file). Review them with baglam list.`);
+        }
         for (const b of r.blocked) print(`✗ ${b.id} not imported: looks like a secret (${describeFindings(b.findings)}). Use --force to import anyway.`);
         return r.blocked.length ? 1 : 0;
       }

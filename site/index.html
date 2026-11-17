@@ -8,7 +8,6 @@
 <meta name="description" content="One shared, human-approved project memory for Claude Code, Codex, Cursor, Antigravity, Gemini CLI and VS Code. Local-first. Open source.">
 <meta property="og:title" content="Bağlam: shared memory for your AI coding agents">
 <meta property="og:description" content="Stop re-explaining your project to every AI tool. Agents propose, you approve, every agent knows.">
-<meta property="og:image" content="panel.jpg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M9 11h14M9 16h10M9 21h14' stroke='white' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
   :root {
@@ -122,12 +121,12 @@
     <div class="grid">
       <div class="card"><div class="icon" aria-hidden="true">✓</div>
         <h3 data-l="en">Human approval</h3><h3 data-l="tr">İnsan onayı</h3>
-        <p data-l="en">Nothing an agent writes reaches other agents until you say so. A poisoned web page can't teach your whole team.</p>
-        <p data-l="tr">Bir ajanın yazdığı hiçbir şey sen onaylamadan diğerlerine ulaşmaz. Zararlı bir web sayfası bütün ajanlarına bir şey öğretemez.</p></div>
+        <p data-l="en">Nothing an agent writes reaches your other agents until you say so. Something one agent picked up from a bad web page can't spread to the rest.</p>
+        <p data-l="tr">Bir ajanın yazdığı hiçbir şey sen onaylamadan diğer ajanlarına ulaşmaz. Bir ajanın zararlı bir web sayfasından kaptığı şey diğerlerine yayılamaz.</p></div>
       <div class="card"><div class="icon" aria-hidden="true">⛨</div>
         <h3 data-l="en">Secrets blocked</h3><h3 data-l="tr">Gizli bilgi engelli</h3>
-        <p data-l="en">API keys, tokens, private keys and passwords in URLs never enter shared memory.</p>
-        <p data-l="tr">API anahtarları, tokenlar, özel anahtarlar ve adreslerdeki şifreler ortak hafızaya asla girmez.</p></div>
+        <p data-l="en">Proposals that look like they contain API keys, tokens, private keys or passwords are blocked before they are stored.</p>
+        <p data-l="tr">API anahtarı, token, özel anahtar ya da şifre içeriyor gibi görünen öneriler kaydedilmeden engellenir.</p></div>
       <div class="card"><div class="icon" aria-hidden="true">≈</div>
         <h3 data-l="en">No noise</h3><h3 data-l="tr">Gürültü yok</h3>
         <p data-l="en">Look-alikes are flagged, records expire when you want, new decisions retire old ones.</p>
@@ -141,9 +140,9 @@
         <p data-l="en">Under 50 ms for brief, search and duplicate checks with 10,000+ records.</p>
         <p data-l="tr">10.000'den fazla kayıtta bile özet, arama ve benzerlik kontrolü 50 ms'nin altında.</p></div>
       <div class="card"><div class="icon" aria-hidden="true">⟲</div>
-        <h3 data-l="en">Fully reversible</h3><h3 data-l="tr">Tamamen geri alınabilir</h3>
-        <p data-l="en">Setup backs up every file it touches; <code>--undo</code> removes everything. Export to Markdown or JSON anytime.</p>
-        <p data-l="tr">Kurulum dokunduğu her dosyayı yedekler; <code>--undo</code> her şeyi kaldırır. İstediğin an Markdown ya da JSON'a aktar.</p></div>
+        <h3 data-l="en">Reversible</h3><h3 data-l="tr">Geri alınabilir</h3>
+        <p data-l="en">Setup backs up every file it touches, and <code>--undo</code> disconnects every tool. Your records stay yours: export to Markdown or JSON anytime.</p>
+        <p data-l="tr">Kurulum dokunduğu her dosyayı yedekler, <code>--undo</code> bütün araçların bağlantısını kaldırır. Kayıtların senindir: istediğin an Markdown ya da JSON'a aktar.</p></div>
     </div>
   </section>
 

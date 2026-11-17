@@ -38,7 +38,8 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p ui/tsconfig.json",
     "prepack": "npm run build",
-    "smoke": "node scripts/pack-smoke.mjs"
+    "smoke": "node scripts/pack-smoke.mjs",
+    "test:perf": "node scripts/test-perf.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

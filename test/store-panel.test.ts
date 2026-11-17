@@ -134,4 +134,16 @@ describe("store: decisions are atomic", () => {
     expect(store.approveMany([a.id, b.id, "cmissing"], "panel")).toEqual({ approved: [a.id], skipped: [b.id, "cmissing"] });
     expect(store.get(c.id)?.status).toBe("proposed");
   });
+
+  it("countVisible stops counting at the cap", () => {
+    const store = new ContextStore(":memory:");
+    for (let i = 0; i < 5; i++) store.addApproved({ project: A, kind: "fact", title: `t${i}`, body: "b" }, "h");
+    expect(store.countVisible(A, "x", 3)).toBe(3);
+    expect(store.countVisible(A, "x")).toBe(5);
+  });
+
+  it("schema has the indexes listProjects and the brief rely on", () => {
+    const store = new ContextStore(":memory:");
+    expect(store.indexNames()).toEqual(expect.arrayContaining(["entries_visible", "events_project_at"]));
+  });
 });
