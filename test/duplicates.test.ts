@@ -50,6 +50,22 @@ describe("findSimilar", () => {
     expect(store.get(a.id)?.similarTo).toEqual([]);
   });
 
+  it("matches Turkish capitals with their lowercase twin", () => {
+    const a = add("İstanbul ofisi ŞİFRE politikası", "Şifreler İstanbul ofisinde kasada tutulur.");
+    const hits = store.findSimilar(P, { title: "istanbul ofisi şifre politikası", body: "şifreler istanbul ofisinde kasada tutulur." });
+    expect(hits.map((h) => h.id)).toEqual([a.id]);
+  });
+
+  it("findClosedSimilar finds rejected and superseded look-alikes only", () => {
+    const r = add("Use yarn workspaces", "Switch the monorepo to yarn workspaces.");
+    store.reject(r.id, "human", "we use pnpm");
+    const open = add("Unrelated open item", "Something pending here.");
+    const hits = store.findClosedSimilar(P, { title: "Use yarn workspaces", body: "Switch the monorepo to yarn workspaces." });
+    expect(hits.map((h) => h.id)).toEqual([r.id]);
+    expect(store.findClosedSimilar(P, { title: "Unrelated open item", body: "Something pending here." })).toEqual([]);
+    void open;
+  });
+
   it("tolerates text with no usable words", () => {
     expect(store.findSimilar(P, { title: "!!", body: "?? 12" })).toEqual([]);
   });

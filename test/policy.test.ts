@@ -78,6 +78,20 @@ describe("submitProposal", () => {
     }
   });
 
+  it("a trust rule never re-approves something the owner rejected", () => {
+    store.addTrustRule({ projectId: P, agent: "codex" });
+    const first = submitProposal(store, input({ kind: "decision", title: "Use yarn workspaces", body: "Switch the monorepo to yarn workspaces." }), { ...ctx, agentVerified: false });
+    if (first.status !== "pending") throw new Error("expected pending");
+    store.reject(first.entry.id, "human", "we use pnpm");
+    const again = submitProposal(store, input({ kind: "decision", title: "Use yarn workspaces", body: "Switch the monorepo to yarn workspaces." }), ctx);
+    expect(again.status).toBe("pending");
+    if (again.status === "pending") expect(again.closed.map((e) => e.id)).toEqual([first.entry.id]);
+  });
+
+  it("blocks a secret placed in audience", () => {
+    expect(submitProposal(store, input({ audience: [AWS] }), ctx).status).toBe("blocked");
+  });
+
   it("project rule does not apply to another project; global rule does", () => {
     store.addTrustRule({ projectId: P, agent: "codex" });
     expect(submitProposal(store, input({ project: Q }), ctx).status).toBe("pending");

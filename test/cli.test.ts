@@ -39,6 +39,8 @@ describe("baglam CLI", () => {
   it("trust add/list/remove", () => {
     expect(run("trust", "add", "--agent", "codex", "--kind", "fact")).toBe(0);
     expect(out.join("\n")).toMatch(/skip your review/);
+    expect(out.join("\n")).toMatch(/secrets are always blocked/i);
+    expect(out.join("\n")).not.toMatch(/secrets and duplicates still go to review/);
     expect(run("trust", "add", "--kind", "convention", "--global")).toBe(0);
     const rules = store.listTrustRules(P);
     expect(rules.map((r) => [r.projectId, r.agent, r.kind])).toEqual([[P, "codex", "fact"], [null, null, "convention"]]);

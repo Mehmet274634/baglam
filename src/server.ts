@@ -244,8 +244,17 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
         case "pending": {
           const e = outcome.entry;
           const base = `Proposed ${e.id} ("${e.title}") for ${label(r.project)}. It is pending human approval and is not yet visible to other agents.`;
-          if (!outcome.similar.length) return base;
-          const list = outcome.similar.map((s) => `${s.id} "${s.title}" (${s.status === "proposed" ? "pending" : s.status})`).join(", ");
+          // Only name records this agent may already read: never other agents' pending proposals
+          // or records whose audience leaves it out. The owner sees the full list in review.
+          const agent = agentName();
+          const shown = outcome.similar.filter(
+            (s) =>
+              s.status === "approved" &&
+              (s.expiresAt === null || s.expiresAt > Date.now()) &&
+              (s.audience.includes("*") || s.audience.includes(agent)),
+          );
+          if (!shown.length) return base;
+          const list = shown.map((s) => `${s.id} "${s.title}"`).join(", ");
           return `${base}\nSimilar records already exist: ${list}. If yours replaces one, propose again with supersedes set to its id.`;
         }
       }

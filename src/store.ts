@@ -389,6 +389,29 @@ export class ContextStore {
     text: { title: string; body: string },
     opts: { kind?: Kind; excludeId?: string; limit?: number } = {},
   ): Entry[] {
+    return this.similarAmong(
+      "(e.status = 'proposed' OR (e.status = 'approved' AND (e.expires_at IS NULL OR e.expires_at > :now)))",
+      project,
+      text,
+      opts,
+    );
+  }
+
+  /** Like findSimilar, but among records the owner already rejected or replaced. */
+  findClosedSimilar(
+    project: string,
+    text: { title: string; body: string },
+    opts: { kind?: Kind; excludeId?: string; limit?: number } = {},
+  ): Entry[] {
+    return this.similarAmong("e.status IN ('rejected', 'superseded')", project, text, opts);
+  }
+
+  private similarAmong(
+    statusSql: string,
+    project: string,
+    text: { title: string; body: string },
+    opts: { kind?: Kind; excludeId?: string; limit?: number },
+  ): Entry[] {
     const all = wordSet(`${text.title} ${text.body}`);
     const titleWords = wordSet(text.title);
     const query = [...all].slice(0, 24).map((w) => `"${w}"`).join(" OR ");
@@ -397,12 +420,19 @@ export class ContextStore {
       .prepare(
         `SELECT e.* FROM entries_fts f JOIN entries e ON e.rowid = f.rowid
          WHERE entries_fts MATCH :query AND e.project = :project
-           AND (e.status = 'proposed' OR (e.status = 'approved' AND (e.expires_at IS NULL OR e.expires_at > :now)))
+           AND ${statusSql}
            AND (:kind IS NULL OR e.kind = :kind)
            AND (:exclude IS NULL OR e.id != :exclude)
          ORDER BY bm25(entries_fts) LIMIT 10`,
       )
-      .all({ query, project, now: this.clock(), kind: opts.kind ?? null, exclude: opts.excludeId ?? null }) as Row[];
+      .all({
+        query,
+        project,
+        kind: opts.kind ?? null,
+        exclude: opts.excludeId ?? null,
+        // node:sqlite rejects unused named parameters, so :now is bound only when the filter uses it.
+        ...(statusSql.includes(":now") ? { now: this.clock() } : {}),
+      }) as Row[];
     return rows
       .map(toEntry)
       .map((e) => ({

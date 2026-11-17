@@ -4,7 +4,8 @@ import { scanEntryFields, type SecretFinding } from "./guards.js";
 export type ProposalOutcome =
   | { status: "blocked"; findings: SecretFinding[] }
   | { status: "refused"; reason: string }
-  | { status: "pending"; entry: Entry; similar: Entry[] }
+  /** `similar`: open look-alikes; `closed`: rejected/superseded look-alikes. For the owner, not the agent. */
+  | { status: "pending"; entry: Entry; similar: Entry[]; closed: Entry[] }
   | { status: "auto-approved"; entry: Entry; rule: TrustRule };
 
 export interface PolicyContext {
@@ -40,16 +41,19 @@ export function submitProposal(
     };
   }
 
-  const similar = store.findSimilar(input.project, { title: input.title, body: input.body }, { kind: input.kind });
-  const entry = store.propose({ ...input, similarTo: similar.map((e) => e.id) });
+  const text = { title: input.title, body: input.body };
+  const similar = store.findSimilar(input.project, text, { kind: input.kind });
+  // Look-alikes of records the owner already rejected or replaced: never let a rule bring those back.
+  const closed = store.findClosedSimilar(input.project, text, { kind: input.kind });
+  const entry = store.propose({ ...input, similarTo: [...similar, ...closed].map((e) => e.id) });
 
   // Trust rules only shortcut clean, additive records: never replacements, never look-alikes.
   const rule =
-    ctx.agentVerified && !input.supersedes && !similar.length
+    ctx.agentVerified && !input.supersedes && !similar.length && !closed.length
       ? store.matchTrustRule(input.project, input.sourceAgent, input.kind)
       : undefined;
   if (rule) {
     return { status: "auto-approved", entry: store.approve(entry.id, `trust-rule:${rule.id}`, undefined, { auto: true }), rule };
   }
-  return { status: "pending", entry, similar };
+  return { status: "pending", entry, similar, closed };
 }

@@ -46,6 +46,34 @@ describe("scanSecrets", () => {
     ];
     for (const text of benign) expect(scanSecrets(text), text).toEqual([]);
   });
+
+  it("does not flag forward-slash paths, URLs, identifiers or lockfile hashes", () => {
+    const benign = [
+      "/Users/ev/Desktop/BAGLAM/docs/superpowers/plans/2026-11-17-m3-guards-trust.md",
+      "/api/v2/Users/GetProfile/2024/Settings_OAuth2",
+      "https://github.com/OpenAI/Repo/blob/2458367/src/clients/CodexAdapter2024.ts",
+      "Release_x64_Win10SDK_2024Q3_NodeV24",
+      "getUserById2FAEnabledV3WithRetry123",
+      "integrity sha512-Kq5sNclPz7QV2+lfQIuqNHUY3pCrnKz7nVyFvBYgvMBbmhoZnqnG6zMH3H4mFmuEuMB2Y4Eh0zg0uOnrsSZtw==",
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf",
+      "Use postgres://user:password@localhost:5432/app in .env.example",
+      "DATABASE_URL=postgres://app:${DB_PASSWORD}@db:5432/app",
+      "mysql://<user>:<pass>@host/db",
+      "Prefix keys with sk-proj-placeholder-example-value in docs",
+    ];
+    for (const text of benign) expect(scanSecrets(text), text).toEqual([]);
+  });
+
+  it("still catches a random token next to slashes", () => {
+    const tok = ["Zx9", "Qw7rT2mN8vB4kL6pH3sD5fG1jA0cE9uY"].join("");
+    expect(scanSecrets(`token: ${tok}/`).map((f) => f.type)).toEqual(["High-entropy string"]);
+  });
+
+  it("matches URL passwords case-insensitively", () => {
+    expect(scanSecrets(["Postgres://", "admin:", "hunter2pass", "@db.example.com"].join("")).map((f) => f.type)).toEqual([
+      "Password in URL",
+    ]);
+  });
 });
 
 describe("scanEntryFields", () => {
@@ -54,6 +82,7 @@ describe("scanEntryFields", () => {
     expect(scanEntryFields({ title: "t", body: "b", rationale: `because ${key}` })).toHaveLength(1);
     expect(scanEntryFields({ title: "t", body: "b", tags: ["x", key] })).toHaveLength(1);
     expect(scanEntryFields({ title: key, body: "b" })).toHaveLength(1);
+    expect(scanEntryFields({ title: "t", body: "b", audience: ["cursor", key] })).toHaveLength(1);
     expect(scanEntryFields({ title: "t", body: "b" })).toEqual([]);
   });
 });

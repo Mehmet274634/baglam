@@ -245,7 +245,10 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
             kind: o.kind as Kind | undefined,
           });
           print(`added ${rule.id}  ${describeRule(rule)}`);
-          print("Records matching this rule skip your review (secrets and duplicates still go to review).");
+          print(
+            "Records matching this rule skip your review. Secrets are always blocked; look-alikes of existing,\n" +
+              "rejected or replaced records and anything that replaces a record still come to you for review.",
+          );
           return 0;
         }
         if (sub === "list") {

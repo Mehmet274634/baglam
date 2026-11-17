@@ -186,6 +186,17 @@ describe("MCP server", () => {
     expect(text(res)).toMatch(/supersedes/);
   });
 
+  it("duplicate hint never reveals records the agent cannot see", async () => {
+    const hiddenPending = store.propose({ project: P, kind: "fact", title: "Rotate prod DB creds Friday", body: "Rotate prod DB creds Friday night.", sourceAgent: "claude-code" });
+    const hiddenAudience = store.addApproved({ project: P, kind: "fact", title: "Rotate prod DB creds weekly", body: "Rotate prod DB creds Friday night.", audience: ["support"] }, "human");
+    const res = await propose(await agent("cursor"), { title: "Rotate prod DB creds Friday", body: "Rotate prod DB creds Friday night." });
+    expect(text(res)).not.toContain(hiddenPending.id);
+    expect(text(res)).not.toContain(hiddenAudience.id);
+    expect(text(res)).not.toMatch(/weekly|Similar records/);
+    const pending = store.pending(P).find((e) => e.sourceAgent === "cursor")!;
+    expect(pending.similarTo).toHaveLength(2); // the owner still sees both in review
+  });
+
   it("auto-approved reply with BAGLAM_AGENT set", async () => {
     store.addTrustRule({ projectId: null, agent: "codex" });
     const res = await propose(await agent("whatever-client", { agent: "codex" }));
