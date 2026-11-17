@@ -5,7 +5,8 @@ import { pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";
 import { ContextStore, KINDS, type Entry, type Kind } from "./store.js";
 import { day, formatEntry } from "./format.js";
-import { resolveDbPath, resolveProject } from "./config.js";
+import { resolveDbPath } from "./config.js";
+import { resolveProject } from "./project.js";
 
 const USAGE = `Usage: baglam <command> [options]
 
@@ -13,6 +14,9 @@ Review what agents proposed:
   pending [--all-projects]            List proposals waiting for review
   approve <id...> | --all [--note t]  Approve proposals (they become visible to agents)
   reject <id> [--note text]           Reject a proposal
+
+For AI tools:
+  mcp                                 Run the MCP server on stdio (what you register in Claude Code, Cursor, …)
 
 Manage context yourself:
   add <kind> <title> <body> [--why text] [--tags a,b] [--to agent,agent] [--ttl days] [--replaces id]
@@ -42,7 +46,7 @@ function summary(e: Entry): string {
 }
 
 export function runCli(argv: string[], ctx: CliContext): number {
-  const { store, project, user, print } = ctx;
+  const { store, user, print } = ctx;
   let parsed;
   try {
     parsed = parseArgs({
@@ -67,6 +71,7 @@ export function runCli(argv: string[], ctx: CliContext): number {
     return 1;
   }
   const { values: o, positionals } = parsed;
+  const project = o.project ? resolveProject(o.project) : ctx.project;
   const [cmd, ...args] = positionals;
 
   try {
@@ -164,13 +169,15 @@ function isMain(): boolean {
   }
 }
 
-if (isMain()) {
+if (isMain() && process.argv[2] === "mcp") {
+  const { startMcpServer } = await import("./mcp.js");
+  await startMcpServer();
+} else if (isMain()) {
   const argv = process.argv.slice(2);
-  const projectIdx = argv.indexOf("--project");
   const store = new ContextStore(resolveDbPath());
   const code = runCli(argv, {
     store,
-    project: resolveProject(projectIdx >= 0 ? argv[projectIdx + 1] : undefined),
+    project: resolveProject(),
     user: process.env.BAGLAM_USER?.trim() || `human:${userInfo().username}`,
     print: (s) => console.log(s),
   });

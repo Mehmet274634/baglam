@@ -41,7 +41,7 @@ npm link
 ### Claude Code
 
 ```bash
-claude mcp add baglam -s user -e BAGLAM_AGENT=claude-code -- node "C:/Users/ev/Desktop/BAĞLAM/dist/mcp.js"
+claude mcp add baglam -s user -e BAGLAM_AGENT=claude-code -- node "C:/Users/ev/Desktop/BAĞLAM/dist/cli.js" mcp
 ```
 
 Claude Code sunucuyu proje klasöründe başlattığı için proje otomatik algılanır.
@@ -55,7 +55,7 @@ Proje kökünde `.cursor/mcp.json` (veya global için `~/.cursor/mcp.json`):
   "mcpServers": {
     "baglam": {
       "command": "node",
-      "args": ["C:/Users/ev/Desktop/BAĞLAM/dist/mcp.js"],
+      "args": ["C:/Users/ev/Desktop/BAĞLAM/dist/cli.js", "mcp"],
       "env": { "BAGLAM_AGENT": "cursor", "BAGLAM_PROJECT": "${workspaceFolder}" }
     }
   }
@@ -69,7 +69,7 @@ Proje kökünde `.cursor/mcp.json` (veya global için `~/.cursor/mcp.json`):
 ```toml
 [mcp_servers.baglam]
 command = "node"
-args = ["C:/Users/ev/Desktop/BAĞLAM/dist/mcp.js"]
+args = ["C:/Users/ev/Desktop/BAĞLAM/dist/cli.js", "mcp"]
 env = { BAGLAM_AGENT = "codex" }
 ```
 

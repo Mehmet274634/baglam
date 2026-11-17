@@ -1,4 +1,5 @@
 import type { Entry, Kind } from "./store.js";
+import type { ProjectRef } from "./project.js";
 
 const KIND_ORDER: Kind[] = ["warning", "decision", "convention", "preference", "fact"];
 const KIND_HEADINGS: Record<Kind, string> = {
@@ -36,22 +37,61 @@ export function formatEntry(e: Entry, opts: { full?: boolean } = {}): string {
   return lines.join("\n");
 }
 
-export function formatBrief(project: string, agent: string, entries: Entry[], pendingCount: number): string {
-  const parts = [`# Shared project context`, `Project: ${project}\nYou are: ${agent}`, FRAMING];
-  if (!entries.length) {
-    parts.push("No approved context yet for this project.");
-  } else {
-    for (const kind of KIND_ORDER) {
-      const group = entries.filter((e) => e.kind === kind);
-      if (group.length) parts.push(`## ${KIND_HEADINGS[kind]}\n\n${group.map((e) => formatEntry(e)).join("\n\n")}`);
-    }
-  }
-  if (pendingCount) {
-    parts.push(`${pendingCount} proposal(s) are waiting for human review and are not shown.`);
-  }
-  parts.push(
+export const DEFAULT_BRIEF_BUDGET = 2000;
+const CHARS_PER_TOKEN = 4;
+const SEP = "\n\n";
+
+export interface BriefInput {
+  project: ProjectRef;
+  agent: string;
+  entries: Entry[];
+  pendingCount: number;
+  budgetTokens?: number;
+}
+
+/**
+ * The agent-facing summary of a project. Fits in `budgetTokens` (≈ chars / 4): warnings first,
+ * then decisions, conventions, preferences, facts; newest first within each kind.
+ */
+export function formatBrief(input: BriefInput): string {
+  const { project, agent, entries, pendingCount } = input;
+  const budget = (input.budgetTokens ?? DEFAULT_BRIEF_BUDGET) * CHARS_PER_TOKEN;
+
+  const head = [`# Shared project context`, `Project: ${project.name} (${project.dir})\nYou are: ${agent}`];
+  if (project.warning) head.push(`Warning: ${project.warning}`);
+  if (!project.initialized) head.push("This project is not initialised. Suggest the user run: baglam init");
+  head.push(FRAMING);
+
+  const tail: string[] = [];
+  if (pendingCount) tail.push(`${pendingCount} proposal(s) are waiting for human review and are not shown.`);
+  tail.push(
     "When you make or learn something other agents on this project should know (a decision, convention, " +
       "user preference, pitfall), call context_propose. Use `supersedes` when it replaces an existing record.",
   );
-  return parts.join("\n\n");
+
+  if (!entries.length) return [...head, "No approved context yet for this project.", ...tail].join(SEP);
+
+  const ranked = [...entries].sort((x, y) => KIND_ORDER.indexOf(x.kind) - KIND_ORDER.indexOf(y.kind));
+  const moreLine = (n: number) => `${n} more record(s) not shown. Use context_search to find them.`;
+  let used = [...head, ...tail].join(SEP).length + SEP.length + moreLine(entries.length).length + SEP.length;
+
+  const kept = new Map<Kind, string[]>();
+  let cut = 0;
+  for (const e of ranked) {
+    const text = formatEntry(e);
+    const heading = kept.has(e.kind) ? 0 : `## ${KIND_HEADINGS[e.kind]}`.length + SEP.length * 2;
+    const cost = text.length + SEP.length + heading;
+    if (used + cost > budget) {
+      cut++;
+      continue;
+    }
+    used += cost;
+    kept.set(e.kind, [...(kept.get(e.kind) ?? []), text]);
+  }
+
+  const body = KIND_ORDER.filter((k) => kept.has(k)).map(
+    (k) => `## ${KIND_HEADINGS[k]}${SEP}${kept.get(k)!.join(SEP)}`,
+  );
+  if (cut) body.push(moreLine(cut));
+  return [...head, ...body, ...tail].join(SEP);
 }
