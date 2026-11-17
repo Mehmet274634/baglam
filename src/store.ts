@@ -43,6 +43,27 @@ export interface NewEntry {
   supersedes?: string;
 }
 
+export type EventType = "proposed" | "approved" | "rejected" | "superseded" | "edited" | "expired" | "deleted";
+
+export interface HistoryEvent {
+  type: EventType;
+  actor: string;
+  at: number;
+  detail: string | null;
+}
+
+export type EntryPatch = Partial<Pick<NewEntry, "title" | "body" | "rationale" | "tags" | "audience" | "kind">>;
+
+export interface ProjectInfo {
+  id: string;
+  name: string;
+  lastPath: string | null;
+  createdAt: number;
+  archivedAt: number | null;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface ProjectSummary {
   project: string;
   approved: number;
@@ -111,6 +132,22 @@ function toEntry(r: Row): Entry {
   };
 }
 
+/** Validate the editable fields of a record; returns DB-ready values. */
+function validate(input: {
+  kind: Kind; title: string; body: string; rationale?: string | null; tags?: string[]; audience?: string[];
+}) {
+  if (!KINDS.includes(input.kind)) throw new Error(`kind must be one of: ${KINDS.join(", ")}`);
+  const audience = cleanList(input.audience).filter((a) => a !== "*");
+  return {
+    kind: input.kind,
+    title: requireText(input.title, "title", 200),
+    body: requireText(input.body, "body", 8000),
+    rationale: input.rationale?.trim() ? requireText(input.rationale, "rationale", 4000) : null,
+    tags: JSON.stringify(cleanList(input.tags)),
+    audience: JSON.stringify(audience.length ? audience : ["*"]),
+  };
+}
+
 export class ContextStore {
   private readonly db: DatabaseSync;
 
@@ -148,21 +185,83 @@ export class ContextStore {
       this.db
         .prepare("UPDATE entries SET status='approved', decided_at=?, decided_by=?, decision_note=? WHERE id=?")
         .run(now, by, note ?? null, id);
+      this.event(id, e.project, "approved", by, note ?? null);
       if (e.supersedes) {
-        this.db
+        const res = this.db
           .prepare("UPDATE entries SET status='superseded', superseded_by=? WHERE id=? AND status='approved'")
           .run(id, e.supersedes);
+        if (Number(res.changes) > 0) this.event(e.supersedes, e.project, "superseded", by, id);
       }
     });
     return this.get(id)!;
   }
 
   reject(id: string, by: string, note?: string): Entry {
-    this.mustBePending(id);
-    this.db
-      .prepare("UPDATE entries SET status='rejected', decided_at=?, decided_by=?, decision_note=? WHERE id=?")
-      .run(this.clock(), by, note ?? null, id);
+    const e = this.mustBePending(id);
+    this.transaction(() => {
+      this.db
+        .prepare("UPDATE entries SET status='rejected', decided_at=?, decided_by=?, decision_note=? WHERE id=?")
+        .run(this.clock(), by, note ?? null, id);
+      this.event(id, e.project, "rejected", by, note ?? null);
+    });
     return this.get(id)!;
+  }
+
+  /** Change a pending or active record. Only humans call this (CLI/panel); agents cannot. */
+  edit(id: string, patch: EntryPatch, by: string): Entry {
+    const e = this.get(id);
+    if (!e) throw new Error(`unknown entry ${id}`);
+    if (e.status !== "proposed" && e.status !== "approved") {
+      throw new Error(`cannot edit entry ${id} (status: ${e.status})`);
+    }
+    const next = validate({ ...e, rationale: e.rationale ?? undefined, ...patch });
+    const changed = (Object.keys(patch) as (keyof EntryPatch)[]).filter((k) => patch[k] !== undefined);
+    if (!changed.length) return e;
+    this.transaction(() => {
+      this.db
+        .prepare(
+          `UPDATE entries SET kind=?, title=?, body=?, rationale=?, tags=?, audience=?, edited_at=? WHERE id=?`,
+        )
+        .run(next.kind, next.title, next.body, next.rationale, next.tags, next.audience, this.clock(), id);
+      this.event(id, e.project, "edited", by, changed.join(","));
+    });
+    return this.get(id)!;
+  }
+
+  /** Audit trail of one record, oldest first. */
+  history(id: string): HistoryEvent[] {
+    const rows = this.db
+      .prepare("SELECT type, actor, at, detail FROM events WHERE entry_id = ? ORDER BY seq ASC")
+      .all(id) as Row[];
+    return rows.map((r) => ({
+      type: r.type as EventType,
+      actor: r.actor as string,
+      at: Number(r.at),
+      detail: (r.detail as string | null) ?? null,
+    }));
+  }
+
+  /** Remember an initialised project (marker id) and where it was last seen. */
+  touchProject(ref: { key: string; name: string; dir: string }): void {
+    if (!UUID.test(ref.key)) return;
+    this.db
+      .prepare(
+        `INSERT INTO projects (id, name, last_path, created_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, last_path = excluded.last_path`,
+      )
+      .run(ref.key, ref.name, ref.dir, this.clock());
+  }
+
+  projectInfo(id: string): ProjectInfo | undefined {
+    const r = this.db.prepare("SELECT * FROM projects WHERE id = ?").get(id) as Row | undefined;
+    if (!r) return undefined;
+    return {
+      id: r.id as string,
+      name: r.name as string,
+      lastPath: (r.last_path as string | null) ?? null,
+      createdAt: Number(r.created_at),
+      archivedAt: r.archived_at == null ? null : Number(r.archived_at),
+    };
   }
 
   /** Approved, unexpired entries this agent may see, newest first. */
@@ -223,35 +322,38 @@ export class ContextStore {
   }
 
   private insert(input: NewEntry, sourceAgent: string, status: Status): Entry {
-    if (!KINDS.includes(input.kind)) throw new Error(`kind must be one of: ${KINDS.join(", ")}`);
     const project = requireText(input.project, "project", 1000);
-    const title = requireText(input.title, "title", 200);
-    const body = requireText(input.body, "body", 8000);
-    const rationale = input.rationale?.trim() ? requireText(input.rationale, "rationale", 4000) : null;
+    const v = validate(input);
     if (input.ttlDays !== undefined && !(input.ttlDays > 0)) throw new Error("ttlDays must be positive");
     if (input.supersedes) {
       const target = this.get(input.supersedes);
       if (!target) throw new Error(`supersedes: unknown entry ${input.supersedes}`);
       if (target.project !== project) throw new Error("supersedes: entry belongs to a different project");
     }
-    const audience = cleanList(input.audience);
     const now = this.clock();
     const id = newId();
-    this.db
-      .prepare(
-        `INSERT INTO entries (id, project, kind, title, body, rationale, tags, audience, status,
-                              source_agent, created_at, expires_at, supersedes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        id, project, input.kind, title, body, rationale,
-        JSON.stringify(cleanList(input.tags)),
-        JSON.stringify(audience.length ? audience : ["*"]),
-        status, sourceAgent, now,
-        input.ttlDays ? now + Math.round(input.ttlDays * DAY_MS) : null,
-        input.supersedes ?? null,
-      );
+    this.transaction(() => {
+      this.db
+        .prepare(
+          `INSERT INTO entries (id, project, kind, title, body, rationale, tags, audience, status,
+                                source_agent, created_at, expires_at, supersedes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          id, project, v.kind, v.title, v.body, v.rationale, v.tags, v.audience,
+          status, sourceAgent, now,
+          input.ttlDays ? now + Math.round(input.ttlDays * DAY_MS) : null,
+          input.supersedes ?? null,
+        );
+      this.event(id, project, "proposed", sourceAgent, null);
+    });
     return this.get(id)!;
+  }
+
+  private event(entryId: string, project: string, type: EventType, actor: string, detail: string | null): void {
+    this.db
+      .prepare("INSERT INTO events (entry_id, project, type, actor, at, detail) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(entryId, project, type, actor, this.clock(), detail);
   }
 
   private mustBePending(id: string): Entry {

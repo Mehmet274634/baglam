@@ -123,4 +123,54 @@ describe("ContextStore", () => {
     propose();
     expect(store.projects()).toEqual([{ project: P, approved: 1, pending: 1 }]);
   });
+
+  it("records history for propose → approve → supersede", () => {
+    const old = propose();
+    store.approve(old.id, "human");
+    store.approve(propose({ title: "Use MySQL", supersedes: old.id }).id, "human");
+    const h = store.history(old.id);
+    expect(h.map((x) => x.type)).toEqual(["proposed", "approved", "superseded"]);
+    expect(h.map((x) => x.actor)).toEqual(["claude-code", "human", "human"]);
+  });
+
+  it("records the reject note in history", () => {
+    const e = propose();
+    store.reject(e.id, "human", "we use npm");
+    expect(store.history(e.id).at(-1)).toMatchObject({ type: "rejected", detail: "we use npm" });
+  });
+
+  it("edit updates fields, FTS and history", () => {
+    const e = propose();
+    store.approve(e.id, "human");
+    now += 1000;
+    const edited = store.edit(e.id, { body: "Postgres, zebra edition." }, "human");
+    expect(edited.body).toBe("Postgres, zebra edition.");
+    expect(edited.editedAt).toBe(now);
+    expect(store.search(P, "cursor", "zebra").map((x) => x.id)).toEqual([e.id]);
+    expect(store.history(e.id).at(-1)).toMatchObject({ type: "edited", actor: "human", detail: "body" });
+  });
+
+  it("edit validates like propose", () => {
+    const e = propose();
+    expect(() => store.edit(e.id, { title: " " }, "human")).toThrow(/title/);
+    expect(() => store.edit(e.id, { kind: "rumor" as never }, "human")).toThrow(/kind/);
+  });
+
+  it("edit refuses rejected/superseded", () => {
+    const e = propose();
+    store.reject(e.id, "human");
+    expect(() => store.edit(e.id, { body: "x" }, "human")).toThrow(/cannot edit/);
+  });
+
+  it("touchProject upserts", () => {
+    const id = "0b8f3c2e-1111-4222-8333-444455556666";
+    store.touchProject({ key: id, name: "old", dir: "c:/a" });
+    store.touchProject({ key: id, name: "new", dir: "c:/b" });
+    expect(store.projectInfo(id)).toMatchObject({ id, name: "new", lastPath: "c:/b" });
+  });
+
+  it("touchProject ignores path-keyed projects", () => {
+    store.touchProject({ key: "c:/work/app", name: "app", dir: "c:/work/app" });
+    expect(store.projectInfo("c:/work/app")).toBeUndefined();
+  });
 });
