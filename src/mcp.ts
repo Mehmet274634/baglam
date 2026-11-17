@@ -3,11 +3,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ContextStore } from "./store.js";
 import { createServer } from "./server.js";
 import { resolveAgentOverride, resolveDbPath } from "./config.js";
-import { resolveProject } from "./project.js";
 
 const store = new ContextStore(resolveDbPath());
-const project = resolveProject();
-const server = createServer(store, { project, agent: resolveAgentOverride() });
+const server = createServer(store, {
+  cwd: process.cwd(),
+  envProject: process.env.BAGLAM_PROJECT?.trim() || undefined,
+  agent: resolveAgentOverride(),
+});
 
 const shutdown = async () => {
   await server.close().catch(() => {});
@@ -19,4 +21,4 @@ process.on("SIGTERM", shutdown);
 process.stdin.on("close", shutdown);
 
 await server.connect(new StdioServerTransport());
-console.error(`[baglam] serving project ${project}`);
+console.error(`[baglam] MCP server ready (cwd ${process.cwd()})`);
