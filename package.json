@@ -1,12 +1,11 @@
 {
   "name": "baglam",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cross-agent context bridge: a shared, human-approved decision log for coding agents over MCP.",
   "type": "module",
   "license": "MIT",
   "bin": {
-    "baglam": "dist/cli.js",
-    "baglam-mcp": "dist/mcp.js"
+    "baglam": "dist/cli.js"
   },
   "main": "dist/index.js",
   "files": [

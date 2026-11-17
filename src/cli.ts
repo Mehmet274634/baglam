@@ -15,6 +15,9 @@ Review what agents proposed:
   approve <id...> | --all [--note t]  Approve proposals (they become visible to agents)
   reject <id> [--note text]           Reject a proposal
 
+For AI tools:
+  mcp                                 Run the MCP server on stdio (what you register in Claude Code, Cursor, …)
+
 Manage context yourself:
   add <kind> <title> <body> [--why text] [--tags a,b] [--to agent,agent] [--ttl days] [--replaces id]
                                       Add an approved record (kind: ${KINDS.join(" | ")})
@@ -165,7 +168,10 @@ function isMain(): boolean {
   }
 }
 
-if (isMain()) {
+if (isMain() && process.argv[2] === "mcp") {
+  const { startMcpServer } = await import("./mcp.js");
+  await startMcpServer();
+} else if (isMain()) {
   const argv = process.argv.slice(2);
   const projectIdx = argv.indexOf("--project");
   const store = new ContextStore(resolveDbPath());
