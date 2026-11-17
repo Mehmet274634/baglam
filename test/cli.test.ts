@@ -22,6 +22,49 @@ describe("baglam CLI", () => {
     store = new ContextStore(":memory:");
   });
 
+  const AWS = ["AKIA", "IOSFODNN7EXAMPLE"].join("");
+
+  it("add refuses a secret without --force", () => {
+    expect(run("add", "fact", "Deploy key", `The key is ${AWS}`)).toBe(1);
+    expect(out.join("\n")).toMatch(/looks like it contains a secret: AWS access key \(AKIA…\)/);
+    expect(out.join("\n")).toMatch(/--force/);
+    expect(store.all(P)).toEqual([]);
+  });
+
+  it("add --force stores it", () => {
+    expect(run("add", "fact", "Deploy key", `The key is ${AWS}`, "--force")).toBe(0);
+    expect(store.all(P)).toHaveLength(1);
+  });
+
+  it("trust add/list/remove", () => {
+    expect(run("trust", "add", "--agent", "codex", "--kind", "fact")).toBe(0);
+    expect(out.join("\n")).toMatch(/skip your review/);
+    expect(run("trust", "add", "--kind", "convention", "--global")).toBe(0);
+    const rules = store.listTrustRules(P);
+    expect(rules.map((r) => [r.projectId, r.agent, r.kind])).toEqual([[P, "codex", "fact"], [null, null, "convention"]]);
+    expect(run("trust", "list")).toBe(0);
+    const listed = out.join("\n");
+    expect(listed).toContain(rules[0].id);
+    expect(listed).toMatch(/all projects/);
+    expect(run("trust", "remove", rules[0].id)).toBe(0);
+    expect(store.listTrustRules(P)).toHaveLength(1);
+    expect(run("trust", "remove", rules[0].id)).toBe(1);
+  });
+
+  it("trust add needs --agent or --kind", () => {
+    expect(run("trust", "add")).toBe(1);
+    expect(out.join("\n")).toMatch(/agent or kind/);
+    expect(run("trust", "add", "--kind", "rumor")).toBe(1);
+  });
+
+  it("pending shows duplicate hints", () => {
+    const a = propose("Use pnpm");
+    const b = store.propose({ project: P, kind: "decision", title: "Use pnpm", body: "b", sourceAgent: "codex", similarTo: [a.id] });
+    expect(run("pending")).toBe(0);
+    expect(out.join("\n")).toMatch(new RegExp(`possible duplicate of ${a.id}`));
+    void b;
+  });
+
   it("pending lists proposals with ids", () => {
     const e = propose();
     expect(run("pending")).toBe(0);

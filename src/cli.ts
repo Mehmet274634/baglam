@@ -3,13 +3,14 @@ import { parseArgs } from "node:util";
 import { userInfo } from "node:os";
 import { pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";
-import { ContextStore, KINDS, type Entry, type Kind } from "./store.js";
+import { ContextStore, KINDS, type Entry, type Kind, type TrustRule } from "./store.js";
 import { day, formatEntry } from "./format.js";
 import { resolveDbPath } from "./config.js";
 import { resolveProject } from "./project.js";
 import { realHost, type HostEnv } from "./host.js";
 import { detectClients, runSetup } from "./setup.js";
 import { runInit } from "./init.js";
+import { describeFindings, scanEntryFields } from "./guards.js";
 import { formatCheck, runDoctor, type Handshake } from "./doctor.js";
 import { basename } from "node:path";
 import type { Change } from "./clients/types.js";
@@ -28,6 +29,10 @@ Set up:
 
 For AI tools:
   mcp                                 Run the MCP server on stdio (what you register in Claude Code, Cursor, …)
+
+Trust (opt-in auto-approval):
+  trust add [--agent id] [--kind k] [--global]  Let matching records skip review
+  trust list | trust remove <id>
 
 Manage context yourself:
   add <kind> <title> <body> [--why text] [--tags a,b] [--to agent,agent] [--ttl days] [--replaces id]
@@ -68,6 +73,13 @@ export function formatChange(c: Change, label: string): string {
 
 const list = (v: string | undefined) => (v ? v.split(",").map((s) => s.trim()).filter(Boolean) : undefined);
 
+function describeRule(r: TrustRule): string {
+  const who = r.agent ? `from ${r.agent}` : "from any agent";
+  const what = r.kind ? `${r.kind} records` : "all records";
+  const where = r.projectId ? "this project" : "all projects";
+  return `auto-approve ${what} ${who} in ${where}`;
+}
+
 function summary(e: Entry): string {
   return `${e.id}  [${e.kind}] ${e.title}\n         from ${e.sourceAgent} · ${day(e.createdAt)}${
     e.supersedes ? ` · replaces ${e.supersedes}` : ""
@@ -96,6 +108,10 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
         "dry-run": { type: "boolean" },
         undo: { type: "boolean" },
         here: { type: "boolean" },
+        force: { type: "boolean" },
+        global: { type: "boolean" },
+        agent: { type: "string" },
+        kind: { type: "string" },
         help: { type: "boolean", short: "h" },
       },
     });
@@ -118,6 +134,7 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
         for (const e of items) {
           print(summary(e) + (o["all-projects"] ? `\n         project ${e.project}` : ""));
           print(`         ${e.body.replace(/\s+/g, " ").slice(0, 160)}`);
+          if (e.similarTo.length) print(`         ⚠ possible duplicate of ${e.similarTo.join(", ")}`);
         }
         print(`\n${items.length} pending. Approve: baglam approve <id...>  ·  Reject: baglam reject <id>`);
         return 0;
@@ -140,6 +157,14 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
       case "add": {
         const [kind, title, body] = args;
         if (!body) throw new Error("add needs <kind> <title> <body>");
+        const findings = scanEntryFields({ title, body, rationale: o.why, tags: list(o.tags) });
+        if (findings.length && !o.force) {
+          print(
+            `This looks like it contains a secret: ${describeFindings(findings)}.\n` +
+              "Anything in Bağlam is shown to your AI agents. Add --force to store it anyway.",
+          );
+          return 1;
+        }
         const e = store.addApproved(
           {
             project,
@@ -210,6 +235,32 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
         if (!o["dry-run"]) print(`
 Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need attention (see ✗ above).` : ""}`);
         return failed ? 1 : 0;
+      }
+      case "trust": {
+        const [sub, id] = args;
+        if (sub === "add") {
+          const rule = store.addTrustRule({
+            projectId: o.global ? null : project,
+            agent: o.agent,
+            kind: o.kind as Kind | undefined,
+          });
+          print(`added ${rule.id}  ${describeRule(rule)}`);
+          print("Records matching this rule skip your review (secrets and duplicates still go to review).");
+          return 0;
+        }
+        if (sub === "list") {
+          const rules = store.listTrustRules(project);
+          if (!rules.length) print("No trust rules. Every proposal waits for your review.");
+          for (const r of rules) print(`${r.id}  ${describeRule(r)}`);
+          return 0;
+        }
+        if (sub === "remove") {
+          if (!id) throw new Error("give the rule id (see baglam trust list)");
+          if (!store.removeTrustRule(id)) throw new Error(`no trust rule ${id}`);
+          print(`removed ${id}`);
+          return 0;
+        }
+        throw new Error("use: baglam trust add|list|remove");
       }
       case "doctor": {
         const host = ctx.host ?? realHost();
