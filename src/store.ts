@@ -256,8 +256,10 @@ export class ContextStore {
     if (e.status !== "proposed" && e.status !== "approved") {
       throw new Error(`cannot edit entry ${id} (status: ${e.status})`);
     }
-    const next = validate({ ...e, rationale: e.rationale ?? undefined, ...patch });
-    const changed = (Object.keys(patch) as (keyof EntryPatch)[]).filter((k) => patch[k] !== undefined);
+    // Fields left undefined mean "unchanged", never "clear".
+    const given = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as EntryPatch;
+    const next = validate({ ...e, rationale: e.rationale ?? undefined, ...given });
+    const changed = Object.keys(given) as (keyof EntryPatch)[];
     if (!changed.length) return e;
     this.transaction(() => {
       this.db

@@ -174,3 +174,13 @@ describe("ContextStore", () => {
     expect(store.projectInfo("c:/work/app")).toBeUndefined();
   });
 });
+
+describe("ContextStore.edit with partial patches", () => {
+  it("treats undefined fields as unchanged", () => {
+    const store = new ContextStore(":memory:");
+    const e = store.propose({ project: "p", kind: "warning", title: "t", body: "b", sourceAgent: "a" });
+    const edited = store.edit(e.id, { body: "new", kind: undefined, title: undefined }, "human");
+    expect(edited).toMatchObject({ kind: "warning", title: "t", body: "new" });
+    expect(store.history(e.id).at(-1)?.detail).toBe("body");
+  });
+});
