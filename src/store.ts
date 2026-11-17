@@ -28,6 +28,8 @@ export interface Entry {
   supersededBy: string | null;
   editedAt: number | null;
   autoApproved: boolean;
+  /** Ids of records that looked like this one when it was proposed. */
+  similarTo: string[];
 }
 
 export interface NewEntry {
@@ -41,6 +43,8 @@ export interface NewEntry {
   audience?: string[];
   ttlDays?: number;
   supersedes?: string;
+  /** Ids of similar records found at proposal time (set by the proposal policy). */
+  similarTo?: string[];
 }
 
 export type EventType = "proposed" | "approved" | "rejected" | "superseded" | "edited" | "expired" | "deleted";
@@ -53,6 +57,15 @@ export interface HistoryEvent {
 }
 
 export type EntryPatch = Partial<Pick<NewEntry, "title" | "body" | "rationale" | "tags" | "audience" | "kind">>;
+
+export interface TrustRule {
+  id: string;
+  /** null = applies to every project. */
+  projectId: string | null;
+  agent: string | null;
+  kind: Kind | null;
+  createdAt: number;
+}
 
 export interface ProjectInfo {
   id: string;
@@ -129,7 +142,21 @@ function toEntry(r: Row): Entry {
     supersededBy: (r.superseded_by as string | null) ?? null,
     editedAt: r.edited_at == null ? null : Number(r.edited_at),
     autoApproved: Number(r.auto_approved ?? 0) === 1,
+    similarTo: JSON.parse((r.similar_to as string | undefined) ?? "[]"),
   };
+}
+
+/** Lower-cased words of 3+ letters/digits (Unicode-aware), as a set. */
+function wordSet(text: string): Set<string> {
+  // Plain toLowerCase, not Turkish locale: words feed an FTS query whose tokenizer folds I→i.
+  return new Set(text.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []);
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  for (const w of a) if (b.has(w)) shared++;
+  return shared / (a.size + b.size - shared);
 }
 
 /** Validate the editable fields of a record; returns DB-ready values. */
@@ -179,13 +206,15 @@ export class ContextStore {
     return r ? toEntry(r) : undefined;
   }
 
-  approve(id: string, by: string, note?: string): Entry {
+  approve(id: string, by: string, note?: string, opts: { auto?: boolean } = {}): Entry {
     const e = this.mustBePending(id);
     const now = this.clock();
     this.transaction(() => {
       this.db
-        .prepare("UPDATE entries SET status='approved', decided_at=?, decided_by=?, decision_note=? WHERE id=?")
-        .run(now, by, note ?? null, id);
+        .prepare(
+          "UPDATE entries SET status='approved', decided_at=?, decided_by=?, decision_note=?, auto_approved=? WHERE id=?",
+        )
+        .run(now, by, note ?? null, opts.auto ? 1 : 0, id);
       this.event(id, e.project, "approved", by, note ?? null);
       if (e.supersedes) {
         const res = this.db
@@ -240,6 +269,55 @@ export class ContextStore {
       at: Number(r.at),
       detail: (r.detail as string | null) ?? null,
     }));
+  }
+
+  /** Proposals from `agent` in `project` still waiting for review. */
+  countPending(project: string, agent: string): number {
+    const r = this.db
+      .prepare("SELECT count(*) AS n FROM entries WHERE project = ? AND source_agent = ? AND status = 'proposed'")
+      .get(project, agent) as Row;
+    return Number(r.n);
+  }
+
+  /** Owner-defined rule: records from `agent` and/or of `kind` skip review. null projectId = every project. */
+  addTrustRule(r: { projectId: string | null; agent?: string; kind?: Kind }): TrustRule {
+    const agent = r.agent?.trim() || null;
+    const kind = r.kind ?? null;
+    if (!agent && !kind) throw new Error("a trust rule needs an agent or kind (or both)");
+    if (kind && !KINDS.includes(kind)) throw new Error(`kind must be one of: ${KINDS.join(", ")}`);
+    const id = `t${newId().slice(1)}`;
+    this.db
+      .prepare("INSERT INTO trust_rules (id, project_id, agent, kind, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run(id, r.projectId, agent, kind, this.clock());
+    return { id, projectId: r.projectId, agent, kind, createdAt: this.clock() };
+  }
+
+  /** Rules for `projectId` plus global ones; every rule when omitted. */
+  listTrustRules(projectId?: string): TrustRule[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM trust_rules WHERE (:p IS NULL OR project_id IS NULL OR project_id = :p)
+         ORDER BY created_at, rowid`,
+      )
+      .all({ p: projectId ?? null }) as Row[];
+    return rows.map((r) => ({
+      id: r.id as string,
+      projectId: (r.project_id as string | null) ?? null,
+      agent: (r.agent as string | null) ?? null,
+      kind: (r.kind as Kind | null) ?? null,
+      createdAt: Number(r.created_at),
+    }));
+  }
+
+  removeTrustRule(id: string): boolean {
+    return Number(this.db.prepare("DELETE FROM trust_rules WHERE id = ?").run(id).changes) > 0;
+  }
+
+  /** The first rule that lets this agent's record of this kind skip review in this project. */
+  matchTrustRule(project: string, agent: string, kind: Kind): TrustRule | undefined {
+    return this.listTrustRules(project).find(
+      (r) => (r.agent === null || r.agent === agent) && (r.kind === null || r.kind === kind),
+    );
   }
 
   /** Move every record (and its history) from one project key to another. Returns moved records. */
@@ -302,6 +380,74 @@ export class ContextStore {
     return rows.map(toEntry);
   }
 
+  /**
+   * Active (approved, unexpired) or pending records in `project` that say nearly the same thing.
+   * Word-set Jaccard on title+body ≥ 0.5, or on titles ≥ 0.8. Best match first.
+   */
+  findSimilar(
+    project: string,
+    text: { title: string; body: string },
+    opts: { kind?: Kind; excludeId?: string; limit?: number } = {},
+  ): Entry[] {
+    return this.similarAmong(
+      "(e.status = 'proposed' OR (e.status = 'approved' AND (e.expires_at IS NULL OR e.expires_at > :now)))",
+      project,
+      text,
+      opts,
+    );
+  }
+
+  /** Like findSimilar, but among records the owner already rejected or replaced. */
+  findClosedSimilar(
+    project: string,
+    text: { title: string; body: string },
+    opts: { kind?: Kind; excludeId?: string; limit?: number } = {},
+  ): Entry[] {
+    return this.similarAmong("e.status IN ('rejected', 'superseded')", project, text, opts);
+  }
+
+  private similarAmong(
+    statusSql: string,
+    project: string,
+    text: { title: string; body: string },
+    opts: { kind?: Kind; excludeId?: string; limit?: number },
+  ): Entry[] {
+    const all = wordSet(`${text.title} ${text.body}`);
+    const titleWords = wordSet(text.title);
+    const query = [...all].slice(0, 24).map((w) => `"${w}"`).join(" OR ");
+    if (!query) return [];
+    const rows = this.db
+      .prepare(
+        `SELECT e.* FROM entries_fts f JOIN entries e ON e.rowid = f.rowid
+         WHERE entries_fts MATCH :query AND e.project = :project
+           AND ${statusSql}
+           AND (:kind IS NULL OR e.kind = :kind)
+           AND (:exclude IS NULL OR e.id != :exclude)
+         ORDER BY bm25(entries_fts) LIMIT 10`,
+      )
+      .all({
+        query,
+        project,
+        kind: opts.kind ?? null,
+        exclude: opts.excludeId ?? null,
+        // node:sqlite rejects unused named parameters, so :now is bound only when the filter uses it.
+        ...(statusSql.includes(":now") ? { now: this.clock() } : {}),
+      }) as Row[];
+    return rows
+      .map(toEntry)
+      .map((e) => ({
+        e,
+        score: Math.max(
+          jaccard(all, wordSet(`${e.title} ${e.body}`)),
+          jaccard(titleWords, wordSet(e.title)) >= 0.8 ? 1 : 0,
+        ),
+      }))
+      .filter((x) => x.score >= 0.5)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, opts.limit ?? 3)
+      .map((x) => x.e);
+  }
+
   /** Pending proposals; all projects when `project` is omitted. Oldest first. */
   pending(project?: string): Entry[] {
     const rows = this.db
@@ -348,14 +494,15 @@ export class ContextStore {
       this.db
         .prepare(
           `INSERT INTO entries (id, project, kind, title, body, rationale, tags, audience, status,
-                                source_agent, created_at, expires_at, supersedes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                source_agent, created_at, expires_at, supersedes, similar_to)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id, project, v.kind, v.title, v.body, v.rationale, v.tags, v.audience,
           status, sourceAgent, now,
           input.ttlDays ? now + Math.round(input.ttlDays * DAY_MS) : null,
           input.supersedes ?? null,
+          JSON.stringify(cleanList(input.similarTo)),
         );
       this.event(id, project, "proposed", sourceAgent, null);
     });
