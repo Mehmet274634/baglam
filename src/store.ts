@@ -2,6 +2,7 @@ import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { migrate } from "./migrate.js";
 
 export const KINDS = ["decision", "convention", "preference", "fact", "warning"] as const;
 export type Kind = (typeof KINDS)[number];
@@ -25,6 +26,8 @@ export interface Entry {
   expiresAt: number | null;
   supersedes: string | null;
   supersededBy: string | null;
+  editedAt: number | null;
+  autoApproved: boolean;
 }
 
 export interface NewEntry {
@@ -48,47 +51,6 @@ export interface ProjectSummary {
 
 const DAY_MS = 86_400_000;
 const ID_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
-
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS entries (
-  id            TEXT PRIMARY KEY,
-  project       TEXT NOT NULL,
-  kind          TEXT NOT NULL,
-  title         TEXT NOT NULL,
-  body          TEXT NOT NULL,
-  rationale     TEXT,
-  tags          TEXT NOT NULL DEFAULT '[]',
-  audience      TEXT NOT NULL DEFAULT '["*"]',
-  status        TEXT NOT NULL,
-  source_agent  TEXT NOT NULL,
-  created_at    INTEGER NOT NULL,
-  decided_at    INTEGER,
-  decided_by    TEXT,
-  decision_note TEXT,
-  expires_at    INTEGER,
-  supersedes    TEXT,
-  superseded_by TEXT
-);
-CREATE INDEX IF NOT EXISTS entries_project_status ON entries(project, status);
-
-CREATE VIRTUAL TABLE IF NOT EXISTS entries_fts USING fts5(
-  title, body, rationale, tags, content='entries', content_rowid='rowid'
-);
-CREATE TRIGGER IF NOT EXISTS entries_ai AFTER INSERT ON entries BEGIN
-  INSERT INTO entries_fts(rowid, title, body, rationale, tags)
-  VALUES (new.rowid, new.title, new.body, coalesce(new.rationale, ''), new.tags);
-END;
-CREATE TRIGGER IF NOT EXISTS entries_ad AFTER DELETE ON entries BEGIN
-  INSERT INTO entries_fts(entries_fts, rowid, title, body, rationale, tags)
-  VALUES ('delete', old.rowid, old.title, old.body, coalesce(old.rationale, ''), old.tags);
-END;
-CREATE TRIGGER IF NOT EXISTS entries_au AFTER UPDATE OF title, body, rationale, tags ON entries BEGIN
-  INSERT INTO entries_fts(entries_fts, rowid, title, body, rationale, tags)
-  VALUES ('delete', old.rowid, old.title, old.body, coalesce(old.rationale, ''), old.tags);
-  INSERT INTO entries_fts(rowid, title, body, rationale, tags)
-  VALUES (new.rowid, new.title, new.body, coalesce(new.rationale, ''), new.tags);
-END;
-`;
 
 /** SQL fragment: entry `e` is visible to the agent bound at `:agent`, at time `:now`. */
 const VISIBLE = `
@@ -144,6 +106,8 @@ function toEntry(r: Row): Entry {
     expiresAt: r.expires_at == null ? null : Number(r.expires_at),
     supersedes: (r.supersedes as string | null) ?? null,
     supersededBy: (r.superseded_by as string | null) ?? null,
+    editedAt: r.edited_at == null ? null : Number(r.edited_at),
+    autoApproved: Number(r.auto_approved ?? 0) === 1,
   };
 }
 
@@ -154,7 +118,7 @@ export class ContextStore {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     this.db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-    this.db.exec(SCHEMA);
+    migrate(this.db, path);
   }
 
   close(): void {
