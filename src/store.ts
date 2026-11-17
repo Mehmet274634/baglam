@@ -221,33 +221,61 @@ export class ContextStore {
   approve(id: string, by: string, note?: string, opts: { auto?: boolean } = {}): Entry {
     const e = this.mustBePending(id);
     const now = this.clock();
+    this.transaction(() => this.approveRow(e, by, note, opts.auto ?? false, now));
+    return this.get(id)!;
+  }
+
+  /** Approve the listed proposals that are still pending, all in one transaction; others are skipped. */
+  approveMany(ids: string[], by: string): { approved: string[]; skipped: string[] } {
+    const approved: string[] = [];
+    const skipped: string[] = [];
+    const now = this.clock();
     this.transaction(() => {
-      this.db
-        .prepare(
-          "UPDATE entries SET status='approved', decided_at=?, decided_by=?, decision_note=?, auto_approved=? WHERE id=?",
-        )
-        .run(now, by, note ?? null, opts.auto ? 1 : 0, id);
-      this.event(id, e.project, "approved", by, note ?? null);
-      if (e.supersedes) {
-        const res = this.db
-          .prepare("UPDATE entries SET status='superseded', superseded_by=? WHERE id=? AND status='approved'")
-          .run(id, e.supersedes);
-        if (Number(res.changes) > 0) this.event(e.supersedes, e.project, "superseded", by, id);
+      for (const id of ids) {
+        const e = this.get(id);
+        if (e?.status === "proposed") {
+          this.approveRow(e, by, undefined, false, now);
+          approved.push(id);
+        } else skipped.push(id);
       }
     });
-    return this.get(id)!;
+    return { approved, skipped };
+  }
+
+  /** Inside a transaction. The status guard in the UPDATE makes a concurrent decision lose cleanly. */
+  private approveRow(e: Entry, by: string, note: string | undefined, auto: boolean, now: number): void {
+    const res = this.db
+      .prepare(
+        "UPDATE entries SET status='approved', decided_at=?, decided_by=?, decision_note=?, auto_approved=? WHERE id=? AND status='proposed'",
+      )
+      .run(now, by, note ?? null, auto ? 1 : 0, e.id);
+    if (!Number(res.changes)) this.notPending(e.id);
+    this.event(e.id, e.project, "approved", by, note ?? null);
+    if (e.supersedes) {
+      const sup = this.db
+        .prepare("UPDATE entries SET status='superseded', superseded_by=? WHERE id=? AND status='approved'")
+        .run(e.id, e.supersedes);
+      if (Number(sup.changes) > 0) this.event(e.supersedes, e.project, "superseded", by, e.id);
+    }
+  }
+
+  private notPending(id: string): never {
+    throw new Error(`entry ${id} is not pending (status: ${this.get(id)?.status ?? "deleted"})`);
   }
 
   reject(id: string, by: string, note?: string): Entry {
     const e = this.mustBePending(id);
+    const now = this.clock();
     this.transaction(() => {
-      this.db
-        .prepare("UPDATE entries SET status='rejected', decided_at=?, decided_by=?, decision_note=? WHERE id=?")
-        .run(this.clock(), by, note ?? null, id);
+      const res = this.db
+        .prepare("UPDATE entries SET status='rejected', decided_at=?, decided_by=?, decision_note=? WHERE id=? AND status='proposed'")
+        .run(now, by, note ?? null, id);
+      if (!Number(res.changes)) this.notPending(id);
       this.event(id, e.project, "rejected", by, note ?? null);
     });
     return this.get(id)!;
   }
+
 
   /** Change a pending or active record. Only humans call this (CLI/panel); agents cannot. */
   edit(id: string, patch: EntryPatch, by: string): Entry {
@@ -439,7 +467,8 @@ export class ContextStore {
     if (!e) throw new Error(`unknown entry ${id}`);
     if (e.status !== "approved") throw new Error(`entry ${id} is not active (status: ${e.status}); only active records can be retired`);
     this.transaction(() => {
-      this.db.prepare("UPDATE entries SET status = 'retired' WHERE id = ?").run(id);
+      const res = this.db.prepare("UPDATE entries SET status = 'retired' WHERE id = ? AND status = 'approved'").run(id);
+      if (!Number(res.changes)) throw new Error(`entry ${id} is not active (status: ${this.get(id)?.status ?? "deleted"}); only active records can be retired`);
       this.event(id, e.project, "retired", by, note ?? null);
     });
     return this.get(id)!;

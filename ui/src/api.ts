@@ -48,7 +48,7 @@ export const api = {
   edit: (id: string, patch: EntryPatch, opts: { approve?: boolean; force?: boolean } = {}) =>
     call<Entry>("POST", `/api/entries/${id}/edit`, { patch, ...opts }),
   retire: (id: string, note?: string) => call<Entry>("POST", `/api/entries/${id}/retire`, { note }),
-  approveAll: (project: string) => call<{ approved: number }>("POST", "/api/approve-all", { project }),
+  approveAll: (ids: string[]) => call<{ approved: number; skipped: number }>("POST", "/api/approve-all", { ids }),
   records: (q: RecordQuery) =>
     call<{ items: Entry[]; total: number }>("GET", `/api/records${qs({ ...q } as Record<string, string | number | undefined>)}`),
   entry: (id: string) => call<{ entry: PendingEntry; history: HistoryEvent[] }>("GET", `/api/entries/${id}`),

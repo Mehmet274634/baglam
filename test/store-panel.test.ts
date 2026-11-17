@@ -103,3 +103,35 @@ describe("store: panel support", () => {
     b.close();
   });
 });
+
+describe("store: decisions are atomic", () => {
+  it("a decision made by another connection between check and write is refused", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "baglam-race-")), "t.db");
+    const other = new ContextStore(file);
+    let id = "";
+    let raced = false;
+    const store = new ContextStore(file, () => {
+      if (id && !raced) {
+        raced = true;
+        other.reject(id, "cli");
+      }
+      return Date.now();
+    });
+    id = store.propose({ project: A, kind: "fact", title: "t", body: "b", sourceAgent: "a" }).id;
+    expect(() => store.approve(id, "panel")).toThrow(/not pending/);
+    expect(store.get(id)?.status).toBe("rejected");
+    expect(store.history(id).map((h) => h.type)).toEqual(["proposed", "rejected"]);
+    store.close();
+    other.close();
+  });
+
+  it("approveMany approves only listed ids that are still pending", () => {
+    const store = new ContextStore(":memory:");
+    const a = store.propose({ project: A, kind: "fact", title: "a", body: "a", sourceAgent: "x" });
+    const b = store.propose({ project: A, kind: "fact", title: "b", body: "b", sourceAgent: "x" });
+    const c = store.propose({ project: A, kind: "fact", title: "c", body: "c", sourceAgent: "x" });
+    store.reject(b.id, "cli");
+    expect(store.approveMany([a.id, b.id, "cmissing"], "panel")).toEqual({ approved: [a.id], skipped: [b.id, "cmissing"] });
+    expect(store.get(c.id)?.status).toBe("proposed");
+  });
+});

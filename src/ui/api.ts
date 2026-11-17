@@ -112,11 +112,12 @@ export function panelApi(ctx: PanelContext): Route[] {
       store.retire(params.id, user, str(obj(body).note, "note", { optional: true })),
     ),
 
+    // Approves exactly the proposals the owner was shown; anything that arrived since stays pending.
     route("POST", "/api/approve-all", ({ body }) => {
-      const project = str(obj(body).project, "project")!;
-      const ids = store.pending(project).map((e) => e.id);
-      for (const id of ids) store.approve(id, user);
-      return { approved: ids.length };
+      const ids = strList(obj(body).ids, "ids");
+      if (!ids?.length) throw new HttpError(400, "ids is required: the proposals that were shown");
+      const r = store.approveMany(ids, user);
+      return { approved: r.approved.length, skipped: r.skipped.length };
     }),
 
     route("GET", "/api/entries/:id", ({ params }) => {

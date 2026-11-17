@@ -72,6 +72,22 @@ describe("panel server", () => {
     expect(panel.url).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${panel.port}/\\?t=[0-9a-f]{48}$`));
   });
 
+  it("two panels keep separate sessions (cookies are shared across ports)", async () => {
+    const second = await startPanel({ store, user: "human:ev", host: testHost(), dbPath, staticDir: join(dir, "static") });
+    try {
+      const a = await login();
+      const r = await http(second.port, `/?t=${new URL(second.url).searchParams.get("t")}`);
+      const b = String(r.headers["set-cookie"]).split(";")[0];
+      expect(a.split("=")[0]).not.toBe(b.split("=")[0]);
+      // A browser sends every 127.0.0.1 cookie to both ports; each panel must find its own.
+      const both = `${b}; ${a}`;
+      expect((await http(panel.port, "/api/ping", { headers: { cookie: both } })).status).toBe(200);
+      expect((await http(second.port, "/api/ping", { headers: { cookie: both } })).status).toBe(200);
+    } finally {
+      await second.close();
+    }
+  });
+
   it("token is single-use", async () => {
     await login();
     const again = await http(panel.port, `/?t=${token()}`);

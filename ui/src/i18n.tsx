@@ -78,6 +78,8 @@ const en = {
 
   "toast.approved": "Approved and shared with your agents",
   "toast.approvedAll": "{n} proposals approved",
+  "toast.approvedSome": "{n} approved; {skipped} were already decided elsewhere",
+  "toast.decidedElsewhere": "Already decided elsewhere; removed from the list.",
   "toast.rejected": "Rejected",
   "toast.saved": "Saved",
   "toast.retired": "Retired; agents no longer see it",
@@ -225,6 +227,8 @@ const tr: Record<Key, string> = {
 
   "toast.approved": "Onaylandı ve ajanlarla paylaşıldı",
   "toast.approvedAll": "{n} öneri onaylandı",
+  "toast.approvedSome": "{n} öneri onaylandı; {skipped} tanesi için başka bir yerde karar verilmişti",
+  "toast.decidedElsewhere": "Bu öneri için başka bir yerde karar verilmiş; listeden kaldırıldı.",
   "toast.rejected": "Reddedildi",
   "toast.saved": "Kaydedildi",
   "toast.retired": "Kaldırıldı; ajanlar artık görmüyor",

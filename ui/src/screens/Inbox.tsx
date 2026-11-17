@@ -51,6 +51,12 @@ export function Inbox(props: { api: Api; project: string | undefined; refresh: n
     } catch (err) {
       if (err instanceof ApiError && err.status === 409 && Array.isArray(err.data.secrets)) {
         setMode({ kind: "edit", secrets: err.data.secrets as SecretFinding[] });
+      } else if (err instanceof ApiError && (err.status === 409 || err.status === 404)) {
+        // The CLI, another panel or an agent's trust rule got there first.
+        toast(t("toast.decidedElsewhere"));
+        setMode({ kind: "idle" });
+        setItems((list) => list?.filter((e) => e.id !== id) ?? null);
+        props.onChanged();
       } else {
         toast(t("toast.error", { msg: (err as Error).message }), "error");
       }
@@ -120,9 +126,9 @@ export function Inbox(props: { api: Api; project: string | undefined; refresh: n
                 if (!confirm(t("inbox.approveAllConfirm", { n: items.length }))) return;
                 setBusy(true);
                 props.api
-                  .approveAll(props.project!)
+                  .approveAll(items.map((e) => e.id))
                   .then((r) => {
-                    toast(t("toast.approvedAll", { n: r.approved }));
+                    toast(r.skipped ? t("toast.approvedSome", { n: r.approved, skipped: r.skipped }) : t("toast.approvedAll", { n: r.approved }));
                     setItems([]);
                     props.onChanged();
                   })

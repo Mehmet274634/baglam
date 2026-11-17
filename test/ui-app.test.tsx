@@ -5,6 +5,7 @@ import { dict, pickLanguage, I18nProvider } from "../ui/src/i18n.js";
 import { EntryCard } from "../ui/src/components/EntryCard.js";
 import { Inbox } from "../ui/src/screens/Inbox.js";
 import { ApiError, type Api } from "../ui/src/api.js";
+import { ToastProvider } from "../ui/src/toast.js";
 import type { Entry, PendingEntry } from "../ui/src/types.js";
 
 afterEach(cleanup);
@@ -131,6 +132,37 @@ describe("Inbox", () => {
     fireEvent.input(screen.getByLabelText("Content"), { target: { value: "clean text" } });
     fireEvent.click(await screen.findByRole("button", { name: "Save & approve" }));
     await waitFor(() => expect(edit).toHaveBeenLastCalledWith(items[0].id, expect.objectContaining({ body: "clean text" }), { approve: true }));
+  });
+
+  it("a proposal decided elsewhere shows a translated message and leaves the list", async () => {
+    const items = [entry(), entry()];
+    const approve = vi.fn().mockRejectedValue(new ApiError(409, "entry c1 is not pending (status: rejected)"));
+    render(
+      <I18nProvider lang="tr">
+        <ToastProvider>
+          <Inbox api={fakeApi(items, { approve } as Partial<Api>)} project={undefined} refresh={0} onChanged={() => {}} />
+        </ToastProvider>
+      </I18nProvider>,
+    );
+    await screen.findByText(items[0].title);
+    fireEvent.keyDown(window, { key: "a" });
+    expect(await screen.findByText(/başka bir yerde karar verilmiş/)).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText(items[0].title)).toBeNull());
+    expect(screen.queryByText(/not pending/)).toBeNull();
+  });
+
+  it("approve all sends the ids that were shown", async () => {
+    const items = [entry(), entry()];
+    const approveAll = vi.fn(async () => ({ approved: 2, skipped: 0 }));
+    vi.stubGlobal("confirm", () => true);
+    render(
+      <I18nProvider lang="en">
+        <Inbox api={fakeApi(items, { approveAll } as Partial<Api>)} project="p" refresh={0} onChanged={() => {}} />
+      </I18nProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Approve all (2)" }));
+    await waitFor(() => expect(approveAll).toHaveBeenCalledWith(items.map((e) => e.id)));
+    vi.unstubAllGlobals();
   });
 
   it("empty inbox teaches the first step", async () => {

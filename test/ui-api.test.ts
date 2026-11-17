@@ -44,9 +44,12 @@ describe("panel API", () => {
     expect((await h.call("POST", `/api/entries/${a.id}/approve`, { note: "ok" })).status).toBe(200);
     expect(h.store.get(a.id)?.decidedBy).toBe("human:ev");
     expect((await h.call("POST", `/api/entries/${b.id}/reject`, { note: "no" })).json.status).toBe("rejected");
-    const all = await h.call("POST", "/api/approve-all", { project: A });
-    expect(all.json).toEqual({ approved: 1 });
+    const late = propose("Four delta arrived later");
+    const all = await h.call("POST", "/api/approve-all", { ids: [c.id] });
+    expect(all.json).toEqual({ approved: 1, skipped: 0 });
     expect(h.store.get(c.id)?.status).toBe("approved");
+    expect(h.store.get(late.id)?.status).toBe("proposed");
+    expect((await h.call("POST", "/api/approve-all", { project: A })).status).toBe(400);
   });
 
   it("approving a decided proposal is a 409", async () => {

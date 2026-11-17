@@ -34,7 +34,6 @@ export interface Panel {
   close(): Promise<void>;
 }
 
-const COOKIE = "baglam_session";
 
 const OPEN_AGAIN = `<!doctype html><meta charset="utf-8"><title>Bağlam</title>
 <body style="font-family:system-ui;max-width:36rem;margin:4rem auto;padding:0 1rem;line-height:1.5">
@@ -61,6 +60,8 @@ export async function startPanel(o: PanelOptions): Promise<Panel> {
   const sessions = new Set<string>();
   const listeners = new Set<ServerResponse>();
   let port = 0;
+  // Browsers share cookies across ports, so each panel's cookie carries its own port.
+  const cookieName = () => `baglam_session_${port}`;
 
   const notify = () => {
     for (const res of listeners) res.write(`event: change\ndata: {}\n\n`);
@@ -91,7 +92,7 @@ export async function startPanel(o: PanelOptions): Promise<Panel> {
   }, 25_000);
 
   const hasSession = (req: IncomingMessage) => {
-    const s = cookieValue(req, COOKIE);
+    const s = cookieValue(req, cookieName());
     return !!s && [...sessions].some((x) => sameSecret(x, s));
   };
 
@@ -115,7 +116,7 @@ export async function startPanel(o: PanelOptions): Promise<Panel> {
         sessions.add(session);
         res.writeHead(302, {
           location: "/",
-          "set-cookie": `${COOKIE}=${session}; HttpOnly; SameSite=Strict; Path=/`,
+          "set-cookie": `${cookieName()}=${session}; HttpOnly; SameSite=Strict; Path=/`,
           "cache-control": "no-store",
         });
         return void res.end();
