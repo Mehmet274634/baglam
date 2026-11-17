@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Bağlam: shared memory for your AI coding agents</title>
+<meta name="description" content="One shared, human-approved project memory for Claude Code, Codex, Cursor, Antigravity, Gemini CLI and VS Code. Local-first. Open source.">
+<meta property="og:title" content="Bağlam: shared memory for your AI coding agents">
+<meta property="og:description" content="Stop re-explaining your project to every AI tool. Agents propose, you approve, every agent knows.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M9 11h14M9 16h10M9 21h14' stroke='white' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #fbfbfd; --surface: #ffffff; --surface-2: #f2f3f7; --border: #e4e6ec; --text: #14161b; --muted: #5d6470;
+    --accent: #4f46e5; --accent-2: #0f8a7e; --accent-soft: #eef0ff; --code-bg: #14161b; --code-text: #e8eaee;
+    --shadow: 0 20px 50px -20px rgb(20 22 40 / 25%);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d0f13; --surface: #151820; --surface-2: #1c2029; --border: #272c37; --text: #e9ebef; --muted: #9aa1ad;
+      --accent: #8b85ff; --accent-2: #3fc4b5; --accent-soft: #20214a; --code-bg: #0a0b0e; --code-text: #e8eaee;
+      --shadow: 0 20px 50px -20px rgb(0 0 0 / 70%);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+  header.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem; color: var(--text); text-decoration: none; }
+  .logo { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); display: grid; place-items: center; color: #fff; }
+  .lang { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; background: var(--surface); }
+  .lang button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: .85rem; padding: 4px 10px; border-radius: 7px; cursor: pointer; }
+  .lang button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .hero { padding: 56px 0 28px; text-align: center; }
+  .eyebrow { display: inline-block; font-size: .8rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); background: var(--accent-soft); padding: 4px 12px; border-radius: 999px; }
+  h1 { font-size: clamp(2.1rem, 5.4vw, 3.6rem); line-height: 1.08; letter-spacing: -.025em; margin: 18px auto 16px; max-width: 16ch; }
+  .lede { font-size: clamp(1.05rem, 2.2vw, 1.25rem); color: var(--muted); max-width: 40rem; margin: 0 auto 28px; }
+  .install { display: inline-flex; align-items: center; gap: 12px; background: var(--code-bg); color: var(--code-text); border-radius: 12px; padding: 12px 14px 12px 18px; font: 15px/1.4 ui-monospace, "Cascadia Code", Consolas, monospace; box-shadow: var(--shadow); max-width: 100%; overflow-x: auto; }
+  .install span { white-space: nowrap; }
+  .install .p { color: #8b85ff; user-select: none; }
+  .copy { border: 1px solid #3a3f4c; background: #1f232c; color: var(--code-text); border-radius: 8px; padding: 5px 10px; font: 13px system-ui, sans-serif; cursor: pointer; }
+  .tools { margin: 22px auto 0; color: var(--muted); font-size: .92rem; }
+  .shot { margin: 48px auto 0; max-width: 980px; border-radius: 16px; border: 1px solid var(--border); overflow: hidden; box-shadow: var(--shadow); background: var(--surface); }
+  .shot img { display: block; width: 100%; height: auto; }
+  section { padding: 72px 0 8px; }
+  h2 { font-size: clamp(1.6rem, 3.4vw, 2.2rem); letter-spacing: -.02em; margin: 0 0 12px; text-align: center; }
+  .sub { color: var(--muted); text-align: center; max-width: 38rem; margin: 0 auto 36px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; counter-reset: s; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; }
+  .steps .card::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; margin-bottom: 12px; }
+  .card h3 { margin: 0 0 6px; font-size: 1.1rem; }
+  .card p { margin: 0; color: var(--muted); }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .9em; background: var(--surface-2); padding: 1px 6px; border-radius: 5px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); margin-bottom: 12px; }
+  .terminal { background: var(--code-bg); color: var(--code-text); border-radius: 16px; padding: 22px 24px; font: 14.5px/1.75 ui-monospace, "Cascadia Code", Consolas, monospace; overflow-x: auto; box-shadow: var(--shadow); max-width: 760px; margin: 0 auto; }
+  .terminal .c { color: #7d8594; }
+  .terminal .p { color: #8b85ff; }
+  .terminal .ok { color: #4cc58a; }
+  .cta { text-align: center; padding: 80px 0 40px; }
+  footer { border-top: 1px solid var(--border); margin-top: 60px; padding: 26px 0 40px; color: var(--muted); font-size: .9rem; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  [data-l] { display: none; }
+  html[lang="en"] [data-l="en"], html[lang="tr"] [data-l="tr"] { display: revert; }
+  @media (max-width: 860px) { .steps, .grid { grid-template-columns: 1fr; } section { padding-top: 56px; } }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="#"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 8h12M6 12h8M6 16h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/></svg></span>Bağlam</a>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" data-set="en" aria-pressed="true">EN</button>
+      <button type="button" data-set="tr" aria-pressed="false">TR</button>
+    </div>
+  </header>
+
+  <div class="hero">
+    <span class="eyebrow" data-l="en">Open source · local-first · MCP</span>
+    <span class="eyebrow" data-l="tr">Açık kaynak · yerel · MCP</span>
+    <h1 data-l="en">One memory for all your AI coding agents.</h1>
+    <h1 data-l="tr">Bütün yapay zekâ ajanların için tek hafıza.</h1>
+    <p class="lede" data-l="en">Stop re-explaining your project to every tool. Agents propose what they learn, you approve it, and every agent knows it next time: Claude Code, Codex, Cursor and the rest.</p>
+    <p class="lede" data-l="tr">Projeni her araca yeniden anlatmayı bırak. Ajanlar öğrendiklerini önerir, sen onaylarsın, bir dahaki sefere bütün ajanlar bilir: Claude Code, Codex, Cursor ve diğerleri.</p>
+    <div class="install"><span class="p">$</span><span id="cmd">npm i -g baglam &amp;&amp; baglam setup</span><button class="copy" type="button" data-copy="npm i -g baglam && baglam setup"><span data-l="en">Copy</span><span data-l="tr">Kopyala</span></button></div>
+    <p class="tools">Claude Code · Codex CLI · Antigravity · Gemini CLI · Cursor · Windsurf · VS Code</p>
+    <div class="shot"><img src="panel.jpg" width="800" height="515" alt="Bağlam review panel: proposals from codex, claude-code and cursor waiting for approval, one flagged as similar to an existing record"></div>
+  </div>
+
+  <section>
+    <h2 data-l="en">How it works</h2>
+    <h2 data-l="tr">Nasıl çalışır</h2>
+    <p class="sub" data-l="en">Three steps, and you're in the middle of every one that matters.</p>
+    <p class="sub" data-l="tr">Üç adım, ve önemli olan her adımda karar sende.</p>
+    <div class="steps">
+      <div class="card">
+        <h3 data-l="en">An agent learns something</h3><h3 data-l="tr">Bir ajan bir şey öğrenir</h3>
+        <p data-l="en">A decision, a convention, a pitfall. It proposes it with <code>context_propose</code>, from any tool.</p>
+        <p data-l="tr">Bir karar, bir kural, bir tuzak. Hangi araçta olursa olsun <code>context_propose</code> ile önerir.</p>
+      </div>
+      <div class="card">
+        <h3 data-l="en">You approve it</h3><h3 data-l="tr">Sen onaylarsın</h3>
+        <p data-l="en">In the panel (<code>baglam ui</code>) or the terminal. Edit it first, reject it, or set trust rules for the boring ones.</p>
+        <p data-l="tr">Panelde (<code>baglam ui</code>) ya da terminalde. Önce düzenle, reddet ya da sıradan olanlar için güven kuralı koy.</p>
+      </div>
+      <div class="card">
+        <h3 data-l="en">Every agent knows it</h3><h3 data-l="tr">Bütün ajanlar bilir</h3>
+        <p data-l="en">Next task, any agent loads it with <code>context_brief</code>: warnings and decisions first, kept short.</p>
+        <p data-l="tr">Bir sonraki görevde her ajan <code>context_brief</code> ile okur: önce uyarılar ve kararlar, kısa ve öz.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 data-l="en">Built to be trusted</h2>
+    <h2 data-l="tr">Güvenilmek için yapıldı</h2>
+    <p class="sub" data-l="en">Shared memory is only useful if it stays clean and safe.</p>
+    <p class="sub" data-l="tr">Ortak hafıza ancak temiz ve güvenli kalırsa işe yarar.</p>
+    <div class="grid">
+      <div class="card"><div class="icon" aria-hidden="true">✓</div>
+        <h3 data-l="en">Human approval</h3><h3 data-l="tr">İnsan onayı</h3>
+        <p data-l="en">Nothing an agent writes reaches your other agents until you say so. Something one agent picked up from a bad web page can't spread to the rest.</p>
+        <p data-l="tr">Bir ajanın yazdığı hiçbir şey sen onaylamadan diğer ajanlarına ulaşmaz. Bir ajanın zararlı bir web sayfasından kaptığı şey diğerlerine yayılamaz.</p></div>
+      <div class="card"><div class="icon" aria-hidden="true">⛨</div>
+        <h3 data-l="en">Secrets blocked</h3><h3 data-l="tr">Gizli bilgi engelli</h3>
+        <p data-l="en">Proposals that look like they contain API keys, tokens, private keys or passwords are blocked before they are stored.</p>
+        <p data-l="tr">API anahtarı, token, özel anahtar ya da şifre içeriyor gibi görünen öneriler kaydedilmeden engellenir.</p></div>
+      <div class="card"><div class="icon" aria-hidden="true">≈</div>
+        <h3 data-l="en">No noise</h3><h3 data-l="tr">Gürültü yok</h3>
+        <p data-l="en">Look-alikes are flagged, records expire when you want, new decisions retire old ones.</p>
+        <p data-l="tr">Benzer kayıtlar işaretlenir, istersen kayıtların süresi dolar, yeni kararlar eskileri emekliye ayırır.</p></div>
+      <div class="card"><div class="icon" aria-hidden="true">⌂</div>
+        <h3 data-l="en">Local-first</h3><h3 data-l="tr">Yerel</h3>
+        <p data-l="en">One SQLite file on your machine. No account, no cloud, no telemetry.</p>
+        <p data-l="tr">Bilgisayarında tek bir SQLite dosyası. Hesap yok, bulut yok, veri toplama yok.</p></div>
+      <div class="card"><div class="icon" aria-hidden="true">⚡</div>
+        <h3 data-l="en">Fast</h3><h3 data-l="tr">Hızlı</h3>
+        <p data-l="en">Under 50 ms for brief, search and duplicate checks with 10,000+ records.</p>
+        <p data-l="tr">10.000'den fazla kayıtta bile özet, arama ve benzerlik kontrolü 50 ms'nin altında.</p></div>
+      <div class="card"><div class="icon" aria-hidden="true">⟲</div>
+        <h3 data-l="en">Reversible</h3><h3 data-l="tr">Geri alınabilir</h3>
+        <p data-l="en">Setup backs up every file it touches, and <code>--undo</code> disconnects every tool. Your records stay yours: export to Markdown or JSON anytime.</p>
+        <p data-l="tr">Kurulum dokunduğu her dosyayı yedekler, <code>--undo</code> bütün araçların bağlantısını kaldırır. Kayıtların senindir: istediğin an Markdown ya da JSON'a aktar.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 data-l="en">Two minutes to set up</h2>
+    <h2 data-l="tr">İki dakikada kurulum</h2>
+    <p class="sub" data-l="en">No config files to edit. Bağlam finds your tools and connects them.</p>
+    <p class="sub" data-l="tr">Elle düzenlenecek ayar dosyası yok. Bağlam araçlarını bulur ve bağlar.</p>
+    <div class="terminal" role="img" aria-label="Terminal session: npm i -g baglam, baglam setup, baglam init, baglam ui">
+      <div><span class="p">$</span> npm i -g baglam</div>
+      <div><span class="p">$</span> baglam setup</div>
+      <div class="c">Found: Claude Code, Codex CLI, Antigravity, Cursor, VS Code</div>
+      <div><span class="ok">✓</span> Claude Code  added   <span class="c">~/.claude.json</span></div>
+      <div><span class="ok">✓</span> Cursor       added   <span class="c">~/.cursor/mcp.json</span></div>
+      <div class="c">…</div>
+      <div><span class="p">$</span> cd my-project &amp;&amp; baglam init</div>
+      <div><span class="ok">✓</span> CLAUDE.md    added   <span class="ok">✓</span> AGENTS.md    added</div>
+      <div><span class="p">$</span> baglam ui</div>
+      <div class="c">Bağlam panel: http://127.0.0.1:52817/?t=…</div>
+    </div>
+  </section>
+
+  <div class="cta">
+    <h2 data-l="en">Give your agents a shared memory.</h2>
+    <h2 data-l="tr">Ajanlarına ortak bir hafıza ver.</h2>
+    <div class="install" style="margin-top:16px"><span class="p">$</span><span>npm i -g baglam &amp;&amp; baglam setup</span><button class="copy" type="button" data-copy="npm i -g baglam && baglam setup"><span data-l="en">Copy</span><span data-l="tr">Kopyala</span></button></div>
+  </div>
+
+  <footer>
+    <span data-l="en">Bağlam means “context” in Turkish. MIT licensed.</span>
+    <span data-l="tr">Bağlam, İngilizcede “context” demek. MIT lisanslı.</span>
+    <span>Node.js 22.13+ · Windows · macOS · Linux</span>
+  </footer>
+</div>
+<script>
+  (() => {
+    const root = document.documentElement;
+    const set = (l) => {
+      root.lang = l;
+      document.querySelectorAll("[data-set]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.set === l)));
+      try { localStorage.setItem("baglam.site.lang", l); } catch {}
+    };
+    let saved = null;
+    try { saved = localStorage.getItem("baglam.site.lang"); } catch {}
+    set(saved || ((navigator.language || "").toLowerCase().startsWith("tr") ? "tr" : "en"));
+    document.querySelectorAll("[data-set]").forEach((b) => b.addEventListener("click", () => set(b.dataset.set)));
+    document.querySelectorAll("[data-copy]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(b.dataset.copy);
+          const label = b.querySelector(`[data-l="${root.lang}"]`);
+          const old = label.textContent;
+          label.textContent = root.lang === "tr" ? "Kopyalandı" : "Copied";
+          setTimeout(() => (label.textContent = old), 1500);
+        } catch {}
+      }),
+    );
+  })();
+</script>
+</body>
+</html>

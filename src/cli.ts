@@ -2,50 +2,66 @@
 import { parseArgs } from "node:util";
 import { userInfo } from "node:os";
 import { pathToFileURL } from "node:url";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { ContextStore, KINDS, type Entry, type Kind, type TrustRule } from "./store.js";
 import { day, formatEntry } from "./format.js";
 import { resolveDbPath } from "./config.js";
 import { resolveProject } from "./project.js";
+import { VERSION } from "./version.js";
 import { realHost, type HostEnv } from "./host.js";
 import { detectClients, runSetup } from "./setup.js";
 import { runInit } from "./init.js";
+import { ALL_CLIENTS } from "./clients/index.js";
+
+const KNOWN_AGENT_IDS = ALL_CLIENTS.map((c) => c.id);
 import { describeFindings, scanEntryFields } from "./guards.js";
+import { exportJson, exportMarkdown, importJson } from "./portable.js";
 import { formatCheck, runDoctor, type Handshake } from "./doctor.js";
 import { basename } from "node:path";
 import type { Change } from "./clients/types.js";
 
 const USAGE = `Usage: baglam <command> [options]
 
+Get started:
+  setup [--yes] [--dry-run] [--undo]  Connect Bağlam to every AI tool installed on this machine
+  init [--here] [--undo]              Prepare this folder: project id + instructions for agents
+  ui [--port n] [--no-open]           Open the review panel in your browser
+  doctor                              Check that everything is connected, with fixes
+
 Review what agents proposed:
   pending [--all-projects]            List proposals waiting for review
   approve <id...> | --all [--note t]  Approve proposals (they become visible to agents)
   reject <id> [--note text]           Reject a proposal
 
-Set up:
-  setup [--yes] [--dry-run] [--undo]  Connect Bağlam to every AI tool installed on this machine
-  init [--here] [--undo]              Prepare this folder: project id + instructions for agents
-  doctor                              Check that everything is connected, with fixes
-  ui [--port n] [--no-open]           Open the review panel in your browser
-
-For AI tools:
-  mcp                                 Run the MCP server on stdio (what you register in Claude Code, Cursor, …)
-
-Trust (opt-in auto-approval):
-  trust add [--agent id] [--kind k] [--global]  Let matching records skip review
-  trust list | trust remove <id>
-
 Manage context yourself:
-  add <kind> <title> <body> [--why text] [--tags a,b] [--to agent,agent] [--ttl days] [--replaces id]
+  add <kind> <title> <body> [--why text] [--tags a,b] [--to agent,agent] [--ttl days] [--replaces id] [--force]
                                       Add an approved record (kind: ${KINDS.join(" | ")})
   list [--everything]                 Show active records (--everything: all statuses)
   show <id>                           Show one record in full
   projects                            Projects in the database with counts
 
-Options:
-  --project <path>                    Project to act on (default: git root of the current folder)
+Trust (opt-in auto-approval):
+  trust add [--agent id] [--kind k] [--global]  Let matching records skip review
+  trust list | trust remove <id>
 
-Environment: BAGLAM_DB (database path), BAGLAM_PROJECT (project override)`;
+Move data:
+  export [--format md|json] [--out file] [--all-projects]   CONTEXT.md or a full JSON backup
+  import <file.json> [--force]        Merge a JSON export (existing records are kept)
+
+For AI tools:
+  mcp                                 Run the MCP server on stdio (what setup registers)
+
+Options:
+  --project <path>                    Project to act on (default: the project of the current folder)
+  --version, --help
+
+Environment:
+  BAGLAM_DB            database file (default ~/.baglam/baglam.db)
+  BAGLAM_PROJECT       project folder override
+  BAGLAM_AGENT         agent id (set by setup for each tool)
+  BAGLAM_USER          name recorded for your approvals (default human:<os user>)
+  BAGLAM_FLOOD_LIMIT   pending proposals allowed per agent (default 20)
+  BAGLAM_BRIEF_BUDGET  token budget of context_brief (default 2000)`;
 
 export interface CliContext {
   store: ContextStore;
@@ -88,7 +104,8 @@ function summary(e: Entry): string {
 }
 
 export function runCli(argv: string[], ctx: CliContext): number | Promise<number> {
-  const { store, user, print } = ctx;
+  // ctx.store is read lazily so commands that never touch the database never open it.
+  const { user, print } = ctx;
   let parsed;
   try {
     parsed = parseArgs({
@@ -113,7 +130,10 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
         global: { type: "boolean" },
         agent: { type: "string" },
         kind: { type: "string" },
+        format: { type: "string" },
+        out: { type: "string" },
         help: { type: "boolean", short: "h" },
+        version: { type: "boolean", short: "v" },
       },
     });
   } catch (err) {
@@ -123,11 +143,15 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
   const { values: o, positionals } = parsed;
   const project = o.project ? resolveProject(o.project) : ctx.project;
   const [cmd, ...args] = positionals;
+  if (o.version && cmd === undefined) {
+    print(VERSION);
+    return 0;
+  }
 
   try {
     switch (cmd) {
       case "pending": {
-        const items = store.pending(o["all-projects"] ? undefined : project);
+        const items = ctx.store.pending(o["all-projects"] ? undefined : project);
         if (!items.length) {
           print("Nothing waiting for review.");
           return 0;
@@ -141,17 +165,17 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
         return 0;
       }
       case "approve": {
-        const ids = o.all ? store.pending(project).map((e) => e.id) : args;
+        const ids = o.all ? ctx.store.pending(project).map((e) => e.id) : args;
         if (!ids.length) throw new Error(o.all ? "nothing pending" : "give at least one id, or --all");
         for (const id of ids) {
-          const e = store.approve(id, user, o.note);
+          const e = ctx.store.approve(id, user, o.note);
           print(`approved ${e.id}  ${e.title}`);
         }
         return 0;
       }
       case "reject": {
         if (args.length !== 1) throw new Error("give exactly one id");
-        const e = store.reject(args[0], user, o.note);
+        const e = ctx.store.reject(args[0], user, o.note);
         print(`rejected ${e.id}  ${e.title}`);
         return 0;
       }
@@ -166,7 +190,7 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
           );
           return 1;
         }
-        const e = store.addApproved(
+        const e = ctx.store.addApproved(
           {
             project,
             kind: kind as Kind,
@@ -185,8 +209,8 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
       }
       case "list": {
         const items = o.everything
-          ? store.all(project)
-          : store.all(project).filter((e) => e.status === "approved" && (!e.expiresAt || e.expiresAt > Date.now()));
+          ? ctx.store.all(project)
+          : ctx.store.all(project).filter((e) => e.status === "approved" && (!e.expiresAt || e.expiresAt > Date.now()));
         if (!items.length) {
           print(`No records for ${project}.`);
           return 0;
@@ -195,7 +219,7 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
         return 0;
       }
       case "show": {
-        const e = store.get(args[0] ?? "");
+        const e = ctx.store.get(args[0] ?? "");
         if (!e) throw new Error(`unknown entry ${args[0] ?? ""}`);
         print(`${formatEntry(e, { full: true })}\nProject: ${e.project}`);
         return 0;
@@ -237,15 +261,50 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
 Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need attention (see ✗ above).` : ""}`);
         return failed ? 1 : 0;
       }
+      case "export": {
+        const format = o.format ?? "md";
+        if (format !== "md" && format !== "json") throw new Error("--format must be md or json");
+        if (format === "md" && o["all-projects"]) {
+          throw new Error("Markdown export covers one project at a time; use --format json --all-projects for everything");
+        }
+        const text =
+          format === "json"
+            ? JSON.stringify(exportJson(ctx.store, { project: o["all-projects"] ? undefined : project }), null, 2) + "\n"
+            : exportMarkdown(ctx.store, project);
+        if (o.out) {
+          writeFileSync(o.out, text);
+          print(`Wrote ${o.out}`);
+        } else print(text.trimEnd());
+        return 0;
+      }
+      case "import": {
+        if (args.length !== 1) throw new Error("give the export file: baglam import <file.json>");
+        let data: unknown;
+        try {
+          data = JSON.parse(readFileSync(args[0], "utf8"));
+        } catch (err) {
+          throw new Error(`cannot read ${args[0]} as JSON (${(err as Error).message})`);
+        }
+        const r = importJson(ctx.store, data, { force: o.force, by: user, source: basename(args[0]) });
+        print(`Imported ${r.imported} record(s); ${r.skipped} skipped (already present or unreadable).`);
+        if (r.approvedNow) {
+          print(`${r.approvedNow} of them ${r.approvedNow === 1 ? "is" : "are"} approved and visible to agents now (as in the file). Review them with baglam list.`);
+        }
+        for (const b of r.blocked) print(`✗ ${b.id} not imported: looks like a secret (${describeFindings(b.findings)}). Use --force to import anyway.`);
+        return r.blocked.length ? 1 : 0;
+      }
       case "trust": {
         const [sub, id] = args;
         if (sub === "add") {
-          const rule = store.addTrustRule({
+          const rule = ctx.store.addTrustRule({
             projectId: o.global ? null : project,
             agent: o.agent,
             kind: o.kind as Kind | undefined,
           });
           print(`added ${rule.id}  ${describeRule(rule)}`);
+          if (rule.agent && !KNOWN_AGENT_IDS.includes(rule.agent)) {
+            print(`Note: "${rule.agent}" is not one of the agent ids baglam setup writes (${KNOWN_AGENT_IDS.join(", ")}); the rule only matches an agent with exactly that BAGLAM_AGENT.`);
+          }
           print(
             "Records matching this rule skip your review. Secrets are always blocked; look-alikes of existing,\n" +
               "rejected or replaced records and anything that replaces a record still come to you for review.",
@@ -253,14 +312,14 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
           return 0;
         }
         if (sub === "list") {
-          const rules = store.listTrustRules(project);
+          const rules = ctx.store.listTrustRules(project);
           if (!rules.length) print("No trust rules. Every proposal waits for your review.");
           for (const r of rules) print(`${r.id}  ${describeRule(r)}`);
           return 0;
         }
         if (sub === "remove") {
           if (!id) throw new Error("give the rule id (see baglam trust list)");
-          if (!store.removeTrustRule(id)) throw new Error(`no trust rule ${id}`);
+          if (!ctx.store.removeTrustRule(id)) throw new Error(`no trust rule ${id}`);
           print(`removed ${id}`);
           return 0;
         }
@@ -289,7 +348,7 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
       case "init": {
         const host = ctx.host ?? realHost();
         const dir = o.project ?? process.cwd();
-        const r = runInit(dir, { store, host, undo: o.undo, here: o.here });
+        const r = runInit(dir, { store: ctx.store, host, undo: o.undo, here: o.here });
         print(`Project: ${r.project.name}  (id ${r.project.key})`);
         print(`Folder:  ${r.project.dir}`);
         if (r.moved) print(`Moved ${r.moved} existing record(s) to this project id.`);
@@ -299,7 +358,7 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
         return 0;
       }
       case "projects": {
-        const rows = store.projects();
+        const rows = ctx.store.projects();
         if (!rows.length) print("No projects yet.");
         for (const r of rows) print(`${String(r.approved).padStart(4)} active  ${String(r.pending).padStart(3)} pending  ${r.project}`);
         return 0;
@@ -353,15 +412,20 @@ if (isMain() && process.argv[2] === "ui") {
       confirm = () => yes;
     }
   }
-  const store = new ContextStore(resolveDbPath());
-  const code = await runCli(argv, {
-    store,
+  // Open (and so create or migrate) the database only when a command actually touches it:
+  // help, version, setup and doctor must never write it.
+  let opened: ContextStore | undefined;
+  const ctx: CliContext = {
+    get store() {
+      return (opened ??= new ContextStore(resolveDbPath()));
+    },
     project: resolveProject(),
     user: process.env.BAGLAM_USER?.trim() || `human:${userInfo().username}`,
     print: (s) => console.log(s),
     interactive,
     confirm,
-  });
-  store.close();
+  };
+  const code = await runCli(argv, ctx);
+  opened?.close();
   process.exitCode = code;
 }

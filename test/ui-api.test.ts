@@ -60,6 +60,20 @@ describe("panel API", () => {
     expect(again.json.error).toMatch(/not pending/);
   });
 
+  it("busy database is a 503 with a plain message", async () => {
+    const { statusFor } = await import("../src/ui/http.js");
+    expect(statusFor(new Error("database is locked"))).toBe(503);
+    expect(statusFor(new Error("database table is locked"))).toBe(503);
+  });
+
+  it("edit and approve happen in one step", async () => {
+    const a = propose();
+    const r = await h.call("POST", `/api/entries/${a.id}/edit`, { patch: { body: "new" }, approve: true });
+    expect(r.status).toBe(200);
+    expect(h.store.history(a.id).map((x) => x.type)).toEqual(["proposed", "edited", "approved"]);
+    expect(typeof h.store.editAndApprove).toBe("function");
+  });
+
   it("unknown entry is a 404", async () => {
     expect((await h.call("POST", "/api/entries/cnope/approve", {})).status).toBe(404);
   });

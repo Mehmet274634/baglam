@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { backupOnce, serverEntry, type HostEnv } from "../host.js";
+import { backupOnce, serverEntry, writeFileAtomic, type HostEnv } from "../host.js";
 import type { Change, ClientAdapter, ClientStatus, WriteOptions } from "./types.js";
 
 const START = "# baglam:start";
@@ -70,8 +70,7 @@ function load(file: string) {
 
 function save(file: string, text: string): void {
   backupOnce(file);
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, text);
+  writeFileAtomic(file, text);
 }
 
 export const codex: ClientAdapter = {

@@ -184,3 +184,14 @@ describe("ContextStore.edit with partial patches", () => {
     expect(store.history(e.id).at(-1)?.detail).toBe("body");
   });
 });
+
+describe("visible() for the brief", () => {
+  it("returns warnings first, then decisions, conventions, preferences, facts; and counts the rest", () => {
+    const store = new ContextStore(":memory:");
+    for (const kind of ["fact", "preference", "convention", "decision", "warning"] as const) {
+      store.addApproved({ project: "p", kind, title: kind, body: "b" }, "h");
+    }
+    expect(store.visible("p", "a", { limit: 3, byPriority: true }).map((e) => e.kind)).toEqual(["warning", "decision", "convention"]);
+    expect(store.countVisible("p", "a")).toBe(5);
+  });
+});

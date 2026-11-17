@@ -72,6 +72,11 @@ ALTER TABLE entries ADD COLUMN edited_at INTEGER;
 ALTER TABLE entries ADD COLUMN auto_approved INTEGER NOT NULL DEFAULT 0;
 `;
 
+const V5_SCHEMA = `
+CREATE INDEX IF NOT EXISTS entries_visible ON entries(project, status, kind, decided_at);
+CREATE INDEX IF NOT EXISTS events_project_at ON events(project, at);
+`;
+
 const V4_SCHEMA = `
 ALTER TABLE projects ADD COLUMN custom_name INTEGER NOT NULL DEFAULT 0;
 `;
@@ -86,6 +91,7 @@ const STEPS: ((db: DatabaseSync) => void)[] = [
   (db) => db.exec(V2_SCHEMA),
   (db) => db.exec(V3_SCHEMA),
   (db) => db.exec(V4_SCHEMA),
+  (db) => db.exec(V5_SCHEMA),
 ];
 
 export const SCHEMA_VERSION = STEPS.length;

@@ -8,7 +8,11 @@ import { describeFindings } from "./guards.js";
 import { resolveProjectFor, type Resolution } from "./resolve.js";
 import type { ProjectRef } from "./project.js";
 
-export const VERSION = "0.2.0";
+export { VERSION } from "./version.js";
+import { VERSION } from "./version.js";
+
+/** The brief counts "how many more" up to this many records. */
+const COUNT_CAP = 1000;
 
 export interface ServerOptions {
   /** The server process's working directory (last-resort project guess). */
@@ -84,10 +88,14 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
     };
 
   function briefFor(project: ProjectRef, agent: string): string {
+    const total = store.countVisible(project.key, agent, COUNT_CAP);
     return formatBrief({
       project,
       agent,
-      entries: store.visible(project.key, agent, { limit: 1000 }),
+      // A brief holds a few dozen records at most; fetch the top slice in priority order and count the rest.
+      entries: store.visible(project.key, agent, { limit: 150, byPriority: true }),
+      total,
+      totalCapped: total >= COUNT_CAP,
       budgetTokens: briefBudgetFromEnv(),
       pendingCount: store.pending(project.key).length,
     });

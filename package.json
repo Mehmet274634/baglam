@@ -1,15 +1,34 @@
 {
   "name": "baglam",
-  "version": "0.2.0",
-  "description": "Cross-agent context bridge: a shared, human-approved decision log for coding agents over MCP.",
-  "type": "module",
+  "version": "1.0.0-rc.1",
+  "description": "Shared, human-approved project memory for AI coding agents (Claude Code, Codex, Cursor, Antigravity, Gemini CLI, VS Code) over MCP. Local-first.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai-agents",
+    "claude-code",
+    "cursor",
+    "codex",
+    "antigravity",
+    "gemini-cli",
+    "memory",
+    "context",
+    "llm"
+  ],
   "license": "MIT",
+  "type": "module",
   "bin": {
     "baglam": "dist/cli.js"
   },
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.map",
+    "README.md",
+    "README.tr.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=22.13"
@@ -17,7 +36,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build --config ui/vite.config.ts --logLevel warn",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p ui/tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p ui/tsconfig.json",
+    "prepack": "npm run build",
+    "smoke": "node scripts/pack-smoke.mjs",
+    "test:perf": "node scripts/test-perf.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

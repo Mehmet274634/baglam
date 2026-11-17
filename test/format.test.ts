@@ -48,4 +48,15 @@ describe("formatBrief", () => {
     const out = formatBrief({ project: { ...project, initialized: false, warning: "project.json is broken" }, agent: "a", entries: [], pendingCount: 0 });
     expect(out).toContain("project.json is broken");
   });
+
+  it("counts records that were never fetched in the 'more' line", () => {
+    const entries = [entry("decision", "D1", 10)];
+    const out = formatBrief({ project, agent: "a", entries, pendingCount: 0, total: 41 });
+    expect(out).toContain("40 more record(s) not shown");
+  });
+
+  it("says 'or more' when the total was capped", () => {
+    const out = formatBrief({ project, agent: "a", entries: [entry("fact", "F", 10)], pendingCount: 0, total: 1000, totalCapped: true });
+    expect(out).toContain("999+ more record(s) not shown");
+  });
 });

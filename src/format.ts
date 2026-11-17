@@ -54,6 +54,10 @@ export interface BriefInput {
   entries: Entry[];
   pendingCount: number;
   budgetTokens?: number;
+  /** All visible records, when `entries` is only the top slice of them. */
+  total?: number;
+  /** `total` hit the counting cap: there may be more. */
+  totalCapped?: boolean;
 }
 
 /**
@@ -79,7 +83,8 @@ export function formatBrief(input: BriefInput): string {
   if (!entries.length) return [...head, "No approved context yet for this project.", ...tail].join(SEP);
 
   const ranked = [...entries].sort((x, y) => KIND_ORDER.indexOf(x.kind) - KIND_ORDER.indexOf(y.kind));
-  const moreLine = (n: number) => `${n} more record(s) not shown. Use context_search to find them.`;
+  const moreLine = (n: number) =>
+    `${n}${input.totalCapped ? "+" : ""} more record(s) not shown. Use context_search to find them.`;
   let used = [...head, ...tail].join(SEP).length + SEP.length + moreLine(entries.length).length + SEP.length;
 
   const kept = new Map<Kind, string[]>();
@@ -99,6 +104,7 @@ export function formatBrief(input: BriefInput): string {
   const body = KIND_ORDER.filter((k) => kept.has(k)).map(
     (k) => `## ${KIND_HEADINGS[k]}${SEP}${kept.get(k)!.join(SEP)}`,
   );
-  if (cut) body.push(moreLine(cut));
+  const notShown = cut + Math.max(0, (input.total ?? entries.length) - entries.length);
+  if (notShown) body.push(moreLine(notShown));
   return [...head, ...body, ...tail].join(SEP);
 }

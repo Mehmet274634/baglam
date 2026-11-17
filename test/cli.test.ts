@@ -53,6 +53,11 @@ describe("baglam CLI", () => {
     expect(run("trust", "remove", rules[0].id)).toBe(1);
   });
 
+  it("trust add warns about an agent id setup never writes", () => {
+    expect(run("trust", "add", "--agent", "Claude-Code")).toBe(0);
+    expect(out.join("\n")).toMatch(/not one of the agent ids/);
+  });
+
   it("trust add needs --agent or --kind", () => {
     expect(run("trust", "add")).toBe(1);
     expect(out.join("\n")).toMatch(/agent or kind/);
@@ -120,5 +125,16 @@ describe("baglam CLI", () => {
     expect(out.join("\n")).toMatch(/unknown entry/);
     expect(run("frobnicate")).toBe(1);
     expect(out.join("\n")).toMatch(/usage/i);
+  });
+});
+
+describe("baglam --version", () => {
+  it("prints the package version", async () => {
+    const { readFileSync } = await import("node:fs");
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    const out: string[] = [];
+    const code = runCli(["--version"], { store: new ContextStore(":memory:"), project: "x", user: "u", print: (s) => out.push(s) });
+    expect(code).toBe(0);
+    expect(out).toEqual([pkg.version]);
   });
 });

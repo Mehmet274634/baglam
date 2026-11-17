@@ -48,6 +48,7 @@ export class HttpError extends Error {
 export function statusFor(err: unknown): number {
   if (err instanceof HttpError) return err.status;
   if (!(err instanceof Error)) return 500;
+  if (/database (table )?is locked|SQLITE_BUSY|database is busy/i.test(err.message)) return 503;
   if (/not pending|cannot edit|is not active/.test(err.message)) return 409;
   if (/^unknown (entry|project)|^no trust rule/.test(err.message)) return 404;
   return 400;
@@ -63,8 +64,16 @@ export function sendJson(res: ServerResponse, status: number, data: unknown): vo
   res.end(body);
 }
 
+export const CSP =
+  "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+
 export function sendText(res: ServerResponse, status: number, text: string, type = "text/html; charset=utf-8"): void {
-  res.writeHead(status, { "content-type": type, "cache-control": "no-store", "x-content-type-options": "nosniff" });
+  res.writeHead(status, {
+    "content-type": type,
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    ...(type.startsWith("text/html") ? { "content-security-policy": CSP, "x-frame-options": "DENY" } : {}),
+  });
   res.end(text);
 }
 
@@ -113,7 +122,12 @@ export function serveStatic(res: ServerResponse, root: string, urlPath: string):
   if (isFile) {
     const type = TYPES[extname(file).toLowerCase()] ?? "application/octet-stream";
     const cache = type.startsWith("text/html") ? "no-store" : "public, max-age=31536000, immutable";
-    res.writeHead(200, { "content-type": type, "cache-control": cache, "x-content-type-options": "nosniff" });
+    res.writeHead(200, {
+      "content-type": type,
+      "cache-control": cache,
+      "x-content-type-options": "nosniff",
+      ...(type.startsWith("text/html") ? { "content-security-policy": CSP, "x-frame-options": "DENY" } : {}),
+    });
     res.end(readFileSync(file));
     return;
   }

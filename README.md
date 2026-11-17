@@ -1,134 +1,112 @@
 # Bağlam
 
-**AI ajanları arasında ortak, insan onaylı proje hafızası.**
+**Shared, human-approved project memory for AI coding agents.**
 
-Aynı projede Claude Code, Cursor, Codex veya kendi ajanlarını kullanıyorsan, bir ajanın
-öğrendiği karar diğerine geçmez. Bağlam bu boşluğu kapatır:
+[Türkçe](README.tr.md)
 
-1. Bir ajan önemli bir şey öğrenir → `context_propose` ile **önerir**.
-2. Sen terminalde `baglam pending` ile görürsün → `baglam approve` ile **onaylarsın**.
-3. Diğer tüm ajanlar bir sonraki görevde `context_brief` ile bunu **görür**.
+You use Claude Code on Monday, Cursor on Tuesday and Codex on Wednesday, and you explain the same decisions to each of them. Bağlam ("context" in Turkish) gives all your agents one shared memory per project, and you decide what goes into it.
 
-Ajanlar asla onaylayamaz. Bir ajanın zararlı bir web sayfasından "öğrendiği" bir şey,
-sen onaylamadan diğer ajanlara ulaşamaz.
+```
+ agent learns something ──► proposes it ──► you approve ──► every agent knows it
+   (any tool, any vendor)   context_propose   baglam ui      context_brief
+```
 
-## Özellikler
+- **Works with the tools you already use:** Claude Code, Codex CLI, Antigravity, Gemini CLI, Cursor, Windsurf, VS Code (any MCP client).
+- **You stay in control:** nothing an agent writes reaches other agents until you approve it, or until a trust rule you set allows it.
+- **Safe by default:** secrets are blocked, look-alike records are flagged, and an agent can't flood your queue.
+- **Local-first:** one SQLite file on your machine. No account, no cloud, no telemetry.
 
-- **5 kayıt türü:** `decision`, `convention`, `preference`, `fact`, `warning`
-- **Kaynak bilgisi:** hangi ajan önerdi, gerekçesi ne, kim ne zaman onayladı
-- **Seçici paylaşım:** kaydı sadece belirli ajanlara göster (`audience` / `--to`)
-- **Süreli kayıt:** `ttl_days` / `--ttl` dolunca otomatik kaybolur
-- **Yerine geçme:** yeni karar eskisini `supersedes` ile emekliye ayırır, geçmiş korunur
-- **Tam metin arama** (SQLite FTS5)
-- **Proje izolasyonu:** her git kökü ayrı bir proje
-- **Yerel ve bağımlılıksız:** tek SQLite dosyası (`~/.baglam/baglam.db`); native derleme yok, bulut yok
+## Install
 
-## Kurulum
-
-Gereken: Node.js ≥ 22.13
+Requires Node.js 22.13 or newer.
 
 ```bash
-cd C:/Users/ev/Desktop/BAĞLAM
-npm install
-npm run build
-npm link
+npm i -g baglam
+baglam setup
 ```
 
-`npm link` sonrası `baglam` komutu her terminalde çalışır.
+`setup` finds the AI tools on your computer, shows what it will change and asks once. Every file it touches is backed up first (`*.baglam-backup`), and `baglam setup --undo` removes it again. Restart your tools afterwards.
 
-## Ajanlara bağlama
-
-### Claude Code
+Then, in each project folder:
 
 ```bash
-claude mcp add baglam -s user -e BAGLAM_AGENT=claude-code -- node "C:/Users/ev/Desktop/BAĞLAM/dist/cli.js" mcp
+cd my-project
+baglam init
 ```
 
-Claude Code sunucuyu proje klasöründe başlattığı için proje otomatik algılanır.
+`init` gives the folder a stable project id (`.baglam/project.json`, worth committing) and adds a short instruction block to `CLAUDE.md`, `AGENTS.md`, `GEMINI.md` and Cursor rules, so agents load the shared context at the start of every task without being told.
 
-### Cursor
-
-Proje kökünde `.cursor/mcp.json` (veya global için `~/.cursor/mcp.json`):
-
-```json
-{
-  "mcpServers": {
-    "baglam": {
-      "command": "node",
-      "args": ["C:/Users/ev/Desktop/BAĞLAM/dist/cli.js", "mcp"],
-      "env": { "BAGLAM_AGENT": "cursor", "BAGLAM_PROJECT": "${workspaceFolder}" }
-    }
-  }
-}
-```
-
-### Codex CLI
-
-`~/.codex/config.toml`:
-
-```toml
-[mcp_servers.baglam]
-command = "node"
-args = ["C:/Users/ev/Desktop/BAĞLAM/dist/cli.js", "mcp"]
-env = { BAGLAM_AGENT = "codex" }
-```
-
-### Ajanlara ne zaman kullanacaklarını söyle
-
-Projenin `CLAUDE.md` / `AGENTS.md` / Cursor Rules dosyasına şunu ekle:
-
-```markdown
-## Ortak bağlam (Bağlam)
-- Her görevin başında `context_brief` çağır ve oradaki kararlara uy.
-- Kalıcı bir karar verdiğinde, bir konvansiyon veya kullanıcı tercihi öğrendiğinde ya da
-  bir tuzağa düştüğünde `context_propose` ile öner. Eski bir kaydı değiştiriyorsa `supersedes` kullan.
-- Sır, şifre veya kişisel veri önerme.
-```
-
-## Günlük kullanım
+## Daily use
 
 ```bash
-baglam pending                       # ajanların önerilerini gör
-baglam approve c7k2m9xqa c3hp8rtwe   # seçerek onayla
-baglam approve --all                 # hepsini onayla
-baglam reject c7k2m9xqa --note "npm kullanıyoruz"
-baglam list                          # aktif kayıtlar
-baglam show c7k2m9xqa                # tek kayıt, tüm detay
-baglam projects                      # tüm projeler ve sayılar
-
-# Kendin doğrudan ekle (onaylı olarak girer):
-baglam add warning "Prod DB salt okunur" "Ajanlar migration çalıştırmasın." --ttl 30
-baglam add preference "Arayüz dili Türkçe" "Tüm UI metinleri Türkçe." --to cursor,claude-code
-baglam add decision "MySQL'e geçildi" "Ana DB MySQL 8." --replaces c7k2m9xqa
+baglam ui        # review panel in your browser
+baglam pending   # or review in the terminal
+baglam approve <id> · baglam reject <id> --note "why"
 ```
 
-Komutlar bulunduğun klasörün git kökünü proje olarak alır. Başka bir projede işlem
-yapmak için `--project <yol>` ekle.
+The panel shows proposals as cards: approve, edit & approve, or reject. Keyboard: `j`/`k` move, `a` approve, `e` edit, `r` reject. It also lists every record with its history, your projects, trust rules and which tools are connected. It runs only on `127.0.0.1`, and its link works once.
 
-## MCP araçları
+Add something yourself, approved at once:
 
-| Araç | Ne yapar |
+```bash
+baglam add warning "Prod DB is read-only" "Never run migrations from an agent session." --ttl 30
+baglam add preference "UI copy is Turkish" "All user-facing text is Turkish." --to cursor,claude-code
+baglam add decision "Moved to MySQL" "Primary DB is MySQL 8." --replaces <old-id>
+```
+
+Kinds: `decision`, `convention`, `preference`, `fact`, `warning`.
+
+## What agents get
+
+| MCP tool | What it does |
 |---|---|
-| `context_brief` | Bu ajana açık, onaylı ve süresi dolmamış tüm kayıtlar (türe göre gruplu) ve bekleyen öneri sayısı |
-| `context_search` | Görünür kayıtlarda tam metin arama (`query`, isteğe bağlı `kind`, `limit`) |
-| `context_get` | Tek kayıt; neyin yerine geçtiği / neyle değiştirildiği dahil |
-| `context_propose` | Yeni kayıt önerir (`kind`, `title`, `body`, `rationale`, `tags`, `audience`, `ttl_days`, `supersedes`) |
+| `context_brief` | All approved, active records for this project, warnings and decisions first, kept under a token budget |
+| `context_search` | Full-text search over approved records |
+| `context_get` | One record, including what it replaced |
+| `context_propose` | Propose a record; it waits for your review |
 
-## Ortam değişkenleri
+Agents pass `project_path` (their workspace folder), so Bağlam always knows the project. If it can't tell, it refuses to write rather than guess.
 
-| Değişken | Varsayılan | Anlamı |
-|---|---|---|
-| `BAGLAM_DB` | `~/.baglam/baglam.db` | Veritabanı dosyası |
-| `BAGLAM_PROJECT` | çalışma klasörünün git kökü | Proje anahtarı |
-| `BAGLAM_AGENT` | MCP istemcisinin adı | Ajan adı (öneri kaynağı ve `audience` eşleşmesi) |
-| `BAGLAM_USER` | `human:<kullanıcı adı>` | CLI onaylarında görünen ad |
+## Trust rules (optional)
 
-## Geliştirme
+By default every proposal waits for you. To let some through:
 
 ```bash
-npm test          # 27 test: veri katmanı, MCP sunucusu, CLI
-npm run typecheck
-npm run build
+baglam trust add --agent codex --kind fact          # this project
+baglam trust add --kind convention --global         # every project
+baglam trust list · baglam trust remove <id>
 ```
 
-Tasarım ve kapsam dışı bırakılanlar: [docs/design.md](docs/design.md)
+Trust rules never apply to secrets (always blocked), to records that replace another, to look-alikes of existing records, or to anything you rejected before.
+
+## When something doesn't work
+
+```bash
+baglam doctor
+```
+
+It checks Node, the database, each tool's registration (and starts the server the way the tool would), and the current folder, and prints a fix for each problem. See [docs/troubleshooting.md](docs/troubleshooting.md) and per-tool setup in [docs/clients.md](docs/clients.md).
+
+## Data
+
+- One file: `~/.baglam/baglam.db` (`BAGLAM_DB` to move it). Upgrades back it up first.
+- `baglam export --format md` writes a readable `CONTEXT.md`; `--format json` writes a full backup with history; `baglam import <file>` merges one back (existing records are never overwritten).
+- Every change is recorded: who proposed, who approved, edits, retirements.
+
+## Limits worth knowing
+
+- Agent names are labels set by `baglam setup`, not a security boundary: any program on your computer can already read the database. Your approval is the boundary.
+- Agents that are not set up by `baglam setup` report their own name; the 20-proposal limit counts per name.
+- Speed: brief, search and duplicate checks stay under 50 ms with 10,000+ records.
+
+## Development
+
+```bash
+npm install
+npm test            # unit, MCP, CLI, panel API and UI tests, 10k-record speed test
+npm run typecheck
+npm run build       # server to dist/, panel to dist/panel
+npm run smoke       # pack, install into a temp prefix, run the installed CLI
+```
+
+Design: [docs/superpowers/specs/2026-11-17-baglam-v1-design.md](docs/superpowers/specs/2026-11-17-baglam-v1-design.md). Licence: MIT.

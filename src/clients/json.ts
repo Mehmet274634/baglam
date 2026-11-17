@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { backupOnce, serverEntry, type HostEnv } from "../host.js";
+import { backupOnce, serverEntry, writeFileAtomic, type HostEnv } from "../host.js";
 import type { Change, ClientAdapter, ClientStatus, ServerEntryShape, WriteOptions } from "./types.js";
 
 type Json = Record<string, unknown>;
@@ -50,8 +50,7 @@ function serversOf(data: Json, key: string, file: string): { ok: true; servers: 
 
 function write(file: string, data: Json, bom: boolean): void {
   backupOnce(file);
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, (bom ? BOM : "") + JSON.stringify(data, null, 2) + "\n");
+  writeFileAtomic(file, (bom ? BOM : "") + JSON.stringify(data, null, 2) + "\n");
 }
 
 export function jsonClient(o: JsonClientOptions): ClientAdapter {

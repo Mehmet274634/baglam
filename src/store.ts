@@ -6,6 +6,9 @@ import { migrate } from "./migrate.js";
 
 export const KINDS = ["decision", "convention", "preference", "fact", "warning"] as const;
 export type Kind = (typeof KINDS)[number];
+
+/** The order a brief keeps records in when it has to cut. */
+const PRIORITY: Kind[] = ["warning", "decision", "convention", "preference", "fact"];
 export type Status = "proposed" | "approved" | "rejected" | "superseded" | "retired";
 
 export interface Entry {
@@ -49,7 +52,7 @@ export interface NewEntry {
 
 export type EventType =
   | "proposed" | "approved" | "rejected" | "superseded" | "edited" | "expired" | "deleted"
-  | "retired" | "archived" | "restored";
+  | "retired" | "archived" | "restored" | "imported";
 
 export interface HistoryEvent {
   type: EventType;
@@ -103,7 +106,7 @@ const VISIBLE = `
   e.project = :project
   AND e.status = 'approved'
   AND (e.expires_at IS NULL OR e.expires_at > :now)
-  AND EXISTS (SELECT 1 FROM json_each(e.audience) WHERE value IN ('*', :agent))
+  AND (e.audience = '["*"]' OR EXISTS (SELECT 1 FROM json_each(e.audience) WHERE value IN ('*', :agent)))
 `;
 
 type Row = Record<string, SQLInputValue>;
@@ -194,7 +197,8 @@ export class ContextStore {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     // Busy timeout first: several agents' servers may open (and migrate) the same file at once.
     this.db = new DatabaseSync(path, { timeout: 5000 });
-    this.db.exec("PRAGMA journal_mode = WAL");
+    // WAL + synchronous=NORMAL: never corrupts; at worst the last commit is lost on power failure.
+    this.db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
     migrate(this.db, path);
   }
 
@@ -279,28 +283,110 @@ export class ContextStore {
 
   /** Change a pending or active record. Only humans call this (CLI/panel); agents cannot. */
   edit(id: string, patch: EntryPatch, by: string): Entry {
+    this.transaction(() => this.editRow(id, patch, by, ["proposed", "approved"]));
+    return this.get(id)!;
+  }
+
+  /** Edit a pending proposal and approve it in one transaction: both happen, or neither. */
+  editAndApprove(id: string, patch: EntryPatch, by: string): Entry {
+    const now = this.clock();
+    this.transaction(() => {
+      const e = this.editRow(id, patch, by, ["proposed"]);
+      this.approveRow(e, by, undefined, false, now);
+    });
+    return this.get(id)!;
+  }
+
+  /** Inside a transaction. Returns the entry as it is after the edit. */
+  private editRow(id: string, patch: EntryPatch, by: string, allowed: Status[]): Entry {
     const e = this.get(id);
     if (!e) throw new Error(`unknown entry ${id}`);
-    if (e.status !== "proposed" && e.status !== "approved") {
-      throw new Error(`cannot edit entry ${id} (status: ${e.status})`);
+    if (!allowed.includes(e.status)) {
+      throw new Error(
+        allowed.length === 1 && allowed[0] === "proposed"
+          ? `entry ${id} is not pending (status: ${e.status})`
+          : `cannot edit entry ${id} (status: ${e.status})`,
+      );
     }
     // Fields left undefined mean "unchanged", never "clear".
     const given = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as EntryPatch;
     const next = validate({ ...e, rationale: e.rationale ?? undefined, ...given });
     const changed = Object.keys(given) as (keyof EntryPatch)[];
     if (!changed.length) return e;
-    this.transaction(() => {
-      this.db
-        .prepare(
-          `UPDATE entries SET kind=?, title=?, body=?, rationale=?, tags=?, audience=?, edited_at=? WHERE id=?`,
-        )
-        .run(next.kind, next.title, next.body, next.rationale, next.tags, next.audience, this.clock(), id);
-      this.event(id, e.project, "edited", by, changed.join(","));
-    });
+    this.db
+      .prepare(`UPDATE entries SET kind=?, title=?, body=?, rationale=?, tags=?, audience=?, edited_at=? WHERE id=?`)
+      .run(next.kind, next.title, next.body, next.rationale, next.tags, next.audience, this.clock(), id);
+    this.event(id, e.project, "edited", by, changed.join(","));
     return this.get(id)!;
   }
 
   /** Audit trail of one record, oldest first. */
+  /** Register a project known only by id and name (from an import); leaves an existing one untouched. */
+  ensureProject(key: string, name: string): void {
+    if (!UUID.test(key)) return;
+    this.db
+      // An archived project that comes back through an import is restored (spec §8).
+      .prepare("INSERT INTO projects (id, name, last_path, created_at) VALUES (?, ?, NULL, ?) ON CONFLICT(id) DO UPDATE SET archived_at = NULL")
+      .run(key, requireText(name, "name", 100), this.clock());
+  }
+
+  /** Raw audit rows for export. */
+  eventsOf(entryIds: string[]): (HistoryEvent & { entryId: string; project: string })[] {
+    if (!entryIds.length) return [];
+    const rows = this.db
+      .prepare(
+        `SELECT entry_id, project, type, actor, at, detail FROM events
+         WHERE entry_id IN (SELECT value FROM json_each(?)) ORDER BY seq`,
+      )
+      .all(JSON.stringify(entryIds)) as Row[];
+    return rows.map((r) => ({
+      entryId: r.entry_id as string,
+      project: r.project as string,
+      type: r.type as EventType,
+      actor: r.actor as string,
+      at: Number(r.at),
+      detail: (r.detail as string | null) ?? null,
+    }));
+  }
+
+  /**
+   * Insert a record exactly as exported elsewhere (id, status and history kept).
+   * Returns false when the id already exists. Fields are validated like any other record.
+   */
+  importEntry(
+    e: Entry,
+    events: { type: EventType; actor: string; at: number; detail: string | null }[],
+    importedBy?: { actor: string; detail: string | null },
+  ): boolean {
+    if (this.get(e.id)) return false;
+    const v = validate(e);
+    const STATUSES: Status[] = ["proposed", "approved", "rejected", "superseded", "retired"];
+    if (!STATUSES.includes(e.status)) throw new Error(`unknown status ${e.status}`);
+    this.transaction(() => {
+      this.db
+        .prepare(
+          `INSERT INTO entries (id, project, kind, title, body, rationale, tags, audience, status, source_agent,
+             created_at, decided_at, decided_by, decision_note, expires_at, supersedes, superseded_by,
+             edited_at, auto_approved, similar_to)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          e.id, requireText(e.project, "project", 1000), v.kind, v.title, v.body, v.rationale, v.tags, v.audience,
+          e.status, requireText(e.sourceAgent, "sourceAgent", 100), e.createdAt, e.decidedAt ?? null,
+          e.decidedBy ?? null, e.decisionNote ?? null, e.expiresAt ?? null, e.supersedes ?? null,
+          e.supersededBy ?? null, e.editedAt ?? null, e.autoApproved ? 1 : 0, JSON.stringify(cleanList(e.similarTo)),
+        );
+      for (const ev of events) {
+        this.db
+          .prepare("INSERT INTO events (entry_id, project, type, actor, at, detail) VALUES (?, ?, ?, ?, ?, ?)")
+          .run(e.id, e.project, ev.type, ev.actor, ev.at, ev.detail);
+      }
+      // The import itself is part of the record's history: who brought it in, and from where.
+      if (importedBy) this.event(e.id, e.project, "imported", importedBy.actor, importedBy.detail);
+    });
+    return true;
+  }
+
   history(id: string): HistoryEvent[] {
     const rows = this.db
       .prepare("SELECT type, actor, at, detail FROM events WHERE entry_id = ? ORDER BY seq ASC")
@@ -526,15 +612,47 @@ export class ContextStore {
   }
 
   /** Approved, unexpired entries this agent may see, newest first. */
-  visible(project: string, agent: string, opts: { kind?: Kind; limit?: number } = {}): Entry[] {
-    const rows = this.db
-      .prepare(
-        `SELECT e.* FROM entries e WHERE ${VISIBLE}
-         AND (:kind IS NULL OR e.kind = :kind)
-         ORDER BY e.decided_at DESC, e.rowid DESC LIMIT :limit`,
-      )
-      .all({ project, agent, now: this.clock(), kind: opts.kind ?? null, limit: opts.limit ?? 200 }) as Row[];
-    return rows.map(toEntry);
+  /**
+   * Approved, unexpired entries this agent may see. Newest first, or with `byPriority`
+   * warnings → decisions → conventions → preferences → facts (newest first within each),
+   * which is the order the brief keeps when it has to cut.
+   */
+  visible(project: string, agent: string, opts: { kind?: Kind; limit?: number; byPriority?: boolean } = {}): Entry[] {
+    const limit = opts.limit ?? 200;
+    const page = (kind: Kind | null, n: number) =>
+      (
+        this.db
+          .prepare(
+            `SELECT e.* FROM entries e WHERE ${VISIBLE}
+             AND (:kind IS NULL OR e.kind = :kind)
+             ORDER BY e.decided_at DESC, e.rowid DESC LIMIT :limit`,
+          )
+          .all({ project, agent, now: this.clock(), kind, limit: n }) as Row[]
+      ).map(toEntry);
+    if (!opts.byPriority || opts.kind) return page(opts.kind ?? null, limit);
+    // One indexed query per kind, in priority order, until the slice is full.
+    const out: Entry[] = [];
+    for (const kind of PRIORITY) {
+      if (out.length >= limit) break;
+      out.push(...page(kind, limit - out.length));
+    }
+    return out;
+  }
+
+  /** Visible records, counted up to `cap` (counting stops there; the brief only needs "how many more"). */
+  countVisible(project: string, agent: string, cap = Number.MAX_SAFE_INTEGER): number {
+    return Number(
+      (
+        this.db
+          .prepare(`SELECT count(*) AS n FROM (SELECT 1 FROM entries e WHERE ${VISIBLE} LIMIT :cap)`)
+          .get({ project, agent, now: this.clock(), cap }) as Row
+      ).n,
+    );
+  }
+
+  /** Names of the indexes in the database (for health checks and tests). */
+  indexNames(): string[] {
+    return (this.db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as Row[]).map((r) => r.name as string);
   }
 
   search(project: string, agent: string, text: string, opts: { kind?: Kind; limit?: number } = {}): Entry[] {
@@ -542,10 +660,13 @@ export class ContextStore {
     if (!match) return [];
     const rows = this.db
       .prepare(
-        `SELECT e.* FROM entries_fts f JOIN entries e ON e.rowid = f.rowid
-         WHERE entries_fts MATCH :match AND ${VISIBLE}
+        // CROSS JOIN pins the plan to "full-text index first"; driving from entries would run one
+        // MATCH per row, which is orders of magnitude slower on large projects.
+        `SELECT e.* FROM (SELECT rowid, rank FROM entries_fts WHERE entries_fts MATCH :match) f
+         CROSS JOIN entries e ON e.rowid = f.rowid
+         WHERE ${VISIBLE}
          AND (:kind IS NULL OR e.kind = :kind)
-         ORDER BY bm25(entries_fts) LIMIT :limit`,
+         ORDER BY f.rank LIMIT :limit`,
       )
       .all({ match, project, agent, now: this.clock(), kind: opts.kind ?? null, limit: opts.limit ?? 20 }) as Row[];
     return rows.map(toEntry);
@@ -589,12 +710,13 @@ export class ContextStore {
     if (!query) return [];
     const rows = this.db
       .prepare(
-        `SELECT e.* FROM entries_fts f JOIN entries e ON e.rowid = f.rowid
-         WHERE entries_fts MATCH :query AND e.project = :project
+        `SELECT e.* FROM (SELECT rowid, rank FROM entries_fts WHERE entries_fts MATCH :query) f
+         CROSS JOIN entries e ON e.rowid = f.rowid
+         WHERE e.project = :project
            AND ${statusSql}
            AND (:kind IS NULL OR e.kind = :kind)
            AND (:exclude IS NULL OR e.id != :exclude)
-         ORDER BY bm25(entries_fts) LIMIT 10`,
+         ORDER BY f.rank LIMIT 10`,
       )
       .all({
         query,

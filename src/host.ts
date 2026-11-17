@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Everything setup/init/doctor need from the machine, so tests can run against a temp home. */
@@ -79,6 +79,22 @@ export function windowsCommandLine(file: string, args: string[]): string {
 /** The MCP server entry every tool gets: absolute node + cli path, and the tool's agent id. */
 export function serverEntry(host: HostEnv, agentId: string): { command: string; args: string[]; env: Record<string, string> } {
   return { command: host.nodePath, args: [host.cliPath, "mcp"], env: { BAGLAM_AGENT: agentId } };
+}
+
+/**
+ * Replace `file` without ever leaving it half-written: write a temp file next to it, then rename.
+ * A crash mid-write leaves either the old file or the new one, never a truncated config.
+ */
+export function writeFileAtomic(file: string, data: string): void {
+  mkdirSync(dirname(file), { recursive: true });
+  const tmp = join(dirname(file), `.${basename(file)}.baglam-${process.pid}-${Date.now()}.tmp`);
+  writeFileSync(tmp, data);
+  try {
+    renameSync(tmp, file);
+  } catch (err) {
+    rmSync(tmp, { force: true });
+    throw err;
+  }
 }
 
 /** Copy `file` to `file.baglam-backup` unless that backup already exists. */

@@ -35,10 +35,12 @@ export interface Panel {
 }
 
 
+const MAX_STREAMS = 20;
+
 const OPEN_AGAIN = `<!doctype html><meta charset="utf-8"><title>Bağlam</title>
 <body style="font-family:system-ui;max-width:36rem;margin:4rem auto;padding:0 1rem;line-height:1.5">
 <h1>Open the panel again</h1>
-<p>This link was already used or has expired. Run <code>baglam ui</code> in a terminal to get a fresh one.</p>
+<p>This link was already used, or this browser is not signed in to this panel. Run <code>baglam ui</code> in a terminal to get a fresh link.</p>
 <p lang="tr">Bu bağlantı kullanılmış. Yeni bağlantı için terminalde <code>baglam ui</code> çalıştırın.</p></body>`;
 
 function sameSecret(a: string, b: string): boolean {
@@ -101,8 +103,17 @@ export async function startPanel(o: PanelOptions): Promise<Panel> {
     if (!allowedHosts.includes(req.headers.host ?? "")) return sendText(res, 403, "forbidden host", "text/plain");
     const origin = req.headers.origin;
     const writes = req.method !== "GET" && req.method !== "HEAD";
-    if (writes && origin && !allowedHosts.map((h) => `http://${h}`).includes(origin)) {
-      return sendText(res, 403, "forbidden origin", "text/plain");
+    if (writes) {
+      // A write must prove it comes from the panel's own page: a matching Origin, or the browser's
+      // Sec-Fetch-Site saying same-origin. Anything else (other sites, other localhost ports) is refused.
+      const sameOrigin = origin
+        ? allowedHosts.map((h) => `http://${h}`).includes(origin)
+        : req.headers["sec-fetch-site"] === "same-origin";
+      if (!sameOrigin) return sendText(res, 403, "forbidden origin", "text/plain");
+      const hasBody = Number(req.headers["content-length"] ?? 0) > 0 || req.headers["transfer-encoding"] !== undefined;
+      if (hasBody && !String(req.headers["content-type"] ?? "").startsWith("application/json")) {
+        return sendJson(res, 415, { error: "send JSON (content-type: application/json)" });
+      }
     }
 
     const url = new URL(req.url ?? "/", `http://${allowedHosts[0]}`);
@@ -139,6 +150,12 @@ export async function startPanel(o: PanelOptions): Promise<Panel> {
       });
       res.write(`: connected\n\n`);
       listeners.add(res);
+      // Cap open streams: forgotten tabs should not pile up. The oldest stream is closed (its page reconnects).
+      while (listeners.size > MAX_STREAMS) {
+        const oldest = listeners.values().next().value!;
+        listeners.delete(oldest);
+        oldest.end();
+      }
       req.on("close", () => listeners.delete(res));
       return;
     }
@@ -156,7 +173,8 @@ export async function startPanel(o: PanelOptions): Promise<Panel> {
         if (writes) notify();
       } catch (err) {
         const status = statusFor(err);
-        const message = status === 500 ? "unexpected error" : (err as Error).message;
+        const message =
+          status === 500 ? "unexpected error" : status === 503 ? "database busy, try again in a moment" : (err as Error).message;
         sendJson(res, status, { error: message, ...(err instanceof HttpError ? err.details : {}) });
       }
       return;
