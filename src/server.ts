@@ -8,7 +8,8 @@ import { describeFindings } from "./guards.js";
 import { resolveProjectFor, type Resolution } from "./resolve.js";
 import type { ProjectRef } from "./project.js";
 
-export const VERSION = "0.2.0";
+export { VERSION } from "./version.js";
+import { VERSION } from "./version.js";
 
 export interface ServerOptions {
   /** The server process's working directory (last-resort project guess). */

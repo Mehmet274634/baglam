@@ -127,3 +127,14 @@ describe("baglam CLI", () => {
     expect(out.join("\n")).toMatch(/usage/i);
   });
 });
+
+describe("baglam --version", () => {
+  it("prints the package version", async () => {
+    const { readFileSync } = await import("node:fs");
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    const out: string[] = [];
+    const code = runCli(["--version"], { store: new ContextStore(":memory:"), project: "x", user: "u", print: (s) => out.push(s) });
+    expect(code).toBe(0);
+    expect(out).toEqual([pkg.version]);
+  });
+});
