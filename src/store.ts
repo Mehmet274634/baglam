@@ -194,7 +194,8 @@ export class ContextStore {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     // Busy timeout first: several agents' servers may open (and migrate) the same file at once.
     this.db = new DatabaseSync(path, { timeout: 5000 });
-    this.db.exec("PRAGMA journal_mode = WAL");
+    // WAL + synchronous=NORMAL: never corrupts; at worst the last commit is lost on power failure.
+    this.db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
     migrate(this.db, path);
   }
 
@@ -601,10 +602,13 @@ export class ContextStore {
     if (!match) return [];
     const rows = this.db
       .prepare(
-        `SELECT e.* FROM entries_fts f JOIN entries e ON e.rowid = f.rowid
-         WHERE entries_fts MATCH :match AND ${VISIBLE}
+        // CROSS JOIN pins the plan to "full-text index first"; driving from entries would run one
+        // MATCH per row, which is orders of magnitude slower on large projects.
+        `SELECT e.* FROM (SELECT rowid, rank FROM entries_fts WHERE entries_fts MATCH :match) f
+         CROSS JOIN entries e ON e.rowid = f.rowid
+         WHERE ${VISIBLE}
          AND (:kind IS NULL OR e.kind = :kind)
-         ORDER BY bm25(entries_fts) LIMIT :limit`,
+         ORDER BY f.rank LIMIT :limit`,
       )
       .all({ match, project, agent, now: this.clock(), kind: opts.kind ?? null, limit: opts.limit ?? 20 }) as Row[];
     return rows.map(toEntry);
@@ -648,12 +652,13 @@ export class ContextStore {
     if (!query) return [];
     const rows = this.db
       .prepare(
-        `SELECT e.* FROM entries_fts f JOIN entries e ON e.rowid = f.rowid
-         WHERE entries_fts MATCH :query AND e.project = :project
+        `SELECT e.* FROM (SELECT rowid, rank FROM entries_fts WHERE entries_fts MATCH :query) f
+         CROSS JOIN entries e ON e.rowid = f.rowid
+         WHERE e.project = :project
            AND ${statusSql}
            AND (:kind IS NULL OR e.kind = :kind)
            AND (:exclude IS NULL OR e.id != :exclude)
-         ORDER BY bm25(entries_fts) LIMIT 10`,
+         ORDER BY f.rank LIMIT 10`,
       )
       .all({
         query,
