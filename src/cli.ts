@@ -10,6 +10,7 @@ import { resolveProject } from "./project.js";
 import { realHost, type HostEnv } from "./host.js";
 import { detectClients, runSetup } from "./setup.js";
 import { runInit } from "./init.js";
+import { formatCheck, runDoctor, type Handshake } from "./doctor.js";
 import { basename } from "node:path";
 import type { Change } from "./clients/types.js";
 
@@ -23,6 +24,7 @@ Review what agents proposed:
 Set up:
   setup [--yes] [--dry-run] [--undo]  Connect Bağlam to every AI tool installed on this machine
   init [--undo]                       Prepare this folder: project id + instructions for agents
+  doctor                              Check that everything is connected, with fixes
 
 For AI tools:
   mcp                                 Run the MCP server on stdio (what you register in Claude Code, Cursor, …)
@@ -50,6 +52,8 @@ export interface CliContext {
   interactive?: boolean;
   /** Answer to "connect these tools?" collected before runCli (interactive shells). */
   confirm?: (labels: string[]) => boolean;
+  /** Test seams for doctor. */
+  doctor?: { handshake?: Handshake; dbPath?: string };
 }
 
 const MARK: Record<Change["action"], string> = {
@@ -70,7 +74,7 @@ function summary(e: Entry): string {
   }${e.audience.includes("*") ? "" : ` · only for ${e.audience.join(", ")}`}`;
 }
 
-export function runCli(argv: string[], ctx: CliContext): number {
+export function runCli(argv: string[], ctx: CliContext): number | Promise<number> {
   const { store, user, print } = ctx;
   let parsed;
   try {
@@ -198,6 +202,26 @@ export function runCli(argv: string[], ctx: CliContext): number {
 Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need attention (see ✗ above).` : ""}`);
         return failed ? 1 : 0;
       }
+      case "doctor": {
+        const host = ctx.host ?? realHost();
+        return runDoctor({
+          host,
+          dbPath: ctx.doctor?.dbPath ?? resolveDbPath(),
+          cwd: o.project ?? process.cwd(),
+          handshake: ctx.doctor?.handshake,
+        }).then(
+          (checks) => {
+            for (const c of checks) print(formatCheck(c));
+            const bad = checks.filter((c) => !c.ok).length;
+            print(bad ? `\n${bad} problem(s) found.` : "\nEverything looks good.");
+            return bad ? 1 : 0;
+          },
+          (err: Error) => {
+            print(`Error: ${err.message}`);
+            return 1;
+          },
+        );
+      }
       case "init": {
         const host = ctx.host ?? realHost();
         const dir = o.project ?? process.cwd();
@@ -258,7 +282,7 @@ if (isMain() && process.argv[2] === "mcp") {
     }
   }
   const store = new ContextStore(resolveDbPath());
-  const code = runCli(argv, {
+  const code = await runCli(argv, {
     store,
     project: resolveProject(),
     user: process.env.BAGLAM_USER?.trim() || `human:${userInfo().username}`,
