@@ -242,6 +242,17 @@ export class ContextStore {
     }));
   }
 
+  /** Move every record (and its history) from one project key to another. Returns moved records. */
+  rekeyProject(from: string, to: string): number {
+    if (from === to) return 0;
+    let moved = 0;
+    this.transaction(() => {
+      moved = Number(this.db.prepare("UPDATE entries SET project = ? WHERE project = ?").run(to, from).changes);
+      this.db.prepare("UPDATE events SET project = ? WHERE project = ?").run(to, from);
+    });
+    return moved;
+  }
+
   /** Remember an initialised project (marker id) and where it was last seen. */
   touchProject(ref: { key: string; name: string; dir: string }): void {
     if (!UUID.test(ref.key)) return;

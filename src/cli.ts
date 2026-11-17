@@ -9,6 +9,8 @@ import { resolveDbPath } from "./config.js";
 import { resolveProject } from "./project.js";
 import { realHost, type HostEnv } from "./host.js";
 import { detectClients, runSetup } from "./setup.js";
+import { runInit } from "./init.js";
+import { basename } from "node:path";
 import type { Change } from "./clients/types.js";
 
 const USAGE = `Usage: baglam <command> [options]
@@ -20,6 +22,7 @@ Review what agents proposed:
 
 Set up:
   setup [--yes] [--dry-run] [--undo]  Connect Bağlam to every AI tool installed on this machine
+  init [--undo]                       Prepare this folder: project id + instructions for agents
 
 For AI tools:
   mcp                                 Run the MCP server on stdio (what you register in Claude Code, Cursor, …)
@@ -194,6 +197,18 @@ export function runCli(argv: string[], ctx: CliContext): number {
         if (!o["dry-run"]) print(`
 Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need attention (see ✗ above).` : ""}`);
         return failed ? 1 : 0;
+      }
+      case "init": {
+        const host = ctx.host ?? realHost();
+        const dir = o.project ?? process.cwd();
+        const r = runInit(dir, { store, host, undo: o.undo });
+        print(`Project: ${r.project.name}  (id ${r.project.key})`);
+        print(`Folder:  ${r.project.dir}`);
+        if (r.moved) print(`Moved ${r.moved} existing record(s) to this project id.`);
+        for (const c of r.changes) print(formatChange(c, basename(c.file)));
+        if (o.undo) print("\nInstructions removed. The project id (.baglam/project.json) is kept so its history stays linked.");
+        else print("\nAgents in this folder will now load the shared context at the start of each task.\nCommit .baglam/project.json so the project keeps its identity everywhere.");
+        return 0;
       }
       case "projects": {
         const rows = store.projects();

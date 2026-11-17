@@ -1,0 +1,106 @@
+import { describe, it, expect, beforeEach } from "vitest";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
+import { testHost, type TestHost } from "./helpers.js";
+import { ContextStore } from "../src/store.js";
+import { runInit } from "../src/init.js";
+import { instructionBlock } from "../src/instructions.js";
+import { normalizeProject } from "../src/config.js";
+import { runCli } from "../src/cli.js";
+
+describe("baglam init", () => {
+  let store: ContextStore;
+  let host: TestHost;
+  let dir: string;
+
+  beforeEach(() => {
+    store = new ContextStore(":memory:");
+    host = testHost();
+    dir = mkdtempSync(join(tmpdir(), "baglam-init-"));
+  });
+
+  it("creates marker and instruction files", () => {
+    const r = runInit(dir, { store, host });
+    const marker = JSON.parse(readFileSync(join(dir, ".baglam", "project.json"), "utf8"));
+    expect(r.project.key).toBe(marker.id);
+    expect(readFileSync(join(dir, "CLAUDE.md"), "utf8")).toBe(instructionBlock());
+    expect(readFileSync(join(dir, "AGENTS.md"), "utf8")).toBe(instructionBlock());
+    expect(existsSync(join(dir, "GEMINI.md"))).toBe(false);
+    expect(r.changes.map((c) => c.action)).toEqual(["added", "added"]);
+    expect(store.projectInfo(marker.id)?.name).toBe(marker.name);
+  });
+
+  it("keeps existing CLAUDE.md content", () => {
+    const mine = "# My rules\r\n\r\nUse tabs.\r\n";
+    writeFileSync(join(dir, "CLAUDE.md"), mine);
+    runInit(dir, { store, host });
+    const text = readFileSync(join(dir, "CLAUDE.md"), "utf8");
+    expect(text.startsWith(mine + "\r\n<!-- baglam:start -->")).toBe(true);
+    expect(text.replace(/\r\n/g, "")).not.toContain("\n");
+  });
+
+  it("re-running init is a no-op", () => {
+    const first = runInit(dir, { store, host });
+    const second = runInit(dir, { store, host });
+    expect(second.project.key).toBe(first.project.key);
+    expect(second.changes.every((c) => c.action === "unchanged")).toBe(true);
+    expect(second.moved).toBe(0);
+  });
+
+  it("updates an outdated block in place", () => {
+    writeFileSync(join(dir, "AGENTS.md"), "top\n\n<!-- baglam:start -->\nold text\n<!-- baglam:end -->\nbottom\n");
+    runInit(dir, { store, host });
+    const text = readFileSync(join(dir, "AGENTS.md"), "utf8");
+    expect(text).toBe("top\n\n" + instructionBlock() + "bottom\n");
+  });
+
+  it("moves path-keyed records to the new id", () => {
+    const old = store.addApproved(
+      { project: normalizeProject(dir), kind: "convention", title: "Use pnpm", body: "pnpm only" },
+      "human",
+    );
+    const r = runInit(dir, { store, host });
+    expect(r.moved).toBe(1);
+    expect(store.visible(r.project.key, "cursor").map((e) => e.id)).toEqual([old.id]);
+    expect(store.visible(normalizeProject(dir), "cursor")).toEqual([]);
+  });
+
+  it("writes GEMINI.md and cursor rule only when those tools are detected", () => {
+    mkdirSync(join(host.home, ".gemini", "antigravity"), { recursive: true });
+    mkdirSync(join(host.home, ".cursor"));
+    runInit(dir, { store, host });
+    expect(readFileSync(join(dir, "GEMINI.md"), "utf8")).toBe(instructionBlock());
+    const rule = readFileSync(join(dir, ".cursor", "rules", "baglam.mdc"), "utf8");
+    expect(rule.startsWith("---\ndescription: Shared project context (Bağlam)\nalwaysApply: true\n---\n")).toBe(true);
+    expect(rule).toContain(instructionBlock());
+  });
+
+  it("undo removes blocks but keeps the marker", () => {
+    writeFileSync(join(dir, "CLAUDE.md"), "# Mine\n");
+    mkdirSync(join(host.home, ".cursor"));
+    runInit(dir, { store, host });
+    const r = runInit(dir, { store, host, undo: true });
+    expect(readFileSync(join(dir, "CLAUDE.md"), "utf8")).toBe("# Mine\n");
+    expect(existsSync(join(dir, "AGENTS.md"))).toBe(false);
+    expect(existsSync(join(dir, ".cursor", "rules", "baglam.mdc"))).toBe(false);
+    expect(existsSync(join(dir, ".baglam", "project.json"))).toBe(true);
+    expect(r.changes.every((c) => c.action === "removed" || c.action === "absent")).toBe(true);
+  });
+
+  it("refuses the home folder", () => {
+    expect(() => runInit(homedir(), { store, host })).toThrow(/cannot be a project/);
+    expect(existsSync(join(homedir(), ".baglam", "project.json"))).toBe(false);
+  });
+
+  it("cli: init prints the project id and files", () => {
+    const out: string[] = [];
+    const code = runCli(["init", "--project", dir], { store, project: "unused", user: "ev", print: (s) => out.push(s), host });
+    expect(code).toBe(0);
+    const id = JSON.parse(readFileSync(join(dir, ".baglam", "project.json"), "utf8")).id;
+    const text = out.join("\n");
+    expect(text).toContain(id);
+    expect(text).toContain("CLAUDE.md");
+    expect(text).toContain("AGENTS.md");
+  });
+});
