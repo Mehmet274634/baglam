@@ -88,6 +88,56 @@ describe("panel server", () => {
     }
   });
 
+  it("writes need a same-origin signal", async () => {
+    const cookie = await login();
+    expect((await http(panel.port, "/api/ping", { method: "POST", headers: { cookie }, body: {} })).status).toBe(403);
+    expect((await http(panel.port, "/api/ping", { method: "POST", headers: { cookie, "sec-fetch-site": "same-origin" }, body: {} })).status).toBe(200);
+  });
+
+  it("write bodies must be JSON", async () => {
+    const cookie = await login();
+    const r = await http(panel.port, "/api/ping", {
+      method: "POST",
+      headers: { cookie, origin: `http://127.0.0.1:${panel.port}`, "content-type": "text/plain" },
+      body: {},
+    });
+    expect(r.status).toBe(415);
+  });
+
+  it("html pages carry a content security policy", async () => {
+    const cookie = await login();
+    const page = await http(panel.port, "/", { headers: { cookie } });
+    expect(String(page.headers["content-security-policy"])).toMatch(/default-src 'self'/);
+    expect(String(page.headers["content-security-policy"])).toMatch(/frame-ancestors 'none'/);
+  });
+
+  it("the open-again page does not claim the link expired", async () => {
+    const r = await http(panel.port, "/");
+    expect(r.text).not.toMatch(/expired/i);
+  });
+
+  it("keeps at most 20 live event streams", async () => {
+    const cookie = await login();
+    const ended: number[] = [];
+    const reqs = Array.from({ length: 21 }, (_, i) =>
+      new Promise<void>((resolve) => {
+        const req = request(
+          { host: "127.0.0.1", port: panel.port, path: "/api/events", headers: { host: `127.0.0.1:${panel.port}`, cookie } },
+          (res) => {
+            res.on("data", () => {});
+            res.on("end", () => ended.push(i));
+            resolve();
+          },
+        );
+        req.on("error", () => resolve());
+        req.end();
+      }),
+    );
+    for (const r of reqs) await r;
+    await new Promise((r) => setTimeout(r, 200));
+    expect(ended.length).toBeGreaterThanOrEqual(1);
+  });
+
   it("token is single-use", async () => {
     await login();
     const again = await http(panel.port, `/?t=${token()}`);

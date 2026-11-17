@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { ContextStore } from "./store.js";
+import { DatabaseSync } from "node:sqlite";
 import { SCHEMA_VERSION } from "./migrate.js";
 import { normalizeProject } from "./config.js";
 import { isUnsafeProjectDir, resolveDirectory } from "./project.js";
@@ -76,11 +76,28 @@ export async function runDoctor(opts: {
     fix: nodeOk(node) ? undefined : "install Node.js 22 LTS or newer from nodejs.org",
   });
 
-  try {
-    new ContextStore(opts.dbPath).close();
-    checks.push({ name: "Database", ok: true, detail: `${opts.dbPath} (schema ${SCHEMA_VERSION})` });
-  } catch (err) {
-    checks.push({ name: "Database", ok: false, detail: `${opts.dbPath}: ${(err as Error).message}` });
+  // Read-only: a check must not create or upgrade anything.
+  if (!existsSync(opts.dbPath)) {
+    checks.push({ name: "Database", ok: true, detail: `${opts.dbPath} not created yet; it appears on first use` });
+  } else {
+    try {
+      const db = new DatabaseSync(opts.dbPath, { readOnly: true, timeout: 5000 });
+      const v = Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
+      db.close();
+      if (v > SCHEMA_VERSION) {
+        checks.push({
+          name: "Database",
+          ok: false,
+          detail: `${opts.dbPath} was written by a newer version of Bağlam (schema ${v})`,
+          fix: "npm i -g baglam@latest",
+        });
+      } else {
+        const note = v < SCHEMA_VERSION ? `; upgrades to ${SCHEMA_VERSION} on next use` : "";
+        checks.push({ name: "Database", ok: true, detail: `${opts.dbPath} (schema ${v}${note})` });
+      }
+    } catch (err) {
+      checks.push({ name: "Database", ok: false, detail: `${opts.dbPath}: ${(err as Error).message}` });
+    }
   }
 
   for (const client of detectClients(host)) {

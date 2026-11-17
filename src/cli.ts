@@ -10,6 +10,9 @@ import { resolveProject } from "./project.js";
 import { realHost, type HostEnv } from "./host.js";
 import { detectClients, runSetup } from "./setup.js";
 import { runInit } from "./init.js";
+import { ALL_CLIENTS } from "./clients/index.js";
+
+const KNOWN_AGENT_IDS = ALL_CLIENTS.map((c) => c.id);
 import { describeFindings, scanEntryFields } from "./guards.js";
 import { exportJson, exportMarkdown, importJson } from "./portable.js";
 import { formatCheck, runDoctor, type Handshake } from "./doctor.js";
@@ -279,6 +282,9 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
             kind: o.kind as Kind | undefined,
           });
           print(`added ${rule.id}  ${describeRule(rule)}`);
+          if (rule.agent && !KNOWN_AGENT_IDS.includes(rule.agent)) {
+            print(`Note: "${rule.agent}" is not one of the agent ids baglam setup writes (${KNOWN_AGENT_IDS.join(", ")}); the rule only matches an agent with exactly that BAGLAM_AGENT.`);
+          }
           print(
             "Records matching this rule skip your review. Secrets are always blocked; look-alikes of existing,\n" +
               "rejected or replaced records and anything that replaces a record still come to you for review.",

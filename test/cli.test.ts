@@ -53,6 +53,11 @@ describe("baglam CLI", () => {
     expect(run("trust", "remove", rules[0].id)).toBe(1);
   });
 
+  it("trust add warns about an agent id setup never writes", () => {
+    expect(run("trust", "add", "--agent", "Claude-Code")).toBe(0);
+    expect(out.join("\n")).toMatch(/not one of the agent ids/);
+  });
+
   it("trust add needs --agent or --kind", () => {
     expect(run("trust", "add")).toBe(1);
     expect(out.join("\n")).toMatch(/agent or kind/);

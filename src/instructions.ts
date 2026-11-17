@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { ChangeAction } from "./clients/types.js";
+import { writeFileAtomic } from "./host.js";
 
 export const BLOCK_START = "<!-- baglam:start -->";
 export const BLOCK_END = "<!-- baglam:end -->";
@@ -52,7 +53,7 @@ export function upsertBlock(file: string, block: string, opts: { prefix?: string
     next = text + (text.endsWith(eol) ? eol : eol + eol) + want;
   }
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, next);
+  writeFileAtomic(file, next);
   return exists && text ? "updated" : "added";
 }
 
@@ -69,6 +70,6 @@ export function removeBlock(file: string, opts: { prefix?: string } = {}): Chang
   const next = text.slice(0, start) + text.slice(found.end);
   const leftover = next.replace((opts.prefix ?? "").replace(/\n/g, eol), "");
   if (!leftover.trim()) rmSync(file);
-  else writeFileSync(file, next);
+  else writeFileAtomic(file, next);
   return "removed";
 }

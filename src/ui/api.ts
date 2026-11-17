@@ -104,8 +104,9 @@ export function panelApi(ctx: PanelContext): Route[] {
       if (secrets.length && b.force !== true) {
         throw new HttpError(409, "This looks like it contains a secret. Confirm to save it anyway.", { secrets });
       }
-      const edited = store.edit(params.id, patch, user);
-      return b.approve === true && edited.status === "proposed" ? store.approve(params.id, user) : edited;
+      return b.approve === true && current.status === "proposed"
+        ? store.editAndApprove(params.id, patch, user)
+        : store.edit(params.id, patch, user);
     }),
 
     route("POST", "/api/entries/:id/retire", ({ params, body }) =>

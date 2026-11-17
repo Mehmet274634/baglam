@@ -280,24 +280,40 @@ export class ContextStore {
 
   /** Change a pending or active record. Only humans call this (CLI/panel); agents cannot. */
   edit(id: string, patch: EntryPatch, by: string): Entry {
+    this.transaction(() => this.editRow(id, patch, by, ["proposed", "approved"]));
+    return this.get(id)!;
+  }
+
+  /** Edit a pending proposal and approve it in one transaction: both happen, or neither. */
+  editAndApprove(id: string, patch: EntryPatch, by: string): Entry {
+    const now = this.clock();
+    this.transaction(() => {
+      const e = this.editRow(id, patch, by, ["proposed"]);
+      this.approveRow(e, by, undefined, false, now);
+    });
+    return this.get(id)!;
+  }
+
+  /** Inside a transaction. Returns the entry as it is after the edit. */
+  private editRow(id: string, patch: EntryPatch, by: string, allowed: Status[]): Entry {
     const e = this.get(id);
     if (!e) throw new Error(`unknown entry ${id}`);
-    if (e.status !== "proposed" && e.status !== "approved") {
-      throw new Error(`cannot edit entry ${id} (status: ${e.status})`);
+    if (!allowed.includes(e.status)) {
+      throw new Error(
+        allowed.length === 1 && allowed[0] === "proposed"
+          ? `entry ${id} is not pending (status: ${e.status})`
+          : `cannot edit entry ${id} (status: ${e.status})`,
+      );
     }
     // Fields left undefined mean "unchanged", never "clear".
     const given = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as EntryPatch;
     const next = validate({ ...e, rationale: e.rationale ?? undefined, ...given });
     const changed = Object.keys(given) as (keyof EntryPatch)[];
     if (!changed.length) return e;
-    this.transaction(() => {
-      this.db
-        .prepare(
-          `UPDATE entries SET kind=?, title=?, body=?, rationale=?, tags=?, audience=?, edited_at=? WHERE id=?`,
-        )
-        .run(next.kind, next.title, next.body, next.rationale, next.tags, next.audience, this.clock(), id);
-      this.event(id, e.project, "edited", by, changed.join(","));
-    });
+    this.db
+      .prepare(`UPDATE entries SET kind=?, title=?, body=?, rationale=?, tags=?, audience=?, edited_at=? WHERE id=?`)
+      .run(next.kind, next.title, next.body, next.rationale, next.tags, next.audience, this.clock(), id);
+    this.event(id, e.project, "edited", by, changed.join(","));
     return this.get(id)!;
   }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { testHost } from "./helpers.js";
@@ -78,6 +78,13 @@ describe("baglam doctor", () => {
     db.close();
     const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
     expect(checks.find((x) => x.name === "Database")).toMatchObject({ ok: false, detail: expect.stringMatching(/newer/) });
+  });
+
+  it("does not create the database when it is missing", async () => {
+    const { host, dbPath, project } = machine();
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    expect(checks.find((x) => x.name === "Database")).toMatchObject({ ok: true, detail: expect.stringMatching(/not created yet/) });
+    expect(existsSync(dbPath)).toBe(false);
   });
 
   it("cli: doctor exits 1 on failure", async () => {
