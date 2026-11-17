@@ -19,23 +19,39 @@ interface JsonClientOptions {
 
 const SERVER_NAME = "baglam";
 
-function read(file: string): { ok: true; data: Json; exists: boolean } | { ok: false; error: string } {
-  if (!existsSync(file)) return { ok: true, data: {}, exists: false };
-  const text = readFileSync(file, "utf8");
-  if (!text.trim()) return { ok: true, data: {}, exists: true };
+const BOM = "﻿";
+
+type ReadResult = { ok: true; data: Json; exists: boolean; bom: boolean } | { ok: false; error: string };
+
+const isPlainObject = (v: unknown): v is Json => !!v && typeof v === "object" && !Array.isArray(v);
+
+function read(file: string): ReadResult {
+  if (!existsSync(file)) return { ok: true, data: {}, exists: false, bom: false };
+  const raw = readFileSync(file, "utf8");
+  const bom = raw.startsWith(BOM);
+  const text = bom ? raw.slice(1) : raw;
+  if (!text.trim()) return { ok: true, data: {}, exists: true, bom };
   try {
     const data = JSON.parse(text);
-    if (!data || typeof data !== "object" || Array.isArray(data)) return { ok: false, error: `${file} is not a JSON object` };
-    return { ok: true, data, exists: true };
+    if (!isPlainObject(data)) return { ok: false, error: `${file} is not a JSON object` };
+    return { ok: true, data, exists: true, bom };
   } catch (err) {
     return { ok: false, error: `${file} is not valid JSON (${(err as Error).message}); fix it or add Bağlam by hand` };
   }
 }
 
-function write(file: string, data: Json): void {
+/** The servers map, or an error when the key holds something other than an object. */
+function serversOf(data: Json, key: string, file: string): { ok: true; servers: Json } | { ok: false; error: string } {
+  const v = data[key];
+  if (v === undefined || v === null) return { ok: true, servers: {} };
+  if (!isPlainObject(v)) return { ok: false, error: `"${key}" in ${file} is not an object; fix it or add Bağlam by hand` };
+  return { ok: true, servers: v };
+}
+
+function write(file: string, data: Json, bom: boolean): void {
   backupOnce(file);
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify(data, null, 2) + "\n");
+  writeFileSync(file, (bom ? BOM : "") + JSON.stringify(data, null, 2) + "\n");
 }
 
 export function jsonClient(o: JsonClientOptions): ClientAdapter {
@@ -52,10 +68,11 @@ export function jsonClient(o: JsonClientOptions): ClientAdapter {
       const file = o.configPath(h);
       const cur = read(file);
       if (!cur.ok) return { client: o.id, file, action: "skipped", note: cur.error };
-      const servers = (cur.data[key] && typeof cur.data[key] === "object" ? cur.data[key] : {}) as Json;
+      const s = serversOf(cur.data, key, file);
+      if (!s.ok) return { client: o.id, file, action: "skipped", note: s.error };
       const want = desired(h);
-      if (JSON.stringify(servers[SERVER_NAME]) === JSON.stringify(want)) return { client: o.id, file, action: "unchanged" };
-      if (!opts.dryRun) write(file, { ...cur.data, [key]: { ...servers, [SERVER_NAME]: want } });
+      if (JSON.stringify(s.servers[SERVER_NAME]) === JSON.stringify(want)) return { client: o.id, file, action: "unchanged" };
+      if (!opts.dryRun) write(file, { ...cur.data, [key]: { ...s.servers, [SERVER_NAME]: want } }, cur.bom);
       return { client: o.id, file, action: cur.exists ? "updated" : "added" };
     },
 
@@ -63,18 +80,22 @@ export function jsonClient(o: JsonClientOptions): ClientAdapter {
       const file = o.configPath(h);
       const cur = read(file);
       if (!cur.ok) return { client: o.id, file, action: "skipped", note: cur.error };
-      const servers = cur.data[key] as Json | undefined;
-      if (!servers || !(SERVER_NAME in servers)) return { client: o.id, file, action: "absent" };
-      const { [SERVER_NAME]: _removed, ...rest } = servers;
-      if (!opts.dryRun) write(file, { ...cur.data, [key]: rest });
+      const s = serversOf(cur.data, key, file);
+      if (!s.ok) return { client: o.id, file, action: "skipped", note: s.error };
+      if (!(SERVER_NAME in s.servers)) return { client: o.id, file, action: "absent" };
+      const { [SERVER_NAME]: _removed, ...rest } = s.servers;
+      if (!opts.dryRun) write(file, { ...cur.data, [key]: rest }, cur.bom);
       return { client: o.id, file, action: "removed" };
     },
 
     status(h: HostEnv): ClientStatus {
       const installed = existsSync(o.detectPath(h));
-      const cur = read(o.configPath(h));
+      const file = o.configPath(h);
+      const cur = read(file);
       if (!cur.ok) return { installed, registered: false, problem: cur.error };
-      const entry = (cur.data[key] as Json | undefined)?.[SERVER_NAME] as ServerEntryShape | undefined;
+      const s = serversOf(cur.data, key, file);
+      if (!s.ok) return { installed, registered: false, problem: s.error };
+      const entry = s.servers[SERVER_NAME] as ServerEntryShape | undefined;
       return { installed, registered: !!entry, entry };
     },
   };

@@ -23,7 +23,7 @@ Review what agents proposed:
 
 Set up:
   setup [--yes] [--dry-run] [--undo]  Connect Bağlam to every AI tool installed on this machine
-  init [--undo]                       Prepare this folder: project id + instructions for agents
+  init [--here] [--undo]              Prepare this folder: project id + instructions for agents
   doctor                              Check that everything is connected, with fixes
 
 For AI tools:
@@ -95,6 +95,7 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
         yes: { type: "boolean", short: "y" },
         "dry-run": { type: "boolean" },
         undo: { type: "boolean" },
+        here: { type: "boolean" },
         help: { type: "boolean", short: "h" },
       },
     });
@@ -175,6 +176,14 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
       }
       case "setup": {
         const host = ctx.host ?? realHost();
+        if (!o.undo && /[\\/]_npx[\\/]/.test(host.cliPath)) {
+          print(
+            "This copy of Bağlam runs from npm's temporary npx cache, which npm may delete at any time;\n" +
+              "registering it would break every tool later. Install it permanently first:\n\n" +
+              "  npm i -g baglam\n  baglam setup",
+          );
+          return 1;
+        }
         const found = detectClients(host);
         if (!found.length) {
           print("No supported AI tools found (Claude Code, Codex, Antigravity, Gemini CLI, Cursor, Windsurf, VS Code).");
@@ -225,7 +234,7 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
       case "init": {
         const host = ctx.host ?? realHost();
         const dir = o.project ?? process.cwd();
-        const r = runInit(dir, { store, host, undo: o.undo });
+        const r = runInit(dir, { store, host, undo: o.undo, here: o.here });
         print(`Project: ${r.project.name}  (id ${r.project.key})`);
         print(`Folder:  ${r.project.dir}`);
         if (r.moved) print(`Moved ${r.moved} existing record(s) to this project id.`);

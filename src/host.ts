@@ -34,7 +34,19 @@ export function realHost(): HostEnv {
     nodePath: process.execPath,
     cliPath: join(PACKAGE_ROOT, "dist", "cli.js"),
     run(cmd, args) {
-      const r = spawnSync(cmd, args, { encoding: "utf8", timeout: 60_000, windowsHide: true });
+      const opts = { encoding: "utf8" as const, timeout: 60_000, windowsHide: true };
+      let r;
+      const script = process.platform === "win32" ? windowsScriptFor(cmd) : null;
+      if (script) {
+        // npm installs CLIs as .cmd shims, which Node can only start through cmd.exe.
+        try {
+          r = spawnSync(windowsCommandLine(script, args), { ...opts, shell: true });
+        } catch (err) {
+          return { code: 1, stdout: "", stderr: (err as Error).message };
+        }
+      } else {
+        r = spawnSync(cmd, args, opts);
+      }
       return { code: r.status ?? (r.error ? 127 : 1), stdout: r.stdout ?? "", stderr: r.stderr || r.error?.message || "" };
     },
     hasCommand(cmd) {
@@ -42,6 +54,26 @@ export function realHost(): HostEnv {
       return probe.status === 0;
     },
   };
+}
+
+/** On Windows: the .cmd/.bat file `where` finds first for `cmd`, or null when it is an .exe or missing. */
+function windowsScriptFor(cmd: string): string | null {
+  const r = spawnSync("where", [cmd], { encoding: "utf8", windowsHide: true });
+  const first = r.status === 0 ? r.stdout.split(/\r?\n/).find((l) => l.trim())?.trim() : undefined;
+  return first && /\.(cmd|bat)$/i.test(first) ? first : null;
+}
+
+/**
+ * One cmd.exe command line with every part quoted, so paths with spaces or non-ASCII letters survive.
+ * Inside quotes cmd.exe still expands %VAR% and stops at line breaks, so those are refused.
+ */
+export function windowsCommandLine(file: string, args: string[]): string {
+  return [file, ...args]
+    .map((part) => {
+      if (/[%\r\n]/.test(part)) throw new Error(`cannot pass ${JSON.stringify(part)} safely through cmd.exe`);
+      return `"${part.replace(/"/g, '""')}"`;
+    })
+    .join(" ");
 }
 
 /** The MCP server entry every tool gets: absolute node + cli path, and the tool's agent id. */

@@ -16,7 +16,7 @@ describe("baglam init", () => {
 
   beforeEach(() => {
     store = new ContextStore(":memory:");
-    host = testHost();
+    host = testHost({ commands: { claude: () => ({ code: 0 }) } });
     dir = mkdtempSync(join(tmpdir(), "baglam-init-"));
   });
 
@@ -102,5 +102,49 @@ describe("baglam init", () => {
     expect(text).toContain(id);
     expect(text).toContain("CLAUDE.md");
     expect(text).toContain("AGENTS.md");
+  });
+
+  it("undo in a never-initialised folder creates no marker and keeps records reachable", () => {
+    const old = store.addApproved({ project: normalizeProject(dir), kind: "fact", title: "Old", body: "b" }, "human");
+    runInit(dir, { store, host, undo: true });
+    expect(existsSync(join(dir, ".baglam", "project.json"))).toBe(false);
+    const r = runInit(dir, { store, host });
+    expect(r.moved).toBe(1);
+    expect(store.get(old.id)?.project).toBe(r.project.key);
+  });
+
+  it("a later init still moves records left under the old key", () => {
+    const first = runInit(dir, { store, host });
+    const late = store.addApproved({ project: normalizeProject(dir), kind: "fact", title: "Late", body: "b" }, "human");
+    const again = runInit(dir, { store, host });
+    expect(again.project.key).toBe(first.project.key);
+    expect(again.moved).toBe(1);
+    expect(store.get(late.id)?.project).toBe(first.project.key);
+  });
+
+  it("refuses a subfolder of an existing project and leaves its records alone", () => {
+    mkdirSync(join(dir, ".git"));
+    const sub = join(dir, "packages", "web");
+    mkdirSync(sub, { recursive: true });
+    const repoWide = store.addApproved({ project: normalizeProject(dir), kind: "fact", title: "Repo", body: "b" }, "human");
+    expect(() => runInit(sub, { store, host })).toThrow(/inside project/);
+    expect(existsSync(join(sub, ".baglam"))).toBe(false);
+    expect(store.get(repoWide.id)?.project).toBe(normalizeProject(dir));
+  });
+
+  it("--here makes a subfolder its own project without taking the parent's records", () => {
+    mkdirSync(join(dir, ".git"));
+    const sub = join(dir, "packages", "web");
+    mkdirSync(sub, { recursive: true });
+    const repoWide = store.addApproved({ project: normalizeProject(dir), kind: "fact", title: "Repo", body: "b" }, "human");
+    const r = runInit(sub, { store, host, here: true });
+    expect(r.moved).toBe(0);
+    expect(store.get(repoWide.id)?.project).toBe(normalizeProject(dir));
+  });
+
+  it("writes CLAUDE.md only when Claude Code is installed", () => {
+    const r = runInit(dir, { store, host: testHost() });
+    expect(existsSync(join(dir, "CLAUDE.md"))).toBe(false);
+    expect(r.changes.map((c) => c.file)).toEqual([join(dir, "AGENTS.md")]);
   });
 });

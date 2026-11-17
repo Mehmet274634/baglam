@@ -72,6 +72,21 @@ describe("Codex adapter", () => {
   });
 });
 
+describe("Codex adapter: other layouts of the same table", () => {
+  for (const [name, content] of [
+    ["inline table", 'mcp_servers = { baglam = { command = "x" } }\n'],
+    ["dotted keys", '[mcp_servers]\nbaglam.command = "x"\n'],
+    ["quoted key", '[mcp_servers."baglam"]\ncommand = "x"\n'],
+  ]) {
+    it(`refuses ${name}`, () => {
+      const host = testHost();
+      const file = codexFile(host.home, content);
+      expect(codex.install(host).action).toBe("skipped");
+      expect(readFileSync(file, "utf8")).toBe(content);
+    });
+  }
+});
+
 describe("Claude Code adapter", () => {
   it("claude install calls remove then add with the agent id", () => {
     const host = testHost({ commands: { claude: (args) => ({ code: args[1] === "get" ? 1 : 0 }) } });
@@ -94,11 +109,19 @@ describe("Claude Code adapter", () => {
 
   it("claude failure is reported, others continue", () => {
     const host = testHost({
-      commands: { claude: (args) => (args[1] === "add" ? { code: 1, stderr: "boom: config locked\nmore" } : { code: args[1] === "get" ? 1 : 0 }) },
+      commands: {
+        claude: (args) =>
+          args[1] === "add"
+            ? { code: 1, stderr: "boom: config locked\nmore" }
+            : args[1] === "get"
+              ? { code: 0, stdout: "Args: C:/old/dist/mcp.js" }
+              : { code: 0 },
+      },
     });
     const change = claudeCode.install(host);
     expect(change.action).toBe("skipped");
     expect(change.note).toContain("boom: config locked");
+    expect(change.note).toMatch(/previous entry was removed/);
   });
 
   it("claude missing is not detected", () => {

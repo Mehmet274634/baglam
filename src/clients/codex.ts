@@ -36,6 +36,32 @@ function findBlock(text: string): { start: number; end: number } | null {
   return { start, end };
 }
 
+const BAGLAM_KEY = String.raw`(?:baglam|"baglam"|'baglam')`;
+
+/**
+ * True when the TOML (outside our block) already defines the baglam server in any layout, or defines
+ * mcp_servers inline: appending our [mcp_servers.baglam] table would then make the file invalid.
+ */
+function definesBaglamElsewhere(text: string): boolean {
+  const patterns = [
+    new RegExp(String.raw`^\s*\[\s*mcp_servers\s*\.\s*${BAGLAM_KEY}\s*[\].]`, "m"), // [mcp_servers.baglam] / [mcp_servers.baglam.env]
+    new RegExp(String.raw`^\s*mcp_servers\s*=`, "m"), // mcp_servers = { … }
+    new RegExp(String.raw`^\s*mcp_servers\s*\.\s*${BAGLAM_KEY}\s*[.=]`, "m"), // mcp_servers.baglam.command = …
+  ];
+  if (patterns.some((p) => p.test(text))) return true;
+  // Dotted keys inside a [mcp_servers] table: baglam.command = …
+  let inMcpServers = false;
+  for (const line of text.split(/\r?\n/)) {
+    const header = /^\s*\[\s*([^\]]+?)\s*\]\s*(#.*)?$/.exec(line);
+    if (header) {
+      inMcpServers = header[1] === "mcp_servers";
+      continue;
+    }
+    if (inMcpServers && new RegExp(String.raw`^\s*${BAGLAM_KEY}\s*[.=]`).test(line)) return true;
+  }
+  return false;
+}
+
 function load(file: string) {
   const exists = existsSync(file);
   const text = exists ? readFileSync(file, "utf8") : "";
@@ -59,17 +85,18 @@ export const codex: ClientAdapter = {
     const { exists, text, eol } = load(file);
     const want = block(h, eol);
     const found = findBlock(text);
+    const outside = found ? text.slice(0, found.start) + text.slice(found.end) : text;
     let next: string;
-    if (found) {
-      if (text.slice(found.start, found.end) === want) return { client: ID, file, action: "unchanged" };
-      next = text.slice(0, found.start) + want + text.slice(found.end);
-    } else if (/^\s*\[mcp_servers\.baglam\]/m.test(text)) {
+    if (definesBaglamElsewhere(outside)) {
       return {
         client: ID,
         file,
         action: "skipped",
-        note: `${file} already has a [mcp_servers.baglam] table not managed by Bağlam; remove it by hand and run setup again`,
+        note: `${file} already defines mcp_servers.baglam (or an inline mcp_servers table) outside Bağlam's block; remove it by hand and run setup again`,
       };
+    } else if (found) {
+      if (text.slice(found.start, found.end) === want) return { client: ID, file, action: "unchanged" };
+      next = text.slice(0, found.start) + want + text.slice(found.end);
     } else {
       const sep = !text ? "" : text.endsWith(eol) ? eol : eol + eol;
       next = text + sep + want;

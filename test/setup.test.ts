@@ -92,4 +92,15 @@ describe("runSetup", () => {
     expect(out.join("\n")).toMatch(/--yes/);
     expect(existsSync(join(host.home, ".cursor", "mcp.json"))).toBe(false);
   });
+
+  it("cli: refuses to register a copy inside the npx cache", () => {
+    const host = { ...hostWithCursorAndCodex(), cliPath: "C:/Users/ev/AppData/Local/npm-cache/_npx/1a2b/node_modules/baglam/dist/cli.js" };
+    const out: string[] = [];
+    const code = runCli(["setup", "--yes"], {
+      store: new ContextStore(":memory:"), project: "x", user: "ev", print: (s) => out.push(s), host,
+    });
+    expect(code).toBe(1);
+    expect(out.join("\n")).toMatch(/npm i -g baglam/);
+    expect(existsSync(join(host.home, ".cursor", "mcp.json"))).toBe(false);
+  });
 });

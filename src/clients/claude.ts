@@ -35,7 +35,13 @@ export const claudeCode: ClientAdapter = {
       "mcp", "add", NAME, "-s", "user", "-e", `BAGLAM_AGENT=${ID}`, "--", h.nodePath, h.cliPath, "mcp",
     ]);
     if (add.code !== 0) {
-      return { client: ID, file, action: "skipped", note: `claude mcp add failed: ${firstLine(add.stderr || add.stdout)}` };
+      const removed = current.code === 0 ? " The previous entry was removed; run setup again once this is fixed." : "";
+      return {
+        client: ID,
+        file,
+        action: "skipped",
+        note: `claude mcp add failed: ${firstLine(add.stderr || add.stdout)}.${removed}`,
+      };
     }
     return { client: ID, file, action };
   },

@@ -97,4 +97,25 @@ describe("JSON client adapters", () => {
     expect(s.registered).toBe(true);
     expect(s.entry?.args).toEqual([host.cliPath, "mcp"]);
   });
+
+  it("keeps a UTF-8 BOM", () => {
+    const host = testHost();
+    const file = join(host.home, ".cursor", "mcp.json");
+    write(file, "﻿" + JSON.stringify({ mcpServers: {} }));
+    expect(cursor.install(host).action).toBe("updated");
+    const text = readFileSync(file, "utf8");
+    expect(text.charCodeAt(0)).toBe(0xfeff);
+    expect(JSON.parse(text.slice(1)).mcpServers.baglam).toBeTruthy();
+  });
+
+  it("skips when the servers value is not an object", () => {
+    const host = testHost();
+    const file = join(host.home, ".cursor", "mcp.json");
+    const original = JSON.stringify({ mcpServers: [{ command: "x" }] });
+    write(file, original);
+    expect(cursor.install(host)).toMatchObject({ action: "skipped", note: expect.stringMatching(/not an object/) });
+    expect(readFileSync(file, "utf8")).toBe(original);
+    write(file, JSON.stringify({ mcpServers: "oops" }));
+    expect(cursor.uninstall(host).action).toBe("skipped");
+  });
 });
