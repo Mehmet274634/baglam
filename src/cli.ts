@@ -5,7 +5,8 @@ import { pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";
 import { ContextStore, KINDS, type Entry, type Kind } from "./store.js";
 import { day, formatEntry } from "./format.js";
-import { resolveDbPath, resolveProject } from "./config.js";
+import { resolveDbPath } from "./config.js";
+import { resolveProject } from "./project.js";
 
 const USAGE = `Usage: baglam <command> [options]
 

@@ -2,7 +2,8 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ContextStore } from "./store.js";
 import { createServer } from "./server.js";
-import { resolveAgentOverride, resolveDbPath, resolveProject } from "./config.js";
+import { resolveAgentOverride, resolveDbPath } from "./config.js";
+import { resolveProject } from "./project.js";
 
 const store = new ContextStore(resolveDbPath());
 const project = resolveProject();

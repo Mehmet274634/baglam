@@ -20,11 +20,6 @@ export function findProjectRoot(start: string): string {
   }
 }
 
-export function resolveProject(explicit?: string, cwd = process.cwd()): string {
-  const fromEnv = explicit ?? process.env.BAGLAM_PROJECT;
-  return normalizeProject(fromEnv?.trim() ? fromEnv : findProjectRoot(cwd));
-}
-
 export function resolveDbPath(): string {
   return process.env.BAGLAM_DB?.trim() || join(homedir(), ".baglam", "baglam.db");
 }
