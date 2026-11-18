@@ -140,7 +140,7 @@ describe("auto-capture: edits and replies", () => {
     const { cap, live } = setup();
     cap("claude-code", { kind: "prompt", text: "Build it" });
     cap("claude-code", { kind: "edit", files: [join(DIR, "src", "a.ts"), join(DIR, "b.md")] });
-    cap("claude-code", { kind: "edit", files: [join(DIR, "src", "a.ts"), join(tmpdir(), "elsewhere.txt"), "C:/outside/x.ts"] });
+    cap("claude-code", { kind: "edit", files: [join(DIR, "src", "a.ts"), join(tmpdir(), "elsewhere.txt"), join(DIR, "..", "..", "outside", "x.ts")] });
     expect(live()!.files).toEqual(["b.md", "src/a.ts"]);
   });
 

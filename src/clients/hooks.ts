@@ -1,5 +1,5 @@
 import { existsSync, rmSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join, posix } from "node:path";
 import type { HostEnv } from "../host.js";
 import { HOOK_CLIENTS, type HookClient, type HookEvent } from "../hooks/normalize.js";
 import { isPlainObject, read, write, type Json } from "./json.js";
@@ -36,7 +36,8 @@ function nodeOnPath(h: HostEnv): boolean {
  * Node (or none) the absolute path is used, quoted, with `&` for PowerShell.
  */
 export function hookCommand(h: HostEnv, client: HookClient, event: HookEvent, shell: Shell): string {
-  const args = `"${slash(join(dirname(h.cliPath), "hook.js"))}" ${client} ${event}`;
+  // posix on forward slashes: the same result for "C:\…\cli.js" and "/usr/…/cli.js" on every OS.
+  const args = `"${posix.join(posix.dirname(slash(h.cliPath)), "hook.js")}" ${client} ${event}`;
   if (nodeOnPath(h)) return `node ${args}`;
   const line = `"${slash(h.nodePath)}" ${args}`;
   return shell === "powershell" ? `& ${line}` : line;
