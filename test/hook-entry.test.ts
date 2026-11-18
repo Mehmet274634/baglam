@@ -136,3 +136,22 @@ describe("fastBranch agrees with git", () => {
     expect(fastBranch(wt)).toBe(currentBranch(wt));
   });
 });
+
+describe("hooks firing at the same time", () => {
+  it("parallel edit hooks never lose a file", async () => {
+    const { spawn } = await import("node:child_process");
+    const p = project();
+    p.run("claude-code", "prompt", { cwd: p.dir, prompt: "Many edits" });
+    const hook = join(root, ".test-dist", "hook.js");
+    const one = (i: number) =>
+      new Promise<void>((done) => {
+        const c = spawn(process.execPath, [hook, "claude-code", "edit"], { env: { ...process.env, BAGLAM_DB: p.dbPath } });
+        c.on("exit", () => done());
+        c.stdin.end(JSON.stringify({ cwd: p.dir, tool_name: "Write", tool_input: { file_path: join(p.dir, `f${i}.ts`) } }));
+      });
+    await Promise.all(Array.from({ length: 12 }, (_, i) => one(i)));
+    const s = p.open();
+    expect(s.getHandoff(p.key, "-")!.files.sort()).toEqual(Array.from({ length: 12 }, (_, i) => `f${i}.ts`).sort());
+    s.close();
+  }, 60_000);
+});

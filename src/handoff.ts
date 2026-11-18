@@ -178,7 +178,8 @@ export class HandoffRepo {
     return rows.map((r) => ({ ...fromRow({ ...r, created_at: r.at, updated_at: r.at }), replaced: Number(r.replaced) === 1 }));
   }
 
-  checkpoint(raw: CheckpointInput): Handoff {
+  /** Secret scan and limits; throws when the checkpoint must not be saved. */
+  private check(raw: CheckpointInput): CheckpointInput {
     // Scan what the agent sent, before any cutting: a secret split by a size cap must not slip through in part.
     // Only what can be stored matters, plus a margin so a secret straddling the cut is still seen whole.
     const MARGIN = 256;
@@ -197,9 +198,37 @@ export class HandoffRepo {
     if (findings.length) {
       throw new Error(`Not saved: it looks like a secret (${describeFindings(findings)}). Remove it and checkpoint again.`);
     }
+    return i;
+  }
 
+  checkpoint(raw: CheckpointInput): Handoff {
+    const i = this.check(raw);
+    let out!: Handoff;
+    // Read and write under one write lock: a hook or another agent saving at the same moment can't be lost.
+    this.transaction(() => {
+      out = this.apply(i, this.get(i.project, i.branch));
+    });
+    return out;
+  }
+
+  /**
+   * Like checkpoint, but the input is computed from the live task inside the write lock, so changes
+   * built on the current lists (automatic saving appends files and requests) never overwrite a
+   * concurrent save. `plan` returns null when there is nothing to save.
+   */
+  checkpointPlanned(project: string, branch: string, plan: (existing: Handoff | undefined) => CheckpointInput | null): Handoff | undefined {
+    let out: Handoff | undefined;
+    this.transaction(() => {
+      const existing = this.get(project, branch);
+      const raw = plan(existing);
+      if (raw) out = this.apply(this.check(raw), existing);
+    });
+    return out;
+  }
+
+  /** Writes one checkpoint; the caller holds the write lock. */
+  private apply(i: CheckpointInput, existing: Handoff | undefined): Handoff {
     const now = this.clock();
-    const existing = this.get(i.project, i.branch);
     // An agent Bağlam cannot verify must not rewrite (or replace) a task a set-up agent is working on.
     if (existing && existing.status !== "done" && existing.agentVerified && !i.agentVerified) {
       throw new Error(
@@ -241,18 +270,16 @@ export class HandoffRepo {
       expiresAt: now + handoffTtlDays() * DAY,
     };
 
-    this.transaction(() => {
-      if (startsNew && existing && existing.status !== "done") this.addHistory(existing, true);
-      this.db
-        .prepare(
-          `INSERT INTO handoffs (project, branch, dir, task_id, data, agent, created_at, updated_at, expires_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(project, branch) DO UPDATE SET dir = excluded.dir, task_id = excluded.task_id, data = excluded.data,
-             agent = excluded.agent, created_at = excluded.created_at, updated_at = excluded.updated_at, expires_at = excluded.expires_at`,
-        )
-        .run(next.project, next.branch, next.dir, next.taskId, payload(next), next.agent, next.createdAt, next.updatedAt, next.expiresAt);
-      this.addHistory(next, false);
-    });
+    if (startsNew && existing && existing.status !== "done") this.addHistory(existing, true);
+    this.db
+      .prepare(
+        `INSERT INTO handoffs (project, branch, dir, task_id, data, agent, created_at, updated_at, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(project, branch) DO UPDATE SET dir = excluded.dir, task_id = excluded.task_id, data = excluded.data,
+           agent = excluded.agent, created_at = excluded.created_at, updated_at = excluded.updated_at, expires_at = excluded.expires_at`,
+      )
+      .run(next.project, next.branch, next.dir, next.taskId, payload(next), next.agent, next.createdAt, next.updatedAt, next.expiresAt);
+    this.addHistory(next, false);
     return next;
   }
 

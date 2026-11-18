@@ -86,6 +86,21 @@ describe("auto-capture: requests", () => {
   });
 });
 
+describe("auto-capture: secrets cut by a size limit", () => {
+  it("a secret straddling the request limit is not stored in part", () => {
+    const { cap, live } = setup();
+    cap("claude-code", { kind: "prompt", text: "x".repeat(290) + " " + AWS });
+    expect(live()!.goal).toBe("(hidden: looked like a secret)");
+  });
+
+  it("a secret straddling the reply limit is not stored in part", () => {
+    const { cap, live } = setup();
+    cap("claude-code", { kind: "prompt", text: "Build it" });
+    cap("claude-code", { kind: "stop", reply: "y".repeat(980) + " " + AWS });
+    expect(live()!.now).toBe("(hidden: looked like a secret)");
+  });
+});
+
 describe("auto-capture: edits and replies", () => {
   it("edit adds project-relative paths, dedupes, ignores paths outside the project", () => {
     const { cap, live } = setup();

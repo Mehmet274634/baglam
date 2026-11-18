@@ -736,9 +736,11 @@ export class ContextStore {
 
   /** Apply what a tool hook saw to the live handoff. Undefined when there was nothing to save. */
   autoCapture(i: { project: string; branch: string; dir: string; agent: string; event: AutoEvent }): Handoff | undefined {
-    const plan = planAutoEvent(this.handoffs.get(i.project, i.branch), i.event, { now: this.clock(), dir: i.dir });
-    if (!plan) return undefined;
-    return this.handoffs.checkpoint({ ...plan, project: i.project, branch: i.branch, dir: i.dir, agent: i.agent, agentVerified: true, origin: "auto" });
+    // Planned under the write lock: parallel hooks (one per edited file) each add to the latest lists.
+    return this.handoffs.checkpointPlanned(i.project, i.branch, (existing) => {
+      const plan = planAutoEvent(existing, i.event, { now: this.clock(), dir: i.dir });
+      return plan && { ...plan, project: i.project, branch: i.branch, dir: i.dir, agent: i.agent, agentVerified: true, origin: "auto" };
+    });
   }
 
   setAutoCapture(project: string, on: boolean, by: string): void {

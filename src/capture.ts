@@ -14,7 +14,10 @@ export const STALE_TASK_MS = 12 * 3_600_000;
 const REPLY_PREFIX = "Last reply: ";
 
 const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
-const hideSecrets = (s: string) => (scanEntryFields({ title: s, body: "", tags: [] }).length ? HIDDEN : s);
+/** Scan a bit past the cut, so a secret the size limit would split is still seen whole; then cut. */
+const SCAN_MARGIN = 256;
+const keep = (s: string, max: number) =>
+  scanEntryFields({ title: s.slice(0, max + SCAN_MARGIN), body: "", tags: [] }).length ? HIDDEN : s.slice(0, max);
 
 /**
  * The checkpoint a hook event turns into, or null when there is nothing to save.
@@ -30,7 +33,7 @@ export function planAutoEvent(
   if (event.kind === "prompt") {
     const first = String(event.text ?? "").split(/\r?\n/).map(oneLine).find(Boolean);
     if (!first) return null;
-    const line = hideSecrets(first.slice(0, LIMITS.goal));
+    const line = keep(first, LIMITS.goal);
     const stale = live && ctx.now - live.updatedAt > STALE_TASK_MS;
     if (!live || stale) return { goal: line, requests: [line], newTask: stale ? true : undefined, isRequest: true };
     return { requests: [...live.requests, line].slice(-LIMITS.requests), isRequest: true };
@@ -54,5 +57,5 @@ export function planAutoEvent(
   // The agent's own "now" is better than its last chat message: keep it when it checkpointed after the request.
   const agentIsCurrent = live.agentAt !== null && (live.requestAt === null || live.agentAt >= live.requestAt);
   if (agentIsCurrent) return null;
-  return { now: hideSecrets((REPLY_PREFIX + reply).slice(0, LIMITS.now)) };
+  return { now: keep(REPLY_PREFIX + reply, LIMITS.now) };
 }

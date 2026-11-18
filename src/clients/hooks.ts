@@ -16,9 +16,29 @@ export interface HookInstaller {
 type Shell = "posix" | "powershell";
 const slash = (p: string) => p.replace(/\\/g, "/");
 
-/** `"<node>" "<dist>/hook.js" <client> <event>`; PowerShell needs `&` to run a quoted path. */
+const samePath = (a: string, b: string) => slash(a).toLowerCase() === slash(b).toLowerCase();
+const nodeOnPathCache = new WeakMap<HostEnv, boolean>();
+
+/** PATH's first `node` is this very Node (so a bare `node` runs the same one). */
+function nodeOnPath(h: HostEnv): boolean {
+  const cached = nodeOnPathCache.get(h);
+  if (cached !== undefined) return cached;
+  const r = h.run(h.platform === "win32" ? "where" : "which", ["node"]);
+  const first = r.code === 0 ? r.stdout.split(/\r?\n/).find((l) => l.trim())?.trim() : undefined;
+  const yes = !!first && samePath(first, h.nodePath);
+  nodeOnPathCache.set(h, yes);
+  return yes;
+}
+
+/**
+ * `node "<dist>/hook.js" <client> <event>`. Tools run hooks through different shells (bash, cmd,
+ * PowerShell); a bare `node` first is the one form all of them run. Only when PATH finds another
+ * Node (or none) the absolute path is used, quoted, with `&` for PowerShell.
+ */
 export function hookCommand(h: HostEnv, client: HookClient, event: HookEvent, shell: Shell): string {
-  const line = `"${slash(h.nodePath)}" "${slash(join(dirname(h.cliPath), "hook.js"))}" ${client} ${event}`;
+  const args = `"${slash(join(dirname(h.cliPath), "hook.js"))}" ${client} ${event}`;
+  if (nodeOnPath(h)) return `node ${args}`;
+  const line = `"${slash(h.nodePath)}" ${args}`;
   return shell === "powershell" ? `& ${line}` : line;
 }
 
@@ -92,6 +112,38 @@ const isEmpty = (data: Json, spec: Spec) => Object.keys(data).every((k) => spec.
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+/** JSON with sorted keys: tools rewrite their own settings files and may reorder keys. */
+function canon(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canon).join(",")}]`;
+  if (isPlainObject(v)) return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canon(v[k])}`).join(",")}}`;
+  return JSON.stringify(v);
+}
+
+const ourHandlerCount = (list: unknown[], layout: Layout) =>
+  layout === "flat"
+    ? list.filter(isOurs).length
+    : list.reduce<number>((n, g) => n + (isPlainObject(g) && Array.isArray(g.hooks) ? g.hooks.filter(isOurs).length : 0), 0);
+
+/**
+ * Exactly our current entries are present, wherever they sit among the user's own hooks and
+ * whatever key order the tool keeps, and no old entry of ours is left behind.
+ */
+function upToDate(data: Json, spec: Spec, h: HostEnv): boolean {
+  const ours = spec.entries(h);
+  if (spec.layout === "named") return canon(data[NAMED_KEY]) === canon(ours);
+  if (spec.top && Object.entries(spec.top).some(([k, v]) => canon(data[k]) !== canon(v))) return false;
+  const hooks = isPlainObject(data.hooks) ? data.hooks : {};
+  let expected = 0;
+  for (const [event, wanted] of Object.entries(ours)) {
+    const list = Array.isArray(hooks[event]) ? (hooks[event] as unknown[]) : [];
+    const present = new Set(list.map(canon));
+    if (!wanted.every((w) => present.has(canon(w)))) return false;
+    expected += ourHandlerCount(wanted, spec.layout);
+  }
+  const found = Object.values(hooks).reduce<number>((n, list) => n + (Array.isArray(list) ? ourHandlerCount(list, spec.layout) : 0), 0);
+  return found === expected;
+}
+
 function installer(spec: Spec): HookInstaller {
   return {
     file: spec.file,
@@ -100,8 +152,8 @@ function installer(spec: Spec): HookInstaller {
       const file = spec.file(h);
       const cur = read(file);
       if (!cur.ok) return { client: spec.client, file, action: "skipped", note: cur.error, part: "auto-save" };
+      if (cur.exists && upToDate(cur.data, spec, h)) return { client: spec.client, file, action: "unchanged", part: "auto-save" };
       const next = merge(cur.data, spec, h);
-      if (cur.exists && same(next, cur.data)) return { client: spec.client, file, action: "unchanged", part: "auto-save" };
       if (!opts.dryRun) write(file, next, cur.bom);
       return { client: spec.client, file, action: cur.exists ? "updated" : "added", part: "auto-save" };
     },
@@ -124,7 +176,7 @@ function installer(spec: Spec): HookInstaller {
       if (!existsSync(file)) return { installed: false };
       const cur = read(file);
       if (!cur.ok) return { installed: false, problem: cur.error };
-      return { installed: same(merge(cur.data, spec, h), cur.data) };
+      return { installed: upToDate(cur.data, spec, h) };
     },
   };
 }

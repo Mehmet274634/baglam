@@ -12,6 +12,21 @@ const put = (f: string, data: unknown) => {
 };
 const cmd = (client: string, event: string) => `"C:/node/node.exe" "C:/baglam/dist/hook.js" ${client} ${event}`;
 
+describe("hookCommand: one form every shell runs", () => {
+  it("uses a bare `node` when PATH finds this same Node, so PowerShell, cmd and bash all run it", () => {
+    const where = () => ({ code: 0, stdout: "C:\\Program Files\\nodejs\\node.exe\r\nC:\\other\\node.exe\r\n" });
+    const h = { ...testHost({ commands: { where, which: where } }), nodePath: "C:\\Program Files\\nodejs\\node.exe", cliPath: "C:\\Users\\ev\\BAĞLAM\\dist\\cli.js" };
+    expect(hookCommand(h, "codex", "prompt", "posix")).toBe('node "C:/Users/ev/BAĞLAM/dist/hook.js" codex prompt');
+    expect(hookCommand(h, "cursor", "prompt", "powershell")).toBe('node "C:/Users/ev/BAĞLAM/dist/hook.js" cursor prompt');
+  });
+
+  it("keeps the absolute path when PATH finds another Node or none", () => {
+    const where = () => ({ code: 0, stdout: "C:\\other\\node.exe\r\n" });
+    const h = { ...testHost({ commands: { where, which: where } }), nodePath: "C:\\Program Files\\nodejs\\node.exe" };
+    expect(hookCommand(h, "codex", "prompt", "posix").startsWith('"C:/Program Files/nodejs/node.exe" ')).toBe(true);
+  });
+});
+
 describe("hookCommand", () => {
   it("quotes absolute forward-slash paths; PowerShell gets the call operator", () => {
     const h = { ...testHost(), nodePath: "C:\\Program Files\\nodejs\\node.exe", cliPath: "C:\\Users\\ev\\BAĞLAM\\dist\\cli.js" };
@@ -176,5 +191,44 @@ describe("living with the user's own hooks", () => {
     const h = testHost();
     expect(HOOK_INSTALLERS.codex.install(h, { dryRun: true }).action).toBe("added");
     expect(existsSync(join(h.home, ".codex", "hooks.json"))).toBe(false);
+  });
+});
+
+describe("installed hooks are recognised whatever order the tool keeps", () => {
+  it("a user's hook added after ours, and a key after hooks, still count as installed and are not rewritten", () => {
+    const h = testHost();
+    const f = join(h.home, ".claude", "settings.json");
+    HOOK_INSTALLERS["claude-code"].install(h);
+    const s = read(f);
+    s.hooks.Stop.push({ hooks: [{ type: "command", command: "echo later" }] });
+    s.permissions = { allow: ["Bash(ls)"] };
+    put(f, s);
+    const before = readFileSync(f, "utf8");
+    expect(HOOK_INSTALLERS["claude-code"].status(h).installed).toBe(true);
+    expect(HOOK_INSTALLERS["claude-code"].install(h).action).toBe("unchanged");
+    expect(readFileSync(f, "utf8")).toBe(before);
+  });
+
+  it("an old Bağlam hook left behind means not installed, and install replaces it", () => {
+    const h = testHost();
+    const f = join(h.home, ".cursor", "hooks.json");
+    HOOK_INSTALLERS.cursor.install(h);
+    const s = read(f);
+    s.hooks.afterFileEdit.push({ command: '"C:/old/node.exe" "C:/old/dist/hook.js" cursor edit' });
+    put(f, s);
+    expect(HOOK_INSTALLERS.cursor.status(h).installed).toBe(false);
+    expect(HOOK_INSTALLERS.cursor.install(h).action).toBe("updated");
+    expect(read(f).hooks.afterFileEdit).toHaveLength(1);
+  });
+
+  it("keys the tool reorders inside our own entry still match", () => {
+    const h = testHost();
+    const f = join(h.home, ".gemini", "settings.json");
+    HOOK_INSTALLERS["gemini-cli"].install(h);
+    const s = read(f);
+    const handler = s.hooks.AfterTool[0].hooks[0];
+    s.hooks.AfterTool[0] = { hooks: [{ timeout: handler.timeout, command: handler.command, type: handler.type, name: handler.name }], matcher: "write_file|replace" };
+    put(f, s);
+    expect(HOOK_INSTALLERS["gemini-cli"].status(h).installed).toBe(true);
   });
 });
