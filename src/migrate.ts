@@ -106,6 +106,16 @@ CREATE TABLE project_settings (
 ALTER TABLE entries ADD COLUMN review_state TEXT;
 `;
 
+/** Automatic saving from tool hooks: a per-project switch and when each tool's hook last fired. */
+const V7_SCHEMA = `
+ALTER TABLE project_settings ADD COLUMN auto_capture INTEGER NOT NULL DEFAULT 1;
+CREATE TABLE hook_seen (
+  client TEXT PRIMARY KEY,
+  at     INTEGER NOT NULL,
+  event  TEXT NOT NULL
+);
+`;
+
 const V5_SCHEMA = `
 CREATE INDEX IF NOT EXISTS entries_visible ON entries(project, status, kind, decided_at);
 CREATE INDEX IF NOT EXISTS events_project_at ON events(project, at);
@@ -127,6 +137,7 @@ const STEPS: ((db: DatabaseSync) => void)[] = [
   (db) => db.exec(V4_SCHEMA),
   (db) => db.exec(V5_SCHEMA),
   (db) => db.exec(V6_SCHEMA),
+  (db) => db.exec(V7_SCHEMA),
 ];
 
 export const SCHEMA_VERSION = STEPS.length;
