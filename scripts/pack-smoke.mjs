@@ -51,6 +51,13 @@ try {
   check("baglam doctor runs", /Node\.js/.test(doctor.stdout) && /Database/.test(doctor.stdout), `exit ${doctor.status}`);
   check("doctor did not create the database", !existsSync(env.BAGLAM_DB));
 
+  // The automatic-saving hook ships too, answers at once and leaves folders without a project alone.
+  const hook = spawnSync(process.execPath, [join(pkgDir, "dist", "hook.js"), "cursor", "prompt"], {
+    encoding: "utf8", env, cwd: home, input: JSON.stringify({ prompt: "x", workspace_roots: [home] }),
+  });
+  check("packaged hook answers", hook.status === 0 && hook.stdout === '{"continue":true}', `exit ${hook.status}, ${JSON.stringify(hook.stdout)}`);
+  check("hook outside a project wrote nothing", !existsSync(env.BAGLAM_DB));
+
   const sdk = (p) => pathToFileURL(join(root, "node_modules", "@modelcontextprotocol", "sdk", "dist", "esm", p)).href;
   const { Client } = await import(sdk("client/index.js"));
   const { StdioClientTransport } = await import(sdk("client/stdio.js"));

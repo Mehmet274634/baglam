@@ -17,6 +17,8 @@ Run it inside the project folder you care about. Each `✗` line comes with a fi
 | `<Tool>: connects — …` | The entry exists but the server did not start or answer. The message is the reason (for example `spawn ENOENT` = Node not found at that path). | `baglam setup`, then restart the tool. |
 | `This folder — … is not initialised` | Agents here can still use Bağlam, but the folder has no stable id and no instructions. | `baglam init` |
 | `Agent instructions — agents in this folder are not told to use Bağlam` | `AGENTS.md` has no Bağlam block. | `baglam init` |
+| `<Tool>: auto-save — requests and edits are not saved automatically` | The tool's hook file has no Bağlam hooks. | `baglam setup`, then restart the tool. |
+| `<Tool>: auto-save — installed; no automatic save yet` | The hooks are there but have not fired in a project yet. Use the tool once in a folder where you ran `baglam init`. For Codex: run `/hooks` in Codex and trust Bağlam's hooks first. If it stays like this, look at `~/.baglam/hook-errors.log`. | — |
 
 ## Other situations
 

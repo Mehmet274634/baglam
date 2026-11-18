@@ -2,6 +2,18 @@
 
 All notable changes to Bağlam. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.0-rc.3] - 2026-11-18
+
+### Added
+- **Automatic saving.** `baglam setup` installs hooks in Claude Code, Codex CLI, Gemini CLI, Cursor, Antigravity and VS Code that save the user's request, every file the agent edits and the agent's last reply into the task in progress, even when the agent never checkpoints. A request joins the task in progress (so "continue" to the next agent picks it up), or starts one when there is none, the last one is done, or it was untouched for 12 hours. Automatic saving never marks a task done or changes its next steps, keeps the agent's own "now", hides secrets and only works in folders set up with `baglam init`.
+- `baglam capture on|off|status`, a switch in the panel's Settings, and `BAGLAM_AUTO_CAPTURE=0`.
+- The brief, `baglam handoff` and the panel card show the latest request ("Asked") and mark tasks only the tool saved.
+- `baglam doctor` checks each tool's hooks and shows when it last saved automatically (and reminds Codex users to trust the hooks once with `/hooks`).
+
+### Changed
+- Schema v7 (automatic backup and upgrade).
+- The stale-checkpoint reminder counts from the agent's own last checkpoint, so automatic saves never silence it.
+
 ## [1.0.0-rc.2] - 2026-11-18
 
 ### Added
