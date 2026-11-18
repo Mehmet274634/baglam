@@ -5,6 +5,7 @@ import { I18nProvider } from "../ui/src/i18n.js";
 import { ContinueCard } from "../ui/src/components/ContinueCard.js";
 import { ReviewList } from "../ui/src/components/ReviewList.js";
 import { AutonomousSwitch } from "../ui/src/components/AutonomousSwitch.js";
+import { AutoCaptureSwitch } from "../ui/src/components/AutoCaptureSwitch.js";
 import type { Api } from "../ui/src/api.js";
 import type { Entry, Handoff } from "../ui/src/types.js";
 
@@ -88,6 +89,44 @@ describe("ReviewList", () => {
     );
     await waitFor(() => expect(api.review).toHaveBeenCalled());
     expect(container.textContent).toBe("");
+  });
+});
+
+describe("automatic saving in the panel", () => {
+  it("the card shows the latest request and marks a task only the tool saved", () => {
+    const { container } = render(
+      <I18nProvider lang="tr">
+        <ContinueCard handoff={handoff({ requests: ["Arama ekle", "devam et"], agentAt: null })} onCopy={() => {}} onDone={() => {}} />
+      </I18nProvider>,
+    );
+    expect(container.textContent).toContain("İstenen");
+    expect(container.textContent).toContain("devam et");
+    expect(container.textContent).toContain("Otomatik kaydedildi");
+  });
+
+  it("an agent checkpoint removes the automatic mark", () => {
+    const { container } = render(
+      <I18nProvider lang="tr">
+        <ContinueCard handoff={handoff({ requests: ["x"], agentAt: Date.now() })} onCopy={() => {}} onDone={() => {}} />
+      </I18nProvider>,
+    );
+    expect(container.textContent).not.toContain("Otomatik kaydedildi");
+  });
+
+  it("the switch turns it off without asking", async () => {
+    const api = { capture: vi.fn(async () => true), setCapture: vi.fn(async (_k: string, on: boolean) => on) } as unknown as Api;
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirm);
+    render(
+      <I18nProvider lang="en">
+        <AutoCaptureSwitch api={api} projectKey="p" />
+      </I18nProvider>,
+    );
+    const sw = await screen.findByRole("switch", { name: "Automatic saving" });
+    await waitFor(() => expect(sw.getAttribute("aria-checked")).toBe("true"));
+    fireEvent.click(sw);
+    await waitFor(() => expect(api.setCapture).toHaveBeenCalledWith("p", false));
+    expect(confirm).not.toHaveBeenCalled();
   });
 });
 

@@ -70,6 +70,9 @@ export const api = {
   keep: (ids: string[]) => call<{ kept: number }>("POST", "/api/review/keep", { ids }),
   undo: (id: string) => call<{ undone: Entry; restored?: Entry; note?: string }>("POST", `/api/entries/${id}/undo`, {}),
   autonomous: (key: string) => call<{ on: boolean }>("GET", `/api/projects/${encodeURIComponent(key)}/autonomous`).then((r) => r.on),
+  capture: (key: string) => call<{ on: boolean }>("GET", `/api/projects/${encodeURIComponent(key)}/capture`).then((r) => r.on),
+  setCapture: (key: string, on: boolean) =>
+    call<{ on: boolean }>("POST", `/api/projects/${encodeURIComponent(key)}/capture`, { on }).then((r) => r.on),
   setAutonomous: (key: string, on: boolean) =>
     call<{ on: boolean }>("POST", `/api/projects/${encodeURIComponent(key)}/autonomous`, { on }).then((r) => r.on),
 };

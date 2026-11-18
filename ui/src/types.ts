@@ -45,6 +45,10 @@ export interface Handoff {
   blockers: string | null;
   notes: string | null;
   agent: string;
+  /** The user's latest requests, saved by tool hooks. */
+  requests?: string[];
+  /** Last checkpoint by the agent itself; null when only the tool's hooks saved the task. */
+  agentAt?: number | null;
   createdAt: number;
   updatedAt: number;
   expiresAt: number;

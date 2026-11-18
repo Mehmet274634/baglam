@@ -188,3 +188,21 @@ describe("panel API: handoffs and autonomous mode", () => {
     expect((await h.call("POST", `/api/entries/${notAuto.id}/undo`, {})).status).toBe(409);
   });
 });
+
+describe("panel API: automatic saving", () => {
+  let h: ApiHarness;
+  const A = "11111111-2222-4333-8444-555555555555";
+  beforeEach(async () => {
+    h = await apiHarness();
+    h.store.touchProject({ key: A, name: "app", dir: "c:/work/app" });
+  });
+  afterEach(() => h.close());
+
+  it("switch per project", async () => {
+    const enc = encodeURIComponent;
+    expect((await h.call("GET", `/api/projects/${enc(A)}/capture`)).json).toEqual({ on: true });
+    expect((await h.call("POST", `/api/projects/${enc(A)}/capture`, { on: false })).json).toEqual({ on: false });
+    expect(h.store.isAutoCapture(A)).toBe(false);
+    expect((await h.call("POST", `/api/projects/${enc(A)}/capture`, { on: "yes" })).status).toBe(400);
+  });
+});

@@ -179,6 +179,12 @@ const en = {
   "auto.off": "Off",
   "auto.pickProject": "Choose a project at the top to change its mode.",
   "auto.badge": "Autonomous",
+  "capture.title": "Automatic saving",
+  "capture.body": "Your requests, the files agents edit and their last reply are saved to the task in progress by each tool's own hooks, even when the agent forgets. Stored only on this computer; secrets are hidden.",
+  "capture.on": "On: requests, edited files and the last reply are saved by themselves",
+  "capture.off": "Off",
+  "continue.asked": "Asked",
+  "continue.auto": "Saved automatically",
   "projects.task": "In progress: {goal} ({agent})",
 };
 
@@ -360,6 +366,12 @@ const tr: Record<Key, string> = {
   "auto.off": "Kapalı",
   "auto.pickProject": "Modunu değiştirmek için yukarıdan bir proje seç.",
   "auto.badge": "Otonom",
+  "capture.title": "Otomatik kayıt",
+  "capture.body": "İsteklerin, ajanların değiştirdiği dosyalar ve son cevapları, her aracın kendi kancalarıyla devam eden göreve kaydedilir; ajan unutsa bile. Yalnızca bu bilgisayarda saklanır, gizli bilgiler gizlenir.",
+  "capture.on": "Açık: istekler, değişen dosyalar ve son cevap kendiliğinden kaydedilir",
+  "capture.off": "Kapalı",
+  "continue.asked": "İstenen",
+  "continue.auto": "Otomatik kaydedildi",
   "projects.task": "Devam eden: {goal} ({agent})",
 };
 
