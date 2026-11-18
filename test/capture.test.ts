@@ -63,6 +63,13 @@ describe("auto-capture: requests", () => {
     expect(live()!.goal).toBe("Something else");
   });
 
+  it("the same request sent twice in a row is kept once (Cursor fires its hook twice)", () => {
+    const { cap, live } = setup();
+    cap("cursor", { kind: "prompt", text: "ikinci.txt oluştur" });
+    cap("cursor", { kind: "prompt", text: "ikinci.txt oluştur" });
+    expect(live()!.requests).toEqual(["ikinci.txt oluştur"]);
+  });
+
   it("requests keep the last 5, each at most 300 chars", () => {
     const { cap, live } = setup();
     for (let i = 1; i <= 7; i++) cap("claude-code", { kind: "prompt", text: `r${i} ` + "x".repeat(400) });

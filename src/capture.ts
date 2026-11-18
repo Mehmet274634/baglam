@@ -36,6 +36,8 @@ export function planAutoEvent(
     const line = keep(first, LIMITS.goal);
     const stale = live && ctx.now - live.updatedAt > STALE_TASK_MS;
     if (!live || stale) return { goal: line, requests: [line], newTask: stale ? true : undefined, isRequest: true };
+    // Some tools fire the prompt hook twice for one message.
+    if (live.requests.at(-1) === line) return null;
     return { requests: [...live.requests, line].slice(-LIMITS.requests), isRequest: true };
   }
 
