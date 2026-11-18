@@ -22,6 +22,8 @@ export interface Handoff {
   blockers: string | null;
   notes: string | null;
   agent: string;
+  /** The writer's name came from BAGLAM_AGENT (set by setup), not from the client. */
+  agentVerified: boolean;
   createdAt: number;
   updatedAt: number;
   expiresAt: number;
@@ -32,6 +34,7 @@ export interface CheckpointInput {
   branch: string;
   dir?: string;
   agent: string;
+  agentVerified?: boolean;
   goal?: string;
   status?: HandoffStatus;
   done?: string[];
@@ -102,13 +105,14 @@ export function validateCheckpoint(i: CheckpointInput): CheckpointInput {
 type Row = Record<string, SQLInputValue>;
 
 function fromRow(r: Row): Handoff {
-  const d = JSON.parse(r.data as string) as Pick<Handoff, "goal" | "status" | "done" | "now" | "next" | "files" | "blockers" | "notes">;
+  const d = JSON.parse(r.data as string) as Pick<Handoff, "goal" | "status" | "done" | "now" | "next" | "files" | "blockers" | "notes"> & { agentVerified?: boolean };
   return {
     project: r.project as string,
     branch: r.branch as string,
     dir: (r.dir as string | null) ?? null,
     taskId: r.task_id as string,
     ...d,
+    agentVerified: d.agentVerified === true,
     agent: r.agent as string,
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at ?? r.at),
@@ -117,7 +121,7 @@ function fromRow(r: Row): Handoff {
 }
 
 const payload = (h: Handoff) =>
-  JSON.stringify({ goal: h.goal, status: h.status, done: h.done, now: h.now, next: h.next, files: h.files, blockers: h.blockers, notes: h.notes });
+  JSON.stringify({ goal: h.goal, status: h.status, done: h.done, now: h.now, next: h.next, files: h.files, blockers: h.blockers, notes: h.notes, agentVerified: h.agentVerified });
 
 /** Storage for handoffs; used through ContextStore. */
 export class HandoffRepo {
@@ -149,18 +153,33 @@ export class HandoffRepo {
   }
 
   checkpoint(raw: CheckpointInput): Handoff {
-    const i = validateCheckpoint(raw);
+    // Scan what the agent sent, before any cutting: a secret split by a size cap must not slip through in part.
+    // Only what can be stored matters, plus a margin so a secret straddling the cut is still seen whole.
+    const MARGIN = 256;
+    const asText = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max + MARGIN) : "");
+    const asList = (v: unknown, count: number) =>
+      Array.isArray(v) ? v.slice(0, count).map((x) => asText(x, LIMITS.item)) : [];
     const findings = scanEntryFields({
-      title: i.goal ?? "",
-      body: [i.now, i.blockers, i.notes].filter(Boolean).join("\n"),
-      tags: [...(i.done ?? []), ...(i.doneAdd ?? []), ...(i.next ?? []), ...(i.files ?? [])],
+      title: asText(raw.goal, LIMITS.goal),
+      body: [asText(raw.now, LIMITS.now), asText(raw.blockers, LIMITS.blockers), asText(raw.notes, LIMITS.notes)].join("\n"),
+      tags: [
+        ...asList(raw.done, LIMITS.done), ...asList(raw.doneAdd, LIMITS.done),
+        ...asList(raw.next, LIMITS.next), ...asList(raw.files, LIMITS.files),
+      ],
     });
+    const i = validateCheckpoint(raw);
     if (findings.length) {
       throw new Error(`Not saved: it looks like a secret (${describeFindings(findings)}). Remove it and checkpoint again.`);
     }
 
     const now = this.clock();
     const existing = this.get(i.project, i.branch);
+    // An agent Bağlam cannot verify must not rewrite (or replace) a task a set-up agent is working on.
+    if (existing && existing.status !== "done" && existing.agentVerified && !i.agentVerified) {
+      throw new Error(
+        `This task was saved by a set-up agent (${existing.agent}); an agent Bağlam cannot verify may not change it. Ask the user to run baglam setup for this tool.`,
+      );
+    }
     const startsNew = !existing || existing.status === "done" || i.newTask === true;
     if (startsNew && !i.goal) throw new Error("goal is required to start a task (what are you working on?)");
 
@@ -169,7 +188,7 @@ export class HandoffRepo {
           project: i.project, branch: i.branch, dir: i.dir ?? existing?.dir ?? null,
           taskId: `t${randomBytes(6).toString("hex")}`, goal: i.goal!, status: "in_progress",
           done: [], now: null, next: [], files: [], blockers: null, notes: null,
-          agent: i.agent, createdAt: now, updatedAt: now, expiresAt: 0,
+          agent: i.agent, agentVerified: false, createdAt: now, updatedAt: now, expiresAt: 0,
         }
       : existing!;
 
@@ -186,6 +205,7 @@ export class HandoffRepo {
       blockers: i.blockers ?? base.blockers,
       notes: i.notes ?? base.notes,
       agent: i.agent,
+      agentVerified: i.agentVerified === true,
       updatedAt: now,
       expiresAt: now + handoffTtlDays() * DAY,
     };
@@ -233,13 +253,24 @@ export class HandoffRepo {
   }
 
   clear(project: string, branch: string, by: string): boolean {
-    if (!this.get(project, branch)) return false;
-    this.checkpoint({ project, branch, agent: by, status: "done" });
+    const live = this.get(project, branch);
+    if (!live || live.status === "done") return false;
+    this.checkpoint({ project, branch, agent: by, agentVerified: true, status: "done" });
     return true;
   }
 
+  /** Move handoffs to another project key. A live task already under the new key wins; the old one goes to history. */
   rekey(from: string, to: string): void {
-    this.db.prepare("UPDATE OR REPLACE handoffs SET project = ? WHERE project = ?").run(to, from);
+    const rows = this.db.prepare("SELECT * FROM handoffs WHERE project = ?").all(from) as Row[];
     this.db.prepare("UPDATE handoff_history SET project = ? WHERE project = ?").run(to, from);
+    for (const r of rows) {
+      const clash = this.db.prepare("SELECT 1 FROM handoffs WHERE project = ? AND branch = ?").get(to, r.branch as string);
+      if (clash) {
+        this.addHistory({ ...fromRow(r), project: to }, true);
+        this.db.prepare("DELETE FROM handoffs WHERE project = ? AND branch = ?").run(from, r.branch as string);
+      } else {
+        this.db.prepare("UPDATE handoffs SET project = ? WHERE project = ? AND branch = ?").run(to, from, r.branch as string);
+      }
+    }
   }
 }

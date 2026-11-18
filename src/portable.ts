@@ -180,7 +180,7 @@ export function importJson(
       store.checkpoint({
         project: raw.project,
         branch: raw.branch,
-        dir: str(raw.dir),
+        // A folder from a file is not trusted (git runs there): it is set again on the next checkpoint.
         agent: str(raw.agent) ?? opts.by,
         goal: raw.goal,
         status: raw.status === "blocked" || raw.status === "done" ? raw.status : "in_progress",

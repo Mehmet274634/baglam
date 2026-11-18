@@ -2,10 +2,10 @@
 import { parseArgs } from "node:util";
 import { userInfo } from "node:os";
 import { pathToFileURL } from "node:url";
-import { readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { ContextStore, KINDS, type Entry, type Kind, type TrustRule } from "./store.js";
 import { day, formatEntry, formatHandoff, resumePrompt } from "./format.js";
-import { currentBranch } from "./git.js";
+import { currentBranch, gitSnapshot } from "./git.js";
 import { resolveDbPath } from "./config.js";
 import { resolveProject } from "./project.js";
 import { VERSION } from "./version.js";
@@ -362,8 +362,10 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
         }
         if (o.copy) {
           const projectName = ctx.store.listProjects({ includeArchived: true }).find((p) => p.key === project)?.name ?? project;
-          const text = resumePrompt({ projectName, dir: live.dir, handoff: live, git: null, records: ctx.store.query({ project, status: "active", limit: 50 }).items });
+          const records = ctx.store.query({ project, status: "active", limit: 50 }).items;
           const host = ctx.host ?? realHost();
+          return (live.dir && existsSync(live.dir) ? gitSnapshot(live.dir, live.updatedAt) : Promise.resolve(null)).then((git) => {
+          const text = resumePrompt({ projectName, dir: live.dir, handoff: live, git, records });
           const [cmd, cmdArgs] =
             host.platform === "win32" ? ["clip", []] : host.platform === "darwin" ? ["pbcopy", []] : ["xclip", ["-selection", "clipboard"]];
           const r = host.run(cmd, cmdArgs as string[], text);
@@ -374,6 +376,7 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
             print(text.trimEnd());
           }
           return 0;
+          });
         }
         print(formatHandoff({ live, git: null, otherBranches: [] }, 20_000));
         return 0;

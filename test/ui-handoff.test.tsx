@@ -110,3 +110,24 @@ describe("AutonomousSwitch", () => {
     await waitFor(() => expect(api.setAutonomous).toHaveBeenCalledWith("p", true));
   });
 });
+
+describe("ReviewList undo note", () => {
+  it("says when the replaced record could not be restored", async () => {
+    const { ToastProvider } = await import("../ui/src/toast.js");
+    const items = [entry({ supersedes: "cold" })];
+    const api = {
+      review: vi.fn(async () => items),
+      undo: vi.fn(async () => ({ undone: { ...items[0], status: "rejected" }, note: "cold was not restored because it changed since it was replaced" })),
+    } as unknown as Api;
+    render(
+      <I18nProvider lang="en">
+        <ToastProvider>
+          <ReviewList api={api} project={undefined} refresh={0} onChanged={() => {}} />
+        </ToastProvider>
+      </I18nProvider>,
+    );
+    await screen.findByText(items[0].title);
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(await screen.findByText(/was not restored because it changed/)).toBeTruthy();
+  });
+});

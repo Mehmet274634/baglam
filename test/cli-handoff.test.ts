@@ -16,6 +16,10 @@ describe("baglam auto / handoff / review", () => {
     out = [];
     return runCli(argv, ctx(over)) as number;
   };
+  const runAsync = async (argv: string[]) => {
+    out = [];
+    return await runCli(argv, ctx());
+  };
 
   beforeEach(() => {
     store = new ContextStore(":memory:");
@@ -59,20 +63,20 @@ describe("baglam auto / handoff / review", () => {
     expect(store.getHandoff(P, "main")?.status).toBe("done");
   });
 
-  it("handoff --copy puts a resume prompt on the clipboard", () => {
+  it("handoff --copy puts a resume prompt on the clipboard", async () => {
     store.checkpoint({ project: P, branch: "main", agent: "claude-code", goal: "Stripe checkout", next: ["tests"] });
     const clip = process.platform === "win32" ? "clip" : process.platform === "darwin" ? "pbcopy" : "xclip";
     let copied = "";
     host = testHost({ commands: { [clip]: (_args, input) => ((copied = input ?? ""), { code: 0 }) } });
-    expect(run(["handoff", "--branch", "main", "--copy"])).toBe(0);
+    expect(await runAsync(["handoff", "--branch", "main", "--copy"])).toBe(0);
     expect(copied).toMatch(/continuing a task/i);
     expect(copied).toContain("Stripe checkout");
     expect(out.join("\n")).toMatch(/Copied/);
   });
 
-  it("handoff --copy falls back to printing", () => {
+  it("handoff --copy falls back to printing", async () => {
     store.checkpoint({ project: P, branch: "main", agent: "claude-code", goal: "Stripe checkout" });
-    expect(run(["handoff", "--branch", "main", "--copy"])).toBe(0);
+    expect(await runAsync(["handoff", "--branch", "main", "--copy"])).toBe(0);
     expect(out.join("\n")).toMatch(/Could not reach the clipboard/);
     expect(out.join("\n")).toContain("Stripe checkout");
   });

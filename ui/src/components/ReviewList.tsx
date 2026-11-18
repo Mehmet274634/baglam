@@ -64,7 +64,12 @@ export function ReviewList(props: { api: Api; project: string | undefined; refre
                 onClick={() =>
                   run(
                     () => props.api.undo(e.id),
-                    (r) => ((r as { restored?: unknown })?.restored ? t("review.restored") : t("review.undone")),
+                    (r) => {
+                      const res = r as { restored?: unknown; note?: string };
+                      if (res?.restored) return t("review.restored");
+                      if (res?.note) return t("review.notRestored", { note: res.note });
+                      return t("review.undone");
+                    },
                     [e.id],
                   )
                 }

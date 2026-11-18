@@ -14,11 +14,16 @@ export interface GitSnapshot {
 }
 
 const MAX_CHANGED = 20;
+/**
+ * Read-only for real: --no-optional-locks keeps `git status` from taking index.lock (which would
+ * race with the agent's own git add/commit); core.fsmonitor=false never runs a repo-configured hook.
+ */
+const GIT_SAFE = ["--no-optional-locks", "-c", "core.quotepath=off", "-c", "core.fsmonitor=false"];
 const MAX_COMMITS = 10;
 
 function run(dir: string, args: string[], timeoutMs: number): Promise<string | null> {
   return new Promise((resolve) => {
-    execFile("git", ["-c", "core.quotepath=off", ...args], { cwd: dir, timeout: timeoutMs, windowsHide: true, maxBuffer: 1 << 20 }, (err, stdout) =>
+    execFile("git", GIT_SAFE.concat(args), { cwd: dir, timeout: timeoutMs, windowsHide: true, maxBuffer: 1 << 20 }, (err, stdout) =>
       resolve(err ? null : stdout),
     );
   });
@@ -26,7 +31,7 @@ function run(dir: string, args: string[], timeoutMs: number): Promise<string | n
 
 /** Current branch name; "-" when the folder is not a git work tree (or git is missing). */
 export function currentBranch(dir: string): string {
-  const r = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: dir, encoding: "utf8", timeout: 2000, windowsHide: true });
+  const r = spawnSync("git", GIT_SAFE.concat(["rev-parse", "--abbrev-ref", "HEAD"]), { cwd: dir, encoding: "utf8", timeout: 2000, windowsHide: true });
   const name = r.status === 0 ? r.stdout.trim() : "";
   return name && name !== "HEAD" ? name : name === "HEAD" ? "detached" : "-";
 }
@@ -58,8 +63,10 @@ export async function gitSnapshot(dir: string, since?: number, opts: { timeoutMs
   });
 
   const format = "--format=%h\x1f%ct\x1f%s";
-  const recent = since !== undefined ? await run(dir, ["log", `-${MAX_COMMITS}`, `--since=@${Math.floor(since / 1000)}`, format], timeout) : null;
-  const last = await run(dir, ["log", "-1", format], timeout);
+  const [recent, last] = await Promise.all([
+    since !== undefined ? run(dir, ["log", `-${MAX_COMMITS}`, `--since=@${Math.floor(since / 1000)}`, format], timeout) : Promise.resolve(null),
+    run(dir, ["log", "-1", format], timeout),
+  ]);
   const lastCommit = last ? parseLog(last)[0] : undefined;
   return {
     branch,

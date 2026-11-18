@@ -461,7 +461,9 @@ export class ContextStore {
       moved = Number(this.db.prepare("UPDATE entries SET project = ? WHERE project = ?").run(to, from).changes);
       this.db.prepare("UPDATE events SET project = ? WHERE project = ?").run(to, from);
       this.handoffs.rekey(from, to);
-      this.db.prepare("UPDATE OR REPLACE project_settings SET project = ? WHERE project = ?").run(to, from);
+      // The project's own setting wins over the one recorded under its old path key.
+      this.db.prepare("UPDATE OR IGNORE project_settings SET project = ? WHERE project = ?").run(to, from);
+      this.db.prepare("DELETE FROM project_settings WHERE project = ?").run(from);
     });
     return moved;
   }

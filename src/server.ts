@@ -90,8 +90,10 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
 
   /** The live handoff for this folder's branch, git's view since, and other branches' tasks. */
   async function workState(project: ProjectRef) {
-    const branch = currentBranch(project.dir);
     const all = store.listHandoffs(project.key);
+    // Most briefs have no task in progress: don't spend a git call on them.
+    if (!all.length) return { branch: "-", live: undefined, git: null, otherBranches: [] };
+    const branch = currentBranch(project.dir);
     const live = all.find((h) => h.branch === branch);
     const git = live && live.status !== "done" ? await gitSnapshot(project.dir, live.updatedAt) : null;
     return { branch, live, git, otherBranches: all.filter((h) => h.branch !== branch) };
@@ -319,6 +321,7 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
         branch,
         dir: r.project.dir,
         agent: agentName(),
+        agentVerified: opts.agent !== undefined,
       });
       return `Saved progress for "${h.goal}" (${h.status.replace("_", " ")}, branch ${branch}). Any agent on this project can continue from here.`;
     }),
