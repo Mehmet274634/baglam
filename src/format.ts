@@ -1,5 +1,7 @@
 import type { Entry, Kind } from "./store.js";
 import type { ProjectRef } from "./project.js";
+import type { Handoff } from "./handoff.js";
+import type { GitSnapshot } from "./git.js";
 
 const KIND_ORDER: Kind[] = ["warning", "decision", "convention", "preference", "fact"];
 const KIND_HEADINGS: Record<Kind, string> = {
@@ -58,6 +60,71 @@ export interface BriefInput {
   total?: number;
   /** `total` hit the counting cap: there may be more. */
   totalCapped?: boolean;
+  /** Work in progress on this branch, what git says since, and live tasks on other branches. */
+  handoff?: { live?: Handoff; git: GitSnapshot | null; otherBranches: Handoff[] };
+}
+
+const HANDOFF_SHARE = 0.35;
+const DONE_VISIBLE_MS = 24 * 3_600_000;
+
+function ago(at: number, now = Date.now()): string {
+  const min = Math.max(0, Math.round((now - at) / 60_000));
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} d ago`;
+}
+
+const listLine = (items: string[], max: number) => {
+  let out = "";
+  for (const [i, s] of items.entries()) {
+    const piece = (i ? "; " : "") + s;
+    if (out.length + piece.length > max) return `${out}; … (${items.length - i} more)`;
+    out += piece;
+  }
+  return out;
+};
+
+/** "Continue from here", sized to at most `max` characters. Empty when there is nothing to continue. */
+export function formatHandoff(h: BriefInput["handoff"], max: number, now = Date.now()): string {
+  if (!h) return "";
+  const parts: string[] = [];
+  const live = h.live;
+  if (live && live.status === "done" && now - live.updatedAt < DONE_VISIBLE_MS) {
+    parts.push(`## Last task (finished ${ago(live.updatedAt, now)} by ${live.agent})\n"${live.goal}" is done. Start the next one with context_checkpoint and a new goal.`);
+  } else if (live && live.status !== "done") {
+    const budget = (share: number) => Math.max(80, Math.floor(max * share));
+    const lines = [
+      "## Continue from here",
+      `Task: ${live.goal} (${live.status === "blocked" ? "blocked" : "in progress"}) · last update ${ago(live.updatedAt, now)} by ${live.agent}`,
+    ];
+    if (live.done.length) lines.push(`Done: ${listLine(live.done.slice(-12), budget(0.2))}`);
+    if (live.now) lines.push(`Now: ${live.now.slice(0, budget(0.12))}`);
+    if (live.next.length) lines.push(`Next: ${listLine(live.next.map((s, i) => `${i + 1}) ${s}`), budget(0.22))}`);
+    if (live.files.length) lines.push(`Files: ${listLine(live.files, budget(0.1))}`);
+    const g = h.git;
+    if (g && (g.changedCount || g.commitsSince.length)) {
+      const bits: string[] = [];
+      if (g.changedCount) bits.push(`${g.changedCount} file${g.changedCount === 1 ? "" : "s"} changed, not committed: ${listLine(g.changed, budget(0.1))}`);
+      if (g.commitsSince.length) bits.push(`${g.commitsSince.length} commit(s): ${listLine(g.commitsSince.map((c) => `${c.hash} ${c.subject}`), budget(0.08))}`);
+      lines.push(`Since then (git): ${bits.join(" · ")}`);
+    }
+    if (live.blockers) lines.push(`Blockers: ${live.blockers.slice(0, budget(0.08))}`);
+    if (live.notes) lines.push(`Notes: ${live.notes.slice(0, budget(0.1))}`);
+    lines.push("→ If you continue this task, keep calling context_checkpoint as you go (do not pass new_task).");
+    parts.push(lines.join("\n"));
+  }
+  const others = h.otherBranches.filter((o) => o.status !== "done");
+  if (others.length) {
+    parts.push(
+      `Other branches with tasks in progress: ${others
+        .slice(0, 5)
+        .map((o) => `${o.branch} ("${o.goal}", ${ago(o.updatedAt, now)} by ${o.agent})`)
+        .join("; ")}. They are not for this branch.`,
+    );
+  }
+  const out = parts.join(SEP);
+  return out.length > max ? `${out.slice(0, max - 1)}…` : out;
 }
 
 /**
@@ -72,6 +139,8 @@ export function formatBrief(input: BriefInput): string {
   if (project.warning) head.push(`Warning: ${project.warning}`);
   if (!project.initialized) head.push("This project is not initialised. Suggest the user run: baglam init");
   head.push(FRAMING);
+  const work = formatHandoff(input.handoff, Math.floor(budget * HANDOFF_SHARE));
+  if (work) head.push(work);
 
   const tail: string[] = [];
   if (pendingCount) tail.push(`${pendingCount} proposal(s) are waiting for human review and are not shown.`);

@@ -15,6 +15,11 @@ export function instructionBlock(): string {
     "- At the start of every task, call the `context_brief` tool with `project_path` set to the absolute path of this project folder, and follow what it returns.",
     "- When you settle a decision, learn a convention or a user preference, or hit a pitfall other agents should know about, call `context_propose` (same `project_path`). Use `supersedes` when it replaces an existing record.",
     "- Never put secrets, credentials or personal data in a proposal.",
+    "",
+    "### Save progress so another agent can continue",
+    "- When you start or pick up a task, call `context_checkpoint` with the `goal`. After every meaningful step (a file finished, a test passing, a decision made) call it again with `done_add`, `now` and `next`. Do this before long operations too: you may be stopped at any moment, and another agent will continue from your last checkpoint.",
+    "- If `context_brief` shows a task under \"Continue from here\" and the user's request is about it, continue from its next steps instead of starting over, and keep checkpointing it (do not pass `new_task`). Pass `new_task: true` only when you start something unrelated.",
+    "- When the task is finished, call `context_checkpoint` with `status: \"done\"`.",
     BLOCK_END,
     "",
   ].join("\n");

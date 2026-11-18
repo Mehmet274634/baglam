@@ -147,4 +147,9 @@ describe("baglam init", () => {
     expect(existsSync(join(dir, "CLAUDE.md"))).toBe(false);
     expect(r.changes.map((c) => c.file)).toEqual([join(dir, "AGENTS.md")]);
   });
+
+  it("instruction block mentions context_checkpoint", () => {
+    expect(instructionBlock()).toMatch(/context_checkpoint/);
+    expect(instructionBlock()).toMatch(/new_task/);
+  });
 });

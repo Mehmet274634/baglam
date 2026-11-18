@@ -59,7 +59,7 @@ try {
     new StdioClientTransport({ command: process.execPath, args: [cli, "mcp"], env: { ...env, BAGLAM_PROJECT: work }, stderr: "ignore" }),
   );
   const { tools } = await client.listTools();
-  check("packaged MCP server answers", tools.length === 4, tools.map((t) => t.name).join(", "));
+  check("packaged MCP server answers", tools.some((t) => t.name === "context_checkpoint") && tools.length === 6, tools.map((t) => t.name).join(", "));
   await client.close();
 } catch (err) {
   check("smoke run", false, err.message);
