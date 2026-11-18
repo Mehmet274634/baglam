@@ -85,6 +85,24 @@ const listLine = (items: string[], max: number) => {
   return out;
 };
 
+/**
+ * A self-contained prompt for any AI tool, even one not connected to Bağlam:
+ * the task to continue, what git shows, and the project's key decisions.
+ */
+export function resumePrompt(input: { projectName: string; dir: string | null; handoff: Handoff; git: GitSnapshot | null; records: Entry[] }): string {
+  const parts = [
+    `You are continuing a task another AI agent started in the project "${input.projectName}"${input.dir ? ` (${input.dir})` : ""}. ` +
+      "Pick up from its next steps; do not start over.",
+    formatHandoff({ live: input.handoff, git: input.git, otherBranches: [] }, 6000),
+  ];
+  const key = input.records.filter((e) => e.kind === "warning" || e.kind === "decision" || e.kind === "convention").slice(0, 15);
+  if (key.length) {
+    parts.push(`## Agreed in this project\n${key.map((e) => `- [${e.kind}] ${e.title}: ${e.body.replace(/\s+/g, " ").slice(0, 200)}`).join("\n")}`);
+  }
+  parts.push("If you have the Bağlam tools, keep saving progress with context_checkpoint as you go.");
+  return parts.join(SEP) + "\n";
+}
+
 /** "Continue from here", sized to at most `max` characters. Empty when there is nothing to continue. */
 export function formatHandoff(h: BriefInput["handoff"], max: number, now = Date.now()): string {
   if (!h) return "";

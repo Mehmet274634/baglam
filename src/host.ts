@@ -13,7 +13,8 @@ export interface HostEnv {
   /** Absolute paths written into tool configs (GUI apps often have no PATH). */
   nodePath: string;
   cliPath: string;
-  run(cmd: string, args: string[]): { code: number; stdout: string; stderr: string };
+  /** `input` is written to the command's stdin (used for the clipboard). */
+  run(cmd: string, args: string[], input?: string): { code: number; stdout: string; stderr: string };
   hasCommand(cmd: string): boolean;
 }
 
@@ -33,8 +34,8 @@ export function realHost(): HostEnv {
     platform: process.platform,
     nodePath: process.execPath,
     cliPath: join(PACKAGE_ROOT, "dist", "cli.js"),
-    run(cmd, args) {
-      const opts = { encoding: "utf8" as const, timeout: 60_000, windowsHide: true };
+    run(cmd, args, input) {
+      const opts = { encoding: "utf8" as const, timeout: 60_000, windowsHide: true, ...(input !== undefined ? { input } : {}) };
       let r;
       const script = process.platform === "win32" ? windowsScriptFor(cmd) : null;
       if (script) {
