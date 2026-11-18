@@ -1,0 +1,19 @@
+---
+/** Bağlam mark: three memory lines joined by a node, the shape of shared context. */
+interface Props { size?: number }
+const { size = 22 } = Astro.props;
+const id = `lg-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
+  <rect x="1" y="1" width="30" height="30" rx="9" fill={`url(#${id})`} />
+  <rect x="1.5" y="1.5" width="29" height="29" rx="8.5" stroke="rgb(255 255 255 / 0.25)" />
+  <path d="M9 11h9M9 16h14M9 21h9" stroke="#0b0c0e" stroke-width="2.6" stroke-linecap="round" />
+  <circle cx="23" cy="11" r="2.4" fill="#0b0c0e" />
+  <defs>
+    <linearGradient id={id} x1="0" y1="0" x2="32" y2="32">
+      <stop stop-color="#ffffff" />
+      <stop offset="1" stop-color="#b9b5ff" />
+    </linearGradient>
+  </defs>
+</svg>

@@ -1,0 +1,56 @@
+---
+import Base from "../layouts/Base.astro";
+import PageHero from "../components/PageHero.astro";
+import Cta from "../components/Cta.astro";
+import { href, t, type Lang } from "../i18n";
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const d = t(lang);
+const p = d.pricing;
+---
+
+<Base lang={lang} page="pricing" title={p.title} description={p.description}>
+  <PageHero eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} lead={p.lead} />
+
+  <section class="wrap plans" style="padding-bottom:clamp(72px,11vw,140px)">
+    {p.plans.map((plan, i) => (
+      <article class:list={["card", "price", "reveal", { featured: i === 0 }]}>
+        <span class="badge">{plan.badge}</span>
+        <h2 class="h3">{plan.name}</h2>
+        <div>
+          <div class="amount">{plan.price}</div>
+          <p style="margin:4px 0 0">{plan.note}</p>
+        </div>
+        <ul>{plan.items.map((x) => <li>{x}</li>)}</ul>
+        {i === 0 && <a class="btn btn-primary" style="width:fit-content" href={href(lang, "get-started")}>{d.nav.start} <span class="arrow">→</span></a>}
+      </article>
+    ))}
+  </section>
+
+  <section class="wrap" style="text-align:center;padding-bottom:40px">
+    <a class="btn btn-ghost" href={href(lang, "faq")}>{p.faqLine} {d.nav.faq} <span class="arrow">→</span></a>
+  </section>
+
+  <Cta lang={lang} />
+</Base>
+
+<style>
+  .plans {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    max-width: 920px;
+  }
+  .featured {
+    border-color: rgb(124 116 255 / 40%);
+    background:
+      radial-gradient(120% 80% at 0% 0%, rgb(124 116 255 / 14%), transparent 60%),
+      linear-gradient(180deg, var(--raised), var(--surface));
+  }
+  @media (max-width: 760px) {
+    .plans {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,0 +1,32 @@
+---
+import { href, t, type Lang } from "../i18n";
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const d = t(lang);
+---
+
+<section class="section wrap cta reveal">
+  <h2 class="h2 two-tone">{d.cta.title} <span class="dim">{d.cta.dim}</span></h2>
+  <div class="actions">
+    <a class="btn btn-primary" href={href(lang, "get-started")}>{d.cta.primary} <span class="arrow">→</span></a>
+    <a class="btn btn-ghost" href={href(lang, "faq")}>{d.cta.secondary}</a>
+  </div>
+</section>
+
+<style>
+  .cta {
+    display: grid;
+    justify-items: center;
+    text-align: center;
+    gap: 28px;
+  }
+  .cta h2 {
+    max-width: 22ch;
+  }
+  .actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+</style>

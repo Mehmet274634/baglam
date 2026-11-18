@@ -1,0 +1,12 @@
+---
+interface Props { eyebrow: string; title: string; dim?: string; lead?: string }
+const { eyebrow, title, dim, lead } = Astro.props;
+---
+
+<section class="page-hero wrap">
+  <div class="glow" aria-hidden="true"></div>
+  <span class="eyebrow"><span class="dot"></span>{eyebrow}</span>
+  <h1 class="display two-tone">{title}{dim && <> <span class="dim">{dim}</span></>}</h1>
+  {lead && <p class="lead">{lead}</p>}
+  <slot />
+</section>

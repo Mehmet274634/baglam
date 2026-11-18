@@ -111,8 +111,9 @@ export function App() {
           <aside class="rail">
             <div class="brand">
               <span class="logo" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="18" height="18">
-                  <path d="M6 8h12M6 12h8M6 16h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none" />
+                <svg viewBox="0 0 24 24" width="16" height="16">
+                  <path d="M5 8h7M5 12h12M5 16h7" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" fill="none" />
+                  <circle cx="17" cy="8" r="2" fill="currentColor" />
                 </svg>
               </span>
               <span>Bağlam</span>

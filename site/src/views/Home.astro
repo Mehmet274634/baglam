@@ -1,0 +1,136 @@
+---
+import Base from "../layouts/Base.astro";
+import Brief from "../components/Brief.astro";
+import Works from "../components/Works.astro";
+import SectionHead from "../components/SectionHead.astro";
+import Terminal from "../components/Terminal.astro";
+import Cta from "../components/Cta.astro";
+import Art from "../components/illustrations/Art.astro";
+import { href, t, type Lang } from "../i18n";
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const d = t(lang);
+const h = d.home;
+const arts = ["stack", "handoff", "spark", "approve", "shield", "local"] as const;
+const widths = ["wide", "wide", "", "", "", ""];
+---
+
+<Base lang={lang} page="" title={h.title} description={h.description}>
+  <section class="hero wrap">
+    <div class="glow" aria-hidden="true"></div>
+    <span class="eyebrow"><span class="dot"></span>{h.eyebrow}</span>
+    <h1 class="display">{h.h1}</h1>
+    <p class="lead two-tone hero-lead">{h.lead1} <span class="dim">{h.lead2}</span></p>
+    <div class="actions">
+      <a class="btn btn-primary" href={href(lang, "get-started")}>{h.primary} <span class="arrow">→</span></a>
+      <a class="btn btn-ghost" href={href(lang, "how-it-works")}>{h.secondary}</a>
+    </div>
+    <div class="stage hero-stage reveal">
+      <div class="hero-grid">
+        <Brief lang={lang} asked />
+        <Terminal
+          lang={lang}
+          title="codex"
+          lines={[
+            { cmd: lang === "en" ? "codex \"keep going\"" : "codex \"devam et\"" },
+            { out: lang === "en" ? "→ context_brief: Continue from here" : "→ context_brief: Buradan devam et", kind: "ac" },
+            { out: lang === "en" ? "  Next 1) Verify the signature" : "  Sırada 1) İmzayı doğrula" },
+            { out: lang === "en" ? "✓ checkpoint saved · next: idempotency" : "✓ kaydedildi · sırada: tekrar engeli", kind: "ok" },
+          ]}
+        />
+      </div>
+    </div>
+  </section>
+
+  <Works lang={lang} />
+
+  <section class="section wrap">
+    <p class="statement reveal">{h.statement1} <span class="dim">{h.statement2}</span></p>
+  </section>
+
+  <section class="section wrap" style="padding-top:0">
+    <SectionHead title={h.bentoTitle} dim={h.bentoDim} />
+    <div class="bento">
+      {h.cards.map((c, i) => (
+        <article class:list={["card", "reveal", widths[i]]}>
+          <div class="art"><Art name={arts[i]} /></div>
+          <h3 class="h3">{c.t}</h3>
+          <p>{c.d}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="section wrap">
+    <div class="grid-2">
+      <div class="reveal" style="display:grid;gap:22px">
+        <h2 class="h2 two-tone">{h.handoffTitle} <span class="dim">{h.handoffDim}</span></h2>
+        <p class="lead">{h.handoffText}</p>
+        <a class="btn btn-ghost" style="width:fit-content" href={href(lang, "handoff")}>{h.handoffLink} <span class="arrow">→</span></a>
+      </div>
+      <div class="stage reveal"><Brief lang={lang} /></div>
+    </div>
+  </section>
+
+  <section class="section light">
+    <div class="wrap">
+      <SectionHead title={h.stepsTitle} dim={h.stepsDim} />
+      <div class="steps">
+        {h.steps.map((s) => (
+          <article class="card step reveal">
+            <span class="n"></span>
+            <h3 class="h3">{s.t}</h3>
+            <p>{s.d}</p>
+            <pre><code>{s.c}</code></pre>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <Cta lang={lang} />
+</Base>
+
+<style>
+  .hero {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    text-align: center;
+    gap: 22px;
+    padding-top: clamp(96px, 14vw, 168px);
+  }
+  .hero .display {
+    max-width: 14ch;
+  }
+  .hero-lead {
+    max-width: 44rem;
+  }
+  .actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 6px;
+  }
+  .hero-stage {
+    width: 100%;
+    margin-top: clamp(40px, 6vw, 72px);
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.35fr 1fr;
+    gap: 18px;
+    align-items: end;
+  }
+  .hero-grid > *,
+  .hero > * {
+    min-width: 0;
+  }
+  @media (max-width: 900px) {
+    .hero-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,0 +1,85 @@
+---
+import Base from "../layouts/Base.astro";
+import PageHero from "../components/PageHero.astro";
+import SectionHead from "../components/SectionHead.astro";
+import Terminal from "../components/Terminal.astro";
+import Cta from "../components/Cta.astro";
+import Art from "../components/illustrations/Art.astro";
+import { t, type Lang } from "../i18n";
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const d = t(lang);
+const p = d.auto;
+const savedArt = ["search", "stack", "spark"] as const;
+---
+
+<Base lang={lang} page="automatic-saving" title={p.title} description={p.description}>
+  <PageHero eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} lead={p.lead} />
+
+  <section class="section wrap" style="padding-top:0">
+    <SectionHead title={p.savedTitle} />
+    <div class="grid-3">
+      {p.saved.map((s, i) => (
+        <article class="card reveal">
+          <div class="art"><Art name={savedArt[i]} /></div>
+          <h3 class="h3">{s.t}</h3>
+          <p>{s.d}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="section wrap">
+    <SectionHead title={p.rulesTitle} />
+    <div class="rows">
+      {p.rules.map((r) => (
+        <div class="row reveal">
+          <h3>{r.t}</h3>
+          <p>{r.d}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="section wrap" style="padding-top:0">
+    <div class="grid-2">
+      <div class="reveal" style="display:grid;gap:18px">
+        <h2 class="h2">{p.toolsTitle}</h2>
+        <p class="lead">{p.toolsText}</p>
+        <h3 class="h3" style="margin-top:12px">{p.switchTitle}</h3>
+        <p class="muted" style="margin:0">{p.switchText}</p>
+      </div>
+      <div class="reveal">
+        <Terminal
+          lang={lang}
+          lines={[
+            { cmd: "baglam doctor" },
+            { out: "✓ Claude Code: auto-save — installed; last automatic save just now", kind: "ok" },
+            { out: "✓ Codex CLI: auto-save — installed; last automatic save 2 min ago", kind: "ok" },
+            { out: "✓ Cursor: auto-save — installed; last automatic save just now", kind: "ok" },
+            { cmd: "baglam capture status" },
+            { out: "Automatic saving is on for this project." },
+          ]}
+        />
+      </div>
+    </div>
+  </section>
+
+  <section class="section light">
+    <div class="wrap grid-2">
+      <div class="reveal" style="display:grid;gap:18px">
+        <h2 class="h2 two-tone">{p.autoTitle} <span class="dim">{p.autoDim}</span></h2>
+        <p class="lead">{p.autoText}</p>
+      </div>
+      <article class="card reveal price">
+        <ul>{p.autoRules.map((r) => <li>{r}</li>)}</ul>
+        <pre class="mono small" style="margin:6px 0 0;background:#0b0c0d;color:#e6e7e9;border-radius:10px;padding:12px 14px;overflow-x:auto">$ baglam auto on
+$ baglam review
+$ baglam keep --all</pre>
+      </article>
+    </div>
+  </section>
+
+  <Cta lang={lang} />
+</Base>

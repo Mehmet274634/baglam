@@ -1,0 +1,44 @@
+---
+/** The "Continue from here" card, as Bağlam shows it to the next agent and in the panel. */
+import { t, type Lang } from "../i18n";
+interface Props { lang: Lang; asked?: boolean }
+const { lang, asked = false } = Astro.props;
+const b = t(lang).brief;
+---
+
+<div class="window">
+  <div class="window-bar">
+    <span class="lights"><i></i><i></i><i></i></span>
+    <span>context_brief</span>
+  </div>
+  <div class="window-body brief">
+    <div class="meta">
+      <span class="chip">↳ {b.chip}</span>
+      <span>{b.branch}</span>
+      <span>·</span>
+      <span>{b.by}</span>
+    </div>
+    <div class="goal">{b.goal}</div>
+    {asked && <div class="meta"><strong style="color:var(--text)">{b.asked}:</strong> {b.askedText}</div>}
+    <div class="cols">
+      <div>
+        <div class="label">{b.done}</div>
+        <ul>{b.doneItems.map((x) => <li><span class="tick">✓</span>{x}</li>)}</ul>
+      </div>
+      <div>
+        <div class="label">{b.now}</div>
+        <p style="margin:0 0 12px">{b.nowText}</p>
+        <div class="label">{b.next}</div>
+        <ol>{b.nextItems.map((x, i) => <li><span class="num">{i + 1}</span>{x}</li>)}</ol>
+      </div>
+    </div>
+    <div>
+      <div class="label">{b.files}</div>
+      <div class="files">
+        <span class="file">src/payment/webhook.ts</span>
+        <span class="file git">src/payment/stripe.ts •</span>
+        <span class="file git">test/webhook.test.ts •</span>
+      </div>
+    </div>
+  </div>
+</div>
