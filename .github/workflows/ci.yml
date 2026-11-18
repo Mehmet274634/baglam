@@ -26,7 +26,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - name: Speed budget (looser on shared runners)
+      - name: Speed budget (looser on shared runners; Windows runners are measured locally, their disks are too slow)
+        if: runner.os != 'Windows'
         run: npm run test:perf
         env:
           BAGLAM_PERF_BUDGET_MS: "150"

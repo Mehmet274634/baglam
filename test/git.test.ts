@@ -68,7 +68,25 @@ describe.skipIf(!hasGit)("git snapshot", () => {
 
   it("timeout returns null", async () => {
     const d = repo();
-    expect(await gitSnapshot(d, undefined, { timeoutMs: 1 })).toBeNull();
+    if (process.platform === "win32") {
+      // Starting a process on Windows alone takes longer than 1 ms.
+      expect(await gitSnapshot(d, undefined, { timeoutMs: 1 })).toBeNull();
+      return;
+    }
+    // Elsewhere git can answer within 1 ms, so put a git that never answers in time first on PATH.
+    const { chmodSync } = await import("node:fs");
+    const bin = tmp();
+    writeFileSync(join(bin, "git"), "#!/bin/sh\nsleep 5\n");
+    chmodSync(join(bin, "git"), 0o755);
+    const path = process.env.PATH;
+    process.env.PATH = `${bin}:${path}`;
+    try {
+      const t = Date.now();
+      expect(await gitSnapshot(d, undefined, { timeoutMs: 300 })).toBeNull();
+      expect(Date.now() - t).toBeLessThan(3000);
+    } finally {
+      process.env.PATH = path;
+    }
   });
 });
 
