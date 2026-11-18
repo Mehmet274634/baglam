@@ -13,6 +13,8 @@ All notable changes to Bağlam. The format follows [Keep a Changelog](https://ke
 ### Changed
 - Schema v7 (automatic backup and upgrade).
 - The stale-checkpoint reminder counts from the agent's own last checkpoint, so automatic saves never silence it.
+- An agent's `new_task` right after a request only the tool saved names that task instead of replacing it, and a real new task keeps the request that started it.
+- Agent instructions ask for checkpoints in the user's language; re-run `baglam init` after upgrading.
 
 ## [1.0.0-rc.2] - 2026-11-18
 

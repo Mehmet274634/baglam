@@ -235,15 +235,24 @@ export class HandoffRepo {
         `This task was saved by a set-up agent (${existing.agent}); an agent Bağlam cannot verify may not change it. Ask the user to run baglam setup for this tool.`,
       );
     }
-    const startsNew = !existing || existing.status === "done" || i.newTask === true;
+    const agentSave = i.origin !== "auto";
+    // A task only the tool's hooks saved is the user's latest request: an agent starting "a new task"
+    // right after it is naming that same task, not replacing it.
+    const autoOnly = !!existing && existing.status !== "done" && existing.agentAt === null;
+    const startsNew = !existing || existing.status === "done" || (i.newTask === true && !(agentSave && autoOnly));
     if (startsNew && !i.goal) throw new Error("goal is required to start a task (what are you working on?)");
+    // The request saved since the agent's last checkpoint is what this new task is about: keep it.
+    const carried =
+      startsNew && agentSave && existing && existing.requestAt !== null && existing.requestAt >= (existing.agentAt ?? -Infinity)
+        ? existing.requests.slice(-1)
+        : [];
 
     const base: Handoff = startsNew
       ? {
           project: i.project, branch: i.branch, dir: i.dir ?? existing?.dir ?? null,
           taskId: `t${randomBytes(6).toString("hex")}`, goal: i.goal!, status: "in_progress",
           done: [], now: null, next: [], files: [], blockers: null, notes: null,
-          requests: [], agentAt: null, autoAt: null, requestAt: null,
+          requests: carried, agentAt: null, autoAt: null, requestAt: carried.length ? existing!.requestAt : null,
           agent: i.agent, agentVerified: false, createdAt: now, updatedAt: now, expiresAt: 0,
         }
       : existing!;
