@@ -28,6 +28,12 @@ describe.skipIf(!hasGit)("git snapshot", () => {
     expect(await gitSnapshot(d)).toBeNull();
   });
 
+  it("a new repository without commits still has its branch name", () => {
+    const d = tmp();
+    git(d, "init", "-q", "-b", "main");
+    expect(currentBranch(d)).toBe("main");
+  });
+
   it("reports branch and uncommitted files", async () => {
     const d = repo();
     writeFileSync(join(d, "a.txt"), "changed");

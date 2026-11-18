@@ -22,7 +22,12 @@ export interface ServerOptions {
   envProject?: string;
   /** Agent name; when omitted, the MCP client's own name is used. */
   agent?: string;
+  /** Clock for checkpoint reminders (tests). */
+  now?: () => number;
 }
+
+/** An agent whose own task has not been checkpointed for this long gets a reminder on its next tool call. */
+const STALE_CHECKPOINT_MS = 5 * 60_000;
 
 const kindSchema = z.enum(KINDS);
 const projectPathSchema = z
@@ -70,19 +75,43 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
     return rootsCache;
   }
 
+  // The project the current tool call resolved to (tool calls on one connection run one at a time).
+  let callProject: ProjectRef | undefined;
+
   async function resolve(projectPath: string | undefined): Promise<Resolution> {
     const r = resolveProjectFor({ projectPath, env: opts.envProject, roots: await clientRoots(), cwd: opts.cwd });
-    if (r.ok) store.touchProject(r.project);
+    if (r.ok) {
+      store.touchProject(r.project);
+      callProject = r.project;
+    }
     return r;
+  }
+
+  /** Agents forget to save progress; remind the one whose own unfinished task has gone stale. */
+  function checkpointReminder(): string {
+    if (!callProject) return "";
+    const me = agentName();
+    const now = (opts.now ?? Date.now)();
+    const stale = store
+      .listHandoffs(callProject.key)
+      .filter((h) => h.agent === me && h.status !== "done" && now - h.updatedAt >= STALE_CHECKPOINT_MS)[0];
+    if (!stale) return "";
+    const min = Math.round((now - stale.updatedAt) / 60_000);
+    return (
+      `\n\nReminder: your last checkpoint on "${stale.goal}" was ${min} min ago. Call context_checkpoint with what you have done since ` +
+      "(done_add, now, next), so another agent can continue if you are stopped."
+    );
   }
 
   const label = (p: ProjectRef) => `${p.name} (${p.dir})`;
 
   const guard =
-    <A>(fn: (args: A) => Promise<string>) =>
+    <A>(fn: (args: A) => Promise<string>, opts2: { remind?: boolean } = {}) =>
     async (args: A): Promise<CallToolResult> => {
+      callProject = undefined;
       try {
-        return ok(await fn(args));
+        const out = await fn(args);
+        return ok(opts2.remind === false ? out : out + checkpointReminder());
       } catch (err) {
         return fail(err);
       }
@@ -323,8 +352,9 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
         agent: agentName(),
         agentVerified: opts.agent !== undefined,
       });
-      return `Saved progress for "${h.goal}" (${h.status.replace("_", " ")}, branch ${branch}). Any agent on this project can continue from here.`;
-    }),
+      const again = h.status === "done" ? "" : " Checkpoint again right after your next step (done_add, now, next).";
+      return `Saved progress for "${h.goal}" (${h.status.replace("_", " ")}, branch ${branch}). Any agent on this project can continue from here.${again}`;
+    }, { remind: false }),
   );
 
   server.registerTool(

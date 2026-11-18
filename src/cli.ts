@@ -468,6 +468,13 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
         print(`Folder:  ${r.project.dir}`);
         if (r.moved) print(`Moved ${r.moved} existing record(s) to this project id.`);
         for (const c of r.changes) print(formatChange(c, basename(c.file)));
+        if (!o.undo && currentBranch(r.project.dir) === "-") {
+          print(
+            "\nNote: this folder is not a git repository. Handoffs between agents work much better with git: Bağlam then\n" +
+              "shows the next agent which files changed after the last checkpoint, even if the previous one stopped abruptly.\n" +
+              "  git init",
+          );
+        }
         if (o.undo) print("\nInstructions removed. The project id (.baglam/project.json) is kept so its history stays linked.");
         else print("\nAgents in this folder will now load the shared context at the start of each task.\nCommit .baglam/project.json so the project keeps its identity everywhere.");
         return 0;
