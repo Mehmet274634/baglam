@@ -1,4 +1,4 @@
-import type { Entry, EntryPatch, HistoryEvent, Kind, Overview, PendingEntry, ProjectRow, Status, TrustRule } from "./types";
+import type { Entry, EntryPatch, GitSnapshot, Handoff, HistoryEvent, Kind, Overview, PendingEntry, ProjectRow, Status, TrustRule } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -59,6 +59,19 @@ export const api = {
   trust: (project?: string) => call<{ items: TrustRule[] }>("GET", `/api/trust${qs({ project })}`).then((r) => r.items),
   addTrust: (rule: { projectId: string | null; agent?: string; kind?: Kind }) => call<TrustRule>("POST", "/api/trust", rule),
   removeTrust: (id: string) => call("DELETE", `/api/trust/${id}`),
+  handoffs: (project?: string) => call<{ items: Handoff[] }>("GET", `/api/handoffs${qs({ project })}`).then((r) => r.items),
+  handoff: (project: string, branch: string) =>
+    call<{ handoff: Handoff; history: Handoff[]; git: GitSnapshot | null }>("GET", `/api/handoffs/${encodeURIComponent(project)}/${encodeURIComponent(branch)}`),
+  resumePrompt: (project: string, branch: string) =>
+    call<{ text: string }>("GET", `/api/handoffs/${encodeURIComponent(project)}/${encodeURIComponent(branch)}/prompt`).then((r) => r.text),
+  clearHandoff: (project: string, branch: string) =>
+    call("POST", `/api/handoffs/${encodeURIComponent(project)}/${encodeURIComponent(branch)}/clear`, {}),
+  review: (project?: string) => call<{ items: Entry[] }>("GET", `/api/review${qs({ project })}`).then((r) => r.items),
+  keep: (ids: string[]) => call<{ kept: number }>("POST", "/api/review/keep", { ids }),
+  undo: (id: string) => call<{ undone: Entry; restored?: Entry; note?: string }>("POST", `/api/entries/${id}/undo`, {}),
+  autonomous: (key: string) => call<{ on: boolean }>("GET", `/api/projects/${encodeURIComponent(key)}/autonomous`).then((r) => r.on),
+  setAutonomous: (key: string, on: boolean) =>
+    call<{ on: boolean }>("POST", `/api/projects/${encodeURIComponent(key)}/autonomous`, { on }).then((r) => r.on),
 };
 
 export type Api = typeof api;

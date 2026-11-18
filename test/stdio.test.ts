@@ -10,10 +10,9 @@ const root = join(import.meta.dirname, "..");
 
 describe("stdio entry points (built)", () => {
   beforeAll(() => {
-    execSync("npm run build", { cwd: root, stdio: "ignore" });
   }, 60_000);
 
-  for (const entry of [["dist/cli.js", "mcp"], ["dist/mcp.js"]]) {
+  for (const entry of [[".test-dist/cli.js", "mcp"], [".test-dist/mcp.js"]]) {
     it(`${entry.join(" ")} serves MCP over stdio`, async () => {
       const work = mkdtempSync(join(tmpdir(), "baglam-stdio-"));
       const client = new Client({ name: "stdio-test", version: "1" });

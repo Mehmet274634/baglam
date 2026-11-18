@@ -82,12 +82,14 @@ export function Projects(props: { api: Api; refresh: number; onChanged: () => vo
                     <h3 class="card-title">{p.name}</h3>
                   )}
                   {p.archived && <span class="badge badge-retired">{t("projects.archived")}</span>}
+                  {p.autonomous && <span class="badge badge-auto">{t("auto.badge")}</span>}
                 </header>
                 <p class="muted small mono">{p.path ?? p.key}</p>
                 <p class="small">
                   {t("projects.counts", { active: p.approved, pending: p.pending })}
                   {p.lastActivity ? ` · ${t("projects.lastActivity", { when: relativeTime(t, p.lastActivity) })}` : ""}
                 </p>
+                {p.task && <p class="small task-line">{t("projects.task", { goal: p.task.goal, agent: p.task.agent })}</p>}
                 {!managed && <p class="muted small">{t("projects.notInit")}</p>}
                 {deleting?.key === p.key ? (
                   <form

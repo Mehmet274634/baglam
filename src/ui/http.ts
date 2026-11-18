@@ -49,7 +49,7 @@ export function statusFor(err: unknown): number {
   if (err instanceof HttpError) return err.status;
   if (!(err instanceof Error)) return 500;
   if (/database (table )?is locked|SQLITE_BUSY|database is busy/i.test(err.message)) return 503;
-  if (/not pending|cannot edit|is not active/.test(err.message)) return 409;
+  if (/not pending|cannot edit|is not active|not shared automatically|first$/.test(err.message)) return 409;
   if (/^unknown (entry|project)|^no trust rule/.test(err.message)) return 404;
   return 400;
 }

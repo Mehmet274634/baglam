@@ -7,6 +7,8 @@ import { Inbox } from "./screens/Inbox";
 import { Records } from "./screens/Records";
 import { Projects } from "./screens/Projects";
 import { Settings } from "./screens/Settings";
+import { ContinueSection } from "./components/ContinueSection";
+import { ReviewList } from "./components/ReviewList";
 
 type Screen = "inbox" | "records" | "projects" | "settings";
 const SCREENS: Screen[] = ["inbox", "records", "projects", "settings"];
@@ -155,7 +157,13 @@ export function App() {
               {offline && <span class="offline">{t("live.offline")}</span>}
             </div>
 
-            {screen === "inbox" && <Inbox api={api} project={project} refresh={refresh} onChanged={changed} />}
+            {screen === "inbox" && (
+              <>
+                <ContinueSection api={api} project={project} projectName={projectName} refresh={refresh} onChanged={changed} />
+                <ReviewList api={api} project={project} refresh={refresh} onChanged={changed} />
+                <Inbox api={api} project={project} refresh={refresh} onChanged={changed} />
+              </>
+            )}
             {screen === "records" && <Records api={api} project={project} refresh={refresh} onChanged={changed} />}
             {screen === "projects" && <Projects api={api} refresh={refresh} onChanged={changed} />}
             {screen === "settings" && (

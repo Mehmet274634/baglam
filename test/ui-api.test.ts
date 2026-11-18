@@ -136,3 +136,55 @@ describe("panel API", () => {
     expect((await h.call("DELETE", `/api/trust/${added.json.id}`)).status).toBe(404);
   });
 });
+
+describe("panel API: handoffs and autonomous mode", () => {
+  let h: ApiHarness;
+  const A = "11111111-2222-4333-8444-555555555555";
+  beforeEach(async () => {
+    h = await apiHarness();
+    h.store.touchProject({ key: A, name: "app", dir: "c:/work/app" });
+  });
+  afterEach(() => h.close());
+  const enc = encodeURIComponent;
+
+  it("lists live handoffs and shows one with history", async () => {
+    h.store.checkpoint({ project: A, branch: "feature/pay", agent: "claude-code", goal: "Stripe checkout", next: ["tests"] });
+    const list = await h.call("GET", `/api/handoffs?project=${A}`);
+    expect(list.json.items.map((x: { goal: string }) => x.goal)).toEqual(["Stripe checkout"]);
+    const one = await h.call("GET", `/api/handoffs/${enc(A)}/${enc("feature/pay")}`);
+    expect(one.status).toBe(200);
+    expect(one.json.handoff.goal).toBe("Stripe checkout");
+    expect(one.json.history).toHaveLength(1);
+    expect(one.json.git).toBeNull();
+    const prompt = await h.call("GET", `/api/handoffs/${enc(A)}/${enc("feature/pay")}/prompt`);
+    expect(prompt.json.text).toMatch(/continuing a task/);
+    expect((await h.call("POST", `/api/handoffs/${enc(A)}/${enc("feature/pay")}/clear`, {})).status).toBe(200);
+    expect(h.store.getHandoff(A, "feature/pay")?.status).toBe("done");
+    expect((await h.call("GET", `/api/handoffs/${enc(A)}/nope`)).status).toBe(404);
+  });
+
+  it("autonomous switch per project", async () => {
+    expect((await h.call("GET", `/api/projects/${enc(A)}/autonomous`)).json).toEqual({ on: false });
+    expect((await h.call("POST", `/api/projects/${enc(A)}/autonomous`, { on: true })).json).toEqual({ on: true });
+    expect(h.store.isAutonomous(A)).toBe(true);
+    const projects = await h.call("GET", "/api/projects");
+    expect(projects.json.items[0]).toMatchObject({ key: A, autonomous: true });
+  });
+
+  it("review list, keep and undo (with conflict message)", async () => {
+    const share = (title: string, extra: Record<string, unknown> = {}) =>
+      h.store.approve(h.store.propose({ project: A, kind: "decision", title, body: `${title} body`, sourceAgent: "codex", ...extra }).id, "autonomous-mode", undefined, { auto: true, review: true });
+    const a = share("Use Vite");
+    const b = share("Use Vitest");
+    share("Use Vitest 3", { supersedes: b.id });
+    const list = await h.call("GET", `/api/review?project=${A}`);
+    // "Use Vitest" was replaced by "Use Vitest 3", so only active records are listed.
+    expect(list.json.items.map((e: { title: string }) => e.title).sort()).toEqual(["Use Vite", "Use Vitest 3"]);
+    expect((await h.call("POST", "/api/review/keep", { ids: [a.id] })).json).toEqual({ kept: 1 });
+    const conflict = await h.call("POST", `/api/entries/${b.id}/undo`, {});
+    expect(conflict.status).toBe(409);
+    expect(conflict.json.error).toMatch(/first/);
+    const notAuto = h.store.addApproved({ project: A, kind: "fact", title: "t", body: "b" }, "human");
+    expect((await h.call("POST", `/api/entries/${notAuto.id}/undo`, {})).status).toBe(409);
+  });
+});
