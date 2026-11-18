@@ -195,3 +195,19 @@ describe("visible() for the brief", () => {
     expect(store.countVisible("p", "a")).toBe(5);
   });
 });
+
+describe("search finds words with suffixes (Turkish and English)", () => {
+  it("imza finds imzasını, ödeme finds ödemeler, deploy finds deployment", () => {
+    const s = new ContextStore(":memory:");
+    for (const [title, body] of [["Webhook imzasını her zaman doğrula", "Stripe"], ["Ödemeler kuruş olarak", "integer"], ["Staging deployment", "every Friday"]]) {
+      s.addApproved({ project: "p", kind: "decision", title, body }, "me");
+    }
+    const titles = (q: string) => s.search("p", "codex", q).map((e) => e.title);
+    expect(titles("imza")).toEqual(["Webhook imzasını her zaman doğrula"]);
+    expect(titles("ödeme")).toEqual(["Ödemeler kuruş olarak"]);
+    expect(titles("deploy")).toEqual(["Staging deployment"]);
+    expect(s.query({ project: "p", text: "imza" }).items.map((e) => e.title)).toEqual(["Webhook imzasını her zaman doğrula"]);
+    expect(titles("imza doğrula")).toEqual(["Webhook imzasını her zaman doğrula"]);
+    expect(titles("imza kuruş")).toEqual([]);
+  });
+});

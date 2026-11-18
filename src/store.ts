@@ -137,7 +137,9 @@ function requireText(value: string | undefined, field: string, max: number): str
 export function toFtsQuery(text: string): string | null {
   const words = text.match(/[\p{L}\p{N}_]+/gu);
   if (!words?.length) return null;
-  return words.map((w) => `"${w}"`).join(" ");
+  // Prefix match from 3 letters: Turkish words take suffixes ("imza" → "imzasını"), English ones
+  // endings ("deploy" → "deployment"). Shorter words stay exact so "go" does not match everything.
+  return words.map((w) => ([...w].length >= 3 ? `"${w}"*` : `"${w}"`)).join(" ");
 }
 
 function toEntry(r: Row): Entry {
