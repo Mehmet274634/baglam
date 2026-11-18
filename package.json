@@ -16,6 +16,15 @@
     "llm"
   ],
   "license": "MIT",
+  "author": "Bağlam contributors",
+  "homepage": "https://github.com/Mehmet274634/baglam#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mehmet274634/baglam.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Mehmet274634/baglam/issues"
+  },
   "type": "module",
   "bin": {
     "baglam": "dist/cli.js"
@@ -54,5 +63,9 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vitest": "^5.1.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
   }
 }

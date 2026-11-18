@@ -1,7 +1,7 @@
 ---
 import Head from "./illustrations/Head.astro";
 import Logo from "./Logo.astro";
-import { href, t, type Lang, type Page } from "../i18n";
+import { href, REPO_URL, t, type Lang, type Page } from "../i18n";
 
 interface Props { lang: Lang; page: Page }
 const { lang, page } = Astro.props;
@@ -35,7 +35,8 @@ const other: Lang = lang === "en" ? "tr" : "en";
     </div>
     <div>
       <h2>{d.footer.legal}</h2>
-      <span>{d.footer.license}</span>
+      <a href={REPO_URL} rel="noopener">GitHub</a>
+      <a href={`${REPO_URL}/blob/main/LICENSE`} rel="noopener">{d.footer.license}</a>
       <span>{d.footer.local}</span>
       <span>{d.footer.noTelemetry}</span>
       <a href={href(other, page)} hreflang={other} lang={other}>{d.nav.language}</a>

@@ -2,7 +2,7 @@
 import Base from "../layouts/Base.astro";
 import PageHero from "../components/PageHero.astro";
 import Cta from "../components/Cta.astro";
-import { href, t, type Lang } from "../i18n";
+import { href, REPO_URL, t, type Lang } from "../i18n";
 
 interface Props { lang: Lang }
 const { lang } = Astro.props;
@@ -23,7 +23,12 @@ const p = d.pricing;
           <p style="margin:4px 0 0">{plan.note}</p>
         </div>
         <ul>{plan.items.map((x) => <li>{x}</li>)}</ul>
-        {i === 0 && <a class="btn btn-primary" style="width:fit-content" href={href(lang, "get-started")}>{d.nav.start} <span class="arrow">→</span></a>}
+        {i === 0 && (
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <a class="btn btn-primary" href={href(lang, "get-started")}>{d.nav.start} <span class="arrow">→</span></a>
+            <a class="btn btn-ghost" href={REPO_URL} rel="noopener">GitHub</a>
+          </div>
+        )}
       </article>
     ))}
   </section>

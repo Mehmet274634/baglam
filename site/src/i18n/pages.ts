@@ -10,3 +10,6 @@ export function href(lang: Lang, page: Page, hash = ""): string {
   const base = lang === "en" ? "/" : "/tr/";
   return `${base}${page ? `${page}/` : ""}${hash}`;
 }
+
+/** The public source repository. */
+export const REPO_URL = "https://github.com/Mehmet274634/baglam";
