@@ -1,0 +1,99 @@
+---
+import Base from "../layouts/Base.astro";
+import PageHero from "../components/PageHero.astro";
+import SectionHead from "../components/SectionHead.astro";
+import Cta from "../components/Cta.astro";
+import { t, type Lang } from "../i18n";
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const d = t(lang);
+const p = d.start;
+---
+
+<Base lang={lang} page="get-started" title={p.title} description={p.description}>
+  <PageHero eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} lead={p.lead} />
+
+  <section class="wrap" style="padding-bottom:clamp(72px,11vw,140px)">
+    <ol class="install">
+      {p.steps.map((s, i) => (
+        <li class="card reveal">
+          <span class="num mono">{String(i + 1).padStart(2, "0")}</span>
+          <div class="body">
+            <h2 class="h3">{s.t}</h2>
+            <p>{s.d}</p>
+          </div>
+          <div class="terminal cmd">
+            <div class="terminal-bar">
+              <span>Terminal</span>
+              <button class="copy" type="button" data-copy={s.c} data-done={d.common.copied} hidden>{d.common.copy}</button>
+            </div>
+            <pre>{s.c.split("\n").map((l) => <><span class="p">$ </span>{l}{"\n"}</>)}</pre>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </section>
+
+  <section class="section light">
+    <div class="wrap grid-2">
+      <div class="reveal">
+        <SectionHead title={p.tryTitle} />
+        <ol class="try">{p.try.map((x) => <li>{x}</li>)}</ol>
+      </div>
+      <div class="reveal">
+        <h2 class="h3" style="margin-bottom:16px">{p.cmdsTitle}</h2>
+        <div class="rows">
+          {p.cmds.map((c) => (
+            <div class="row" style="grid-template-columns:minmax(0,1.1fr) 1fr">
+              <code style="font-size:13.5px">{c.c}</code>
+              <p>{c.d}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <Cta lang={lang} />
+</Base>
+
+<style>
+  .install {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+  }
+  .install li {
+    display: grid;
+    grid-template-columns: 48px 1fr minmax(260px, 380px);
+    gap: 22px;
+    align-items: center;
+  }
+  .num {
+    color: var(--accent);
+    font-size: 14px;
+  }
+  .body p {
+    margin-top: 6px;
+  }
+  .cmd pre {
+    padding: 12px 16px;
+  }
+  .try {
+    margin: 0;
+    padding-left: 20px;
+    display: grid;
+    gap: 12px;
+    color: var(--muted);
+    font-size: 17px;
+  }
+  @media (max-width: 860px) {
+    .install li {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+  }
+</style>

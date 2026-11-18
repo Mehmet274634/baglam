@@ -1,0 +1,80 @@
+---
+import Base from "../layouts/Base.astro";
+import PageHero from "../components/PageHero.astro";
+import SectionHead from "../components/SectionHead.astro";
+import Brief from "../components/Brief.astro";
+import Cta from "../components/Cta.astro";
+import Art from "../components/illustrations/Art.astro";
+import { t, type Lang } from "../i18n";
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const p = t(lang).how;
+const flowArt = ["search", "approve", "stack"] as const;
+---
+
+<Base lang={lang} page="how-it-works" title={p.title} description={p.description}>
+  <PageHero eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} lead={p.lead} />
+
+  <section class="section wrap" style="padding-top:0">
+    <SectionHead title={p.flowTitle} />
+    <div class="grid-3">
+      {p.flow.map((f, i) => (
+        <article class="card reveal">
+          <div class="art"><Art name={flowArt[i]} /></div>
+          <span class="mono small" style="color:var(--accent)">0{i + 1}</span>
+          <h3 class="h3" style="margin-top:8px">{f.t}</h3>
+          <p>{f.d}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="section wrap">
+    <div class="grid-2">
+      <div class="reveal" style="display:grid;gap:20px">
+        <h2 class="h2">{p.briefTitle}</h2>
+        <p class="lead">{p.briefText}</p>
+      </div>
+      <div class="stage reveal"><Brief lang={lang} /></div>
+    </div>
+  </section>
+
+  <section class="section light">
+    <div class="wrap">
+      <SectionHead title={p.kindsTitle} />
+      <div class="rows">
+        {p.kinds.map((k) => (
+          <div class="row reveal">
+            <h3>{k.t}</h3>
+            <p>{k.d}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap">
+    <div class="grid-2">
+      <div class="card reveal" style="min-height:320px;display:grid;place-items:center"><Art name="panel" /></div>
+      <div class="reveal" style="display:grid;gap:20px">
+        <h2 class="h2">{p.panelTitle}</h2>
+        <p class="lead">{p.panelText}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" style="padding-top:0">
+    <SectionHead title={p.cleanTitle} />
+    <div class="bento">
+      {p.clean.map((c) => (
+        <article class="card wide reveal">
+          <h3 class="h3">{c.t}</h3>
+          <p>{c.d}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <Cta lang={lang} />
+</Base>

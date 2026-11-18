@@ -1,0 +1,87 @@
+---
+import "@fontsource-variable/inter";
+import "@fontsource-variable/jetbrains-mono";
+import "../styles/global.css";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+import { href, t, type Lang, type Page } from "../i18n";
+
+interface Props {
+  lang: Lang;
+  page: Page;
+  title: string;
+  description: string;
+}
+const { lang, page, title, description } = Astro.props;
+const d = t(lang);
+const other: Lang = lang === "en" ? "tr" : "en";
+---
+
+<!doctype html>
+<html lang={lang} class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#08090a" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:site_name" content={d.meta.siteName} />
+    <meta property="og:locale" content={lang === "en" ? "en_US" : "tr_TR"} />
+    <link rel="alternate" hreflang={lang} href={href(lang, page)} />
+    <link rel="alternate" hreflang={other} href={href(other, page)} />
+    <link rel="alternate" hreflang="x-default" href={href("en", page)} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script is:inline>document.documentElement.classList.remove("no-js");</script>
+  </head>
+  <body>
+    <a class="skip" href="#main">{d.nav.skip}</a>
+    <Nav lang={lang} page={page} />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer lang={lang} page={page} />
+    <script>
+      // Fade sections in as they scroll into view (CSS keeps them visible without JS or with reduced motion).
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (e.isIntersecting) {
+              e.target.classList.add("in");
+              io.unobserve(e.target);
+            }
+          }
+        },
+        { rootMargin: "0px 0px -8% 0px" },
+      );
+      document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+
+      // Card glow follows the pointer.
+      document.querySelectorAll<HTMLElement>(".card").forEach((card) => {
+        card.addEventListener("pointermove", (ev) => {
+          const r = card.getBoundingClientRect();
+          card.style.setProperty("--mx", `${ev.clientX - r.left}px`);
+          card.style.setProperty("--my", `${ev.clientY - r.top}px`);
+        });
+      });
+
+      // Copy buttons.
+      document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((btn) => {
+        btn.hidden = false;
+        btn.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(btn.dataset.copy ?? "");
+            const label = btn.textContent;
+            btn.textContent = btn.dataset.done ?? "✓";
+            setTimeout(() => (btn.textContent = label), 1600);
+          } catch {
+            /* clipboard blocked: the command is still selectable */
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

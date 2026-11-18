@@ -1,0 +1,170 @@
+---
+import Logo from "./Logo.astro";
+import { href, t, type Lang, type Page } from "../i18n";
+
+interface Props { lang: Lang; page: Page }
+const { lang, page } = Astro.props;
+const d = t(lang);
+const other: Lang = lang === "en" ? "tr" : "en";
+const links: [Page, string][] = [
+  ["how-it-works", d.nav.how],
+  ["handoff", d.nav.handoff],
+  ["automatic-saving", d.nav.auto],
+  ["security", d.nav.security],
+  ["tools", d.nav.tools],
+  ["pricing", d.nav.pricing],
+  ["faq", d.nav.faq],
+];
+---
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href={href(lang, "")} aria-label="Bağlam">
+      <Logo />
+      <span>Bağlam</span>
+    </a>
+    <nav class="links" aria-label={d.nav.product}>
+      {links.map(([p, label]) => (
+        <a href={href(lang, p)} aria-current={p === page ? "page" : undefined}>{label}</a>
+      ))}
+    </nav>
+    <div class="right">
+      <a class="lang" href={href(other, page)} hreflang={other} lang={other} aria-label={d.nav.languageLabel}>{d.nav.language}</a>
+      <a class="btn btn-primary btn-sm" href={href(lang, "get-started")}>{d.nav.start}</a>
+      <details class="menu">
+        <summary aria-label={d.nav.menu}><span></span><span></span></summary>
+        <div class="sheet">
+          {links.map(([p, label]) => (
+            <a href={href(lang, p)} aria-current={p === page ? "page" : undefined}>{label}</a>
+          ))}
+          <a href={href(other, page)} hreflang={other} lang={other}>{d.nav.language}</a>
+        </div>
+      </details>
+    </div>
+  </div>
+</header>
+
+<style>
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgb(8 9 10 / 72%);
+    backdrop-filter: saturate(160%) blur(14px);
+    -webkit-backdrop-filter: saturate(160%) blur(14px);
+    border-bottom: 1px solid rgb(255 255 255 / 6%);
+  }
+  .nav-inner {
+    height: 64px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    font-size: 16px;
+  }
+  .links {
+    display: flex;
+    gap: 4px;
+    margin: 0 auto;
+  }
+  .links a {
+    font-size: 14px;
+    color: var(--muted);
+    padding: 6px 10px;
+    border-radius: 8px;
+    transition: color 140ms;
+  }
+  .links a:hover,
+  .links a[aria-current="page"] {
+    color: var(--text);
+  }
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .lang {
+    font-size: 13px;
+    color: var(--muted);
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+  }
+  .lang:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  :global(.btn-sm) {
+    height: 34px;
+    padding: 0 14px;
+    font-size: 14px;
+  }
+  .menu {
+    display: none;
+    position: relative;
+  }
+  .menu summary {
+    list-style: none;
+    width: 38px;
+    height: 34px;
+    display: grid;
+    place-content: center;
+    gap: 5px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .menu summary::-webkit-details-marker {
+    display: none;
+  }
+  .menu summary span {
+    display: block;
+    width: 16px;
+    height: 1.5px;
+    background: var(--text);
+  }
+  .sheet {
+    position: absolute;
+    right: 0;
+    top: 46px;
+    width: min(280px, calc(100vw - 32px));
+    display: grid;
+    padding: 8px;
+    background: var(--raised);
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    box-shadow: 0 30px 60px -20px rgb(0 0 0 / 80%);
+  }
+  .sheet a {
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: var(--muted);
+  }
+  .sheet a:hover,
+  .sheet a[aria-current="page"] {
+    color: var(--text);
+    background: rgb(255 255 255 / 4%);
+  }
+  @media (max-width: 1060px) {
+    .links {
+      display: none;
+    }
+    .right {
+      margin-left: auto;
+    }
+    .menu {
+      display: block;
+    }
+  }
+  @media (max-width: 520px) {
+    .lang {
+      display: none;
+    }
+  }
+</style>

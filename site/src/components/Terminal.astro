@@ -1,0 +1,19 @@
+---
+/** A terminal with commands (one per line) and optional output lines; the copy button copies only the commands. */
+import { t, type Lang } from "../i18n";
+interface Line { cmd?: string; out?: string; kind?: "ok" | "c" | "ac" }
+interface Props { lang: Lang; title?: string; lines: Line[] }
+const { lang, title = "Terminal", lines } = Astro.props;
+const d = t(lang).common;
+const commands = lines.filter((l) => l.cmd).map((l) => l.cmd).join("\n");
+---
+
+<div class="terminal">
+  <div class="terminal-bar">
+    <span>{title}</span>
+    <button class="copy" type="button" data-copy={commands} data-done={d.copied} hidden>{d.copy}</button>
+  </div>
+  <pre>{lines.map((l) =>
+    l.cmd ? <><span class="p">$ </span>{l.cmd}{"\n"}</> : <><span class={l.kind ?? "c"}>{l.out}</span>{"\n"}</>,
+  )}</pre>
+</div>

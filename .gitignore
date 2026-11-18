@@ -4,3 +4,7 @@ dist/
 *.db-wal
 *.db-shm
 .test-dist/
+
+# Website build
+site/dist/
+site/.astro/

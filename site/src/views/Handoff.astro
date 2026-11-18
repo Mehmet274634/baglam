@@ -1,0 +1,109 @@
+---
+import Base from "../layouts/Base.astro";
+import PageHero from "../components/PageHero.astro";
+import SectionHead from "../components/SectionHead.astro";
+import Brief from "../components/Brief.astro";
+import Terminal from "../components/Terminal.astro";
+import Cta from "../components/Cta.astro";
+import Art from "../components/illustrations/Art.astro";
+import { t, type Lang } from "../i18n";
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const p = t(lang).handoff;
+const whatArt = ["handoff", "approve", "git", "spark"] as const;
+---
+
+<Base lang={lang} page="handoff" title={p.title} description={p.description}>
+  <PageHero eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} lead={p.lead}>
+    <div class="stage reveal" style="margin-top:40px"><Brief lang={lang} asked /></div>
+  </PageHero>
+
+  <section class="section wrap">
+    <SectionHead title={p.whatTitle} />
+    <div class="bento">
+      {p.what.map((w, i) => (
+        <article class="card wide reveal">
+          <div class="art"><Art name={whatArt[i]} /></div>
+          <h3 class="h3">{w.t}</h3>
+          <p>{w.d}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="section light">
+    <div class="wrap">
+      <SectionHead title={p.flowTitle} dim={p.flowDim} />
+      <ol class="timeline">
+        {p.flow.map((f, i) => (
+          <li class="card reveal">
+            <span class:list={["who", { you: i % 2 === 0 }]}>{f.who}</span>
+            <p>{f.text}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section wrap">
+    <div class="grid-3">
+      <article class="card reveal">
+        <div class="art"><Art name="git" /></div>
+        <h3 class="h3">{p.branchTitle}</h3>
+        <p>{p.branchText}</p>
+      </article>
+      <article class="card reveal">
+        <div class="art"><Art name="plugs" /></div>
+        <h3 class="h3">{p.copyTitle}</h3>
+        <p>{p.copyText}</p>
+      </article>
+      <article class="card reveal">
+        <div class="art"><Art name="spark" /></div>
+        <h3 class="h3">{p.remindTitle}</h3>
+        <p>{p.remindText}</p>
+      </article>
+    </div>
+    <div class="reveal" style="margin-top:28px">
+      <Terminal lang={lang} lines={[{ cmd: "baglam handoff" }, { cmd: "baglam handoff --history" }, { cmd: "baglam handoff --copy" }]} />
+    </div>
+  </section>
+
+  <Cta lang={lang} />
+</Base>
+
+<style>
+  .timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+    max-width: 52rem;
+  }
+  .timeline li {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 18px;
+    align-items: baseline;
+    padding: 20px 24px;
+  }
+  .timeline p {
+    margin: 0;
+    color: var(--text);
+    font-size: 16px;
+  }
+  .who {
+    font: 500 13px/1.4 var(--mono);
+    color: var(--muted);
+  }
+  .who.you {
+    color: var(--accent);
+  }
+  @media (max-width: 640px) {
+    .timeline li {
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+  }
+</style>

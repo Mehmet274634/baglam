@@ -1,0 +1,137 @@
+---
+/** Fine-line isometric illustrations for feature cards. Drawn for Bağlam; currentColor strokes. */
+interface Props {
+  name: "stack" | "handoff" | "spark" | "approve" | "shield" | "local" | "plugs" | "git" | "search" | "panel";
+}
+const { name } = Astro.props;
+
+// Isometric rhombus centred at (cx, cy) with half-width w and half-height h.
+const plate = (cx: number, cy: number, w = 64, h = 32) => `M${cx} ${cy - h} L${cx + w} ${cy} L${cx} ${cy + h} L${cx - w} ${cy} Z`;
+const sides = (cx: number, cy: number, w = 64, h = 32, d = 10) =>
+  `M${cx - w} ${cy} L${cx - w} ${cy + d} L${cx} ${cy + h + d} L${cx + w} ${cy + d} L${cx + w} ${cy} M${cx} ${cy + h} L${cx} ${cy + h + d}`;
+const cube = (cx: number, cy: number, s = 26) =>
+  `M${cx} ${cy - s} L${cx + s * 1.2} ${cy - s / 2} L${cx + s * 1.2} ${cy + s / 2} L${cx} ${cy + s} L${cx - s * 1.2} ${cy + s / 2} L${cx - s * 1.2} ${cy - s / 2} Z M${cx - s * 1.2} ${cy - s / 2} L${cx} ${cy} L${cx + s * 1.2} ${cy - s / 2} M${cx} ${cy} L${cx} ${cy + s}`;
+---
+
+<svg viewBox="0 0 240 180" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true" class="art-svg">
+  {name === "stack" && (
+    <g>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <g opacity={0.35 + i * 0.16}>
+          <path d={sides(120, 132 - i * 18)} />
+          <path d={plate(120, 132 - i * 18)} fill="var(--surface)" />
+        </g>
+      ))}
+      <path d={plate(120, 60, 40, 20)} stroke-dasharray="2 4" />
+      <circle cx="120" cy="60" r="3" fill="var(--accent)" stroke="none" />
+    </g>
+  )}
+  {name === "handoff" && (
+    <g>
+      <path d={cube(62, 104)} opacity="0.8" />
+      <path d={cube(178, 104)} opacity="0.8" />
+      <path d="M92 70 C110 40 130 40 148 70" stroke-dasharray="3 4" />
+      <path d="M142 64 L148 70 L140 73" />
+      <g transform="translate(104 40) skewY(-12)">
+        <rect x="0" y="0" width="32" height="22" rx="3" fill="var(--surface)" />
+        <path d="M6 7h16M6 12h20M6 17h11" opacity="0.7" />
+      </g>
+      <circle cx="62" cy="104" r="3" fill="var(--accent)" stroke="none" />
+      <circle cx="178" cy="104" r="3" fill="var(--cyan)" stroke="none" />
+    </g>
+  )}
+  {name === "spark" && (
+    <g>
+      <path d={sides(120, 110, 70, 35, 8)} opacity="0.5" />
+      <path d={plate(120, 110, 70, 35)} fill="var(--surface)" />
+      <path d="M86 104l22 -11M96 112l40 -20M108 118l34 -17" opacity="0.6" />
+      <circle cx="160" cy="62" r="16" opacity="0.35" />
+      <circle cx="160" cy="62" r="26" opacity="0.18" />
+      <path d="M160 52 l4 7 8 1 -6 5 2 8 -8 -4 -8 4 2 -8 -6 -5 8 -1 z" fill="var(--accent)" stroke="none" />
+      <path d="M160 78 L142 98" stroke-dasharray="2 3" />
+    </g>
+  )}
+  {name === "approve" && (
+    <g>
+      {[0, 1, 2].map((i) => (
+        <g opacity={0.3 + i * 0.3} transform={`translate(${i * 10} ${-i * 14})`}>
+          <path d={plate(108, 118, 60, 30)} fill="var(--surface)" />
+        </g>
+      ))}
+      <circle cx="128" cy="86" r="14" fill="var(--surface)" />
+      <path d="M121 86l5 5 9 -10" stroke="var(--ok)" stroke-width="1.6" />
+    </g>
+  )}
+  {name === "shield" && (
+    <g>
+      <path d="M120 28 L168 46 V92 C168 124 146 146 120 156 C94 146 72 124 72 92 V46 Z" fill="var(--surface)" />
+      <path d="M120 42 L156 56 V92 C156 116 140 134 120 142" opacity="0.4" />
+      <rect x="104" y="86" width="32" height="26" rx="4" />
+      <path d="M110 86 v-8 a10 10 0 0 1 20 0 v8" />
+      <circle cx="120" cy="98" r="3" fill="var(--accent)" stroke="none" />
+    </g>
+  )}
+  {name === "local" && (
+    <g>
+      <path d={sides(120, 118, 72, 36, 12)} opacity="0.5" />
+      <path d={plate(120, 118, 72, 36)} fill="var(--surface)" />
+      <path d={plate(120, 118, 46, 23)} opacity="0.5" />
+      <ellipse cx="120" cy="66" rx="26" ry="9" fill="var(--surface)" />
+      <path d="M94 66 v22 c0 5 12 9 26 9 s26 -4 26 -9 v-22" />
+      <path d="M94 77 c0 5 12 9 26 9 s26 -4 26 -9" opacity="0.5" />
+      <circle cx="140" cy="88" r="2.5" fill="var(--cyan)" stroke="none" />
+    </g>
+  )}
+  {name === "plugs" && (
+    <g>
+      {[[64, 60], [120, 36], [176, 60], [64, 120], [120, 144], [176, 120]].map(([x, y]) => (
+        <g>
+          <path d={`M${x} ${y} L120 90`} opacity="0.3" stroke-dasharray="2 4" />
+          <path d={plate(x, y, 22, 11)} fill="var(--surface)" />
+        </g>
+      ))}
+      <path d={plate(120, 90, 30, 15)} fill="var(--surface)" />
+      <circle cx="120" cy="90" r="3" fill="var(--accent)" stroke="none" />
+    </g>
+  )}
+  {name === "git" && (
+    <g>
+      <path d="M70 40 V140" />
+      <path d="M70 70 C70 92 120 86 120 108 V140" opacity="0.7" />
+      <path d="M120 108 C120 90 170 92 170 70 V40" opacity="0.4" stroke-dasharray="3 4" />
+      {[[70, 46], [70, 88], [70, 132], [120, 120], [170, 58]].map(([x, y], i) => (
+        <circle cx={x} cy={y} r="6" fill="var(--surface)" stroke={i === 3 ? "var(--accent)" : "currentColor"} />
+      ))}
+    </g>
+  )}
+  {name === "search" && (
+    <g>
+      <path d={plate(108, 112, 66, 33)} fill="var(--surface)" />
+      <path d="M78 110l30 -15M88 118l44 -22M102 124l28 -14" opacity="0.5" />
+      <circle cx="148" cy="66" r="22" fill="var(--surface)" />
+      <path d="M164 82 l18 18" stroke-width="1.6" />
+      <path d="M138 66 h20" stroke="var(--accent)" stroke-width="1.6" />
+    </g>
+  )}
+  {name === "panel" && (
+    <g>
+      <rect x="40" y="36" width="160" height="108" rx="8" fill="var(--surface)" />
+      <path d="M40 54 H200" opacity="0.5" />
+      <path d="M76 54 V144" opacity="0.5" />
+      <rect x="86" y="64" width="104" height="22" rx="4" opacity="0.8" />
+      <rect x="86" y="92" width="104" height="22" rx="4" opacity="0.5" />
+      <rect x="86" y="120" width="104" height="16" rx="4" opacity="0.3" />
+      <circle cx="96" cy="75" r="3" fill="var(--accent)" stroke="none" />
+      <path d="M48 66 h20 M48 76 h16 M48 86 h18" opacity="0.5" />
+    </g>
+  )}
+</svg>
+
+<style>
+  .art-svg {
+    width: 100%;
+    max-width: 260px;
+    height: 100%;
+    color: var(--muted);
+  }
+</style>

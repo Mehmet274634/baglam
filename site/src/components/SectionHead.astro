@@ -1,0 +1,17 @@
+---
+interface Props { title: string; dim?: string; lead?: string; center?: boolean }
+const { title, dim, lead, center } = Astro.props;
+---
+
+<div class:list={["section-head", "reveal", { center }]}>
+  <h2 class="h2 two-tone">{title}{dim && <> <span class="dim">{dim}</span></>}</h2>
+  {lead && <p class="lead">{lead}</p>}
+</div>
+
+<style>
+  .center {
+    margin-inline: auto;
+    text-align: center;
+    justify-items: center;
+  }
+</style>

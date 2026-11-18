@@ -1,0 +1,81 @@
+---
+import Base from "../layouts/Base.astro";
+import PageHero from "../components/PageHero.astro";
+import Terminal from "../components/Terminal.astro";
+import Cta from "../components/Cta.astro";
+import Art from "../components/illustrations/Art.astro";
+import { t, type Lang } from "../i18n";
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const p = t(lang).tools;
+---
+
+<Base lang={lang} page="tools" title={p.title} description={p.description}>
+  <PageHero eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} lead={p.lead}>
+    <div class="reveal" style="margin-top:28px;max-width:560px">
+      <Terminal lang={lang} lines={[
+          { cmd: "baglam setup" },
+          { out: "Found: Claude Code, Codex CLI, Antigravity, Gemini CLI, Cursor, VS Code" },
+          { out: "✓ Cursor                 added     ~/.cursor/mcp.json", kind: "ok" },
+          { out: "✓ Cursor auto-save       added     ~/.cursor/hooks.json", kind: "ok" },
+          { out: "Restart these apps so they load the change." },
+        ]} />
+    </div>
+  </PageHero>
+
+  <section class="section wrap" style="padding-top:0">
+    <div class="grid-3 tools">
+      {p.list.map((x) => (
+        <article class="card reveal">
+          <div class="tool-head">
+            <span class="mark" aria-hidden="true">{x.t.slice(0, 1)}</span>
+            <h2 class="h3">{x.t}</h2>
+          </div>
+          <p>{x.d}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="section light">
+    <div class="wrap grid-2">
+      <div class="reveal" style="display:grid;gap:18px">
+        <h2 class="h2">{p.instrTitle}</h2>
+        <p class="lead">{p.instrText}</p>
+      </div>
+      <div class="card reveal" style="display:grid;place-items:center;min-height:260px"><Art name="stack" /></div>
+    </div>
+  </section>
+
+  <section class="section wrap">
+    <div class="grid-2">
+      <div class="card reveal" style="display:grid;place-items:center;min-height:260px"><Art name="plugs" /></div>
+      <div class="reveal" style="display:grid;gap:18px">
+        <h2 class="h2">{p.doctorTitle}</h2>
+        <p class="lead">{p.doctorText}</p>
+      </div>
+    </div>
+  </section>
+
+  <Cta lang={lang} />
+</Base>
+
+<style>
+  .tool-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-weight: 600;
+    color: var(--text);
+    background: linear-gradient(180deg, rgb(255 255 255 / 10%), rgb(255 255 255 / 3%));
+    border: 1px solid var(--border-strong);
+  }
+</style>
