@@ -1,53 +1,64 @@
+/* Same design language as the website: dark first, Linear-style cards, pill buttons. */
 :root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --surface-2: #f1f3f6;
-  --border: #e3e6eb;
-  --text: #16181d;
-  --muted: #5f6672;
-  --accent: #4f46e5;
-  --accent-text: #ffffff;
-  --accent-soft: #eef0ff;
-  --danger: #c2362b;
-  --danger-soft: #fdecea;
-  --ok: #1f8a4c;
-  --warn-bg: #fff6e0;
-  --warn-text: #7a4b00;
-  --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 8%);
-  --ring: 0 0 0 3px rgb(79 70 229 / 25%);
-  --k-decision: #4f46e5;
-  --k-convention: #0f8a7e;
-  --k-preference: #b26b00;
-  --k-fact: #3a6ea5;
-  --k-warning: #c2362b;
-  --radius: 12px;
-  color-scheme: light;
+  --bg: #08090a;
+  --surface: #0f1011;
+  --surface-2: #17181b;
+  --raised: #141518;
+  --border: rgb(255 255 255 / 8%);
+  --border-strong: rgb(255 255 255 / 14%);
+  --text: #f7f8f8;
+  --muted: #8a8f98;
+  --accent: #7c74ff;
+  --accent-text: #08090a;
+  --accent-soft: rgb(124 116 255 / 14%);
+  --primary-bg: #f7f8f8;
+  --primary-text: #08090a;
+  --danger: #ff7a6e;
+  --danger-soft: rgb(255 122 110 / 12%);
+  --ok: #4cc58a;
+  --warn-bg: rgb(240 180 76 / 12%);
+  --warn-text: #f3c977;
+  --shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
+  --ring: 0 0 0 3px rgb(124 116 255 / 35%);
+  --k-decision: #958fff;
+  --k-convention: #3fd0c9;
+  --k-preference: #f0b44c;
+  --k-fact: #79aee6;
+  --k-warning: #ff7a6e;
+  --radius: 14px;
+  --font: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root {
-    --bg: #0f1115;
-    --surface: #171a20;
-    --surface-2: #1e222a;
-    --border: #2a2f39;
-    --text: #e8eaee;
-    --muted: #9aa1ad;
-    --accent: #8b85ff;
-    --accent-text: #0f1115;
-    --accent-soft: #23234a;
-    --danger: #ff7a6e;
-    --danger-soft: #3a1d1b;
-    --ok: #4cc58a;
-    --warn-bg: #3a2c0d;
-    --warn-text: #ffd889;
-    --shadow: 0 1px 2px rgb(0 0 0 / 40%);
-    --ring: 0 0 0 3px rgb(139 133 255 / 35%);
-    --k-decision: #8b85ff;
-    --k-convention: #3fc4b5;
-    --k-preference: #f0b44c;
-    --k-fact: #79aee6;
-    --k-warning: #ff7a6e;
-    color-scheme: dark;
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --surface-2: #eef0f3;
+    --raised: #ffffff;
+    --border: #e3e5ea;
+    --border-strong: #d3d6dd;
+    --text: #0b0c0e;
+    --muted: #4e5560;
+    --accent: #5b52f0;
+    --accent-text: #ffffff;
+    --accent-soft: #eeedff;
+    --primary-bg: #0b0c0e;
+    --primary-text: #ffffff;
+    --danger: #c2362b;
+    --danger-soft: #fdecea;
+    --ok: #1f8a4c;
+    --warn-bg: #fff6e0;
+    --warn-text: #7a4b00;
+    --shadow: 0 1px 2px rgb(16 24 40 / 5%), 0 8px 24px -16px rgb(16 24 40 / 18%);
+    --ring: 0 0 0 3px rgb(91 82 240 / 25%);
+    --k-decision: #5b52f0;
+    --k-convention: #0f8a7e;
+    --k-preference: #b26b00;
+    --k-fact: #3a6ea5;
+    --k-warning: #c2362b;
+    color-scheme: light;
   }
 }
 
@@ -60,17 +71,22 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font: 15px/1.55 var(--font);
+  font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
 }
 
 h1 {
-  font-size: 1.45rem;
-  margin: 0 0 0.15rem;
-  letter-spacing: -0.01em;
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0 0 0.2rem;
+  letter-spacing: -0.028em;
+  line-height: 1.15;
 }
 h2 {
   font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.012em;
   margin: 0 0 0.4rem;
 }
 h3 {
@@ -81,8 +97,8 @@ p {
 }
 code,
 .mono {
-  font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
-  font-size: 0.82em;
+  font-family: var(--mono);
+  font-size: 0.84em;
 }
 .muted {
   color: var(--muted);
@@ -106,24 +122,26 @@ code,
   gap: 1.2rem;
   padding: 1.1rem 0.8rem;
   border-right: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--bg);
 }
 .brand {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  font-weight: 650;
-  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-size: 1.02rem;
   padding: 0 0.5rem;
 }
 .logo {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: var(--accent);
-  color: var(--accent-text);
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff, #b9b5ff);
+  color: #0b0c0e;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 25%);
 }
 nav {
   display: flex;
@@ -145,8 +163,8 @@ nav a:hover {
   color: var(--text);
 }
 nav a.active {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  color: var(--text);
 }
 nav a:focus-visible {
   outline: none;
@@ -214,13 +232,16 @@ nav a:focus-visible {
 /* Cards */
 .card {
   position: relative;
-  background: var(--surface);
+  background: linear-gradient(180deg, var(--raised), var(--surface));
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem 1.1rem 0.9rem 1.25rem;
+  padding: 1.05rem 1.15rem 0.95rem 1.3rem;
   box-shadow: var(--shadow);
   overflow-wrap: anywhere;
   transition: border-color 0.15s, box-shadow 0.15s;
+}
+.card:hover {
+  border-color: var(--border-strong);
 }
 .card::before {
   content: "";
@@ -353,11 +374,11 @@ nav a:focus-visible {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  border-radius: 9px;
-  padding: 0.42rem 0.85rem;
+  border-radius: 999px;
+  padding: 0.42rem 0.95rem;
   font: inherit;
   font-size: 0.9rem;
-  font-weight: 550;
+  font-weight: 500;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
 }
@@ -377,12 +398,12 @@ textarea:focus-visible {
   cursor: default;
 }
 .btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-text);
+  background: var(--primary-bg);
+  border-color: var(--primary-bg);
+  color: var(--primary-text);
 }
 .btn-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 88%, black);
+  background: color-mix(in srgb, var(--primary-bg) 86%, var(--accent));
 }
 .btn-danger {
   background: var(--danger);

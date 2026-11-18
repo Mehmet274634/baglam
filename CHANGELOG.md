@@ -10,7 +10,10 @@ All notable changes to Bağlam. The format follows [Keep a Changelog](https://ke
 - The brief, `baglam handoff` and the panel card show the latest request ("Asked") and mark tasks only the tool saved.
 - `baglam doctor` checks each tool's hooks and shows when it last saved automatically (and reminds Codex users to trust the hooks once with `/hooks`).
 
+- **New website** (site/): nine pages in English and Turkish in a new dark design language, built with Astro; self-hosted fonts, nothing loaded from other hosts.
+
 ### Changed
+- The panel uses the same design language: dark by default (light follows the system), Inter and JetBrains Mono bundled, Linear-style cards and pill buttons.
 - Schema v7 (automatic backup and upgrade).
 - The stale-checkpoint reminder counts from the agent's own last checkpoint, so automatic saves never silence it.
 - An agent's `new_task` right after a request only the tool saved names that task instead of replacing it, and a real new task keeps the request that started it.
