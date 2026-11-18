@@ -91,11 +91,14 @@ export async function gitSnapshot(dir: string, since?: number, opts: { timeoutMs
   const ahead = /ahead (\d+)/.exec(head);
   const behind = /behind (\d+)/.exec(head);
   const tracking = head.includes("...");
-  const paths = lines.map((l) => {
-    const p = l.slice(3);
-    const renamed = p.split(" -> ");
-    return (renamed[1] ?? renamed[0]).replace(/^"(.*)"$/, "$1");
-  });
+  const paths = lines
+    .map((l) => {
+      const p = l.slice(3);
+      const renamed = p.split(" -> ");
+      return (renamed[1] ?? renamed[0]).replace(/^"(.*)"$/, "$1");
+    })
+    // Bağlam's own project marker is not work the agent did.
+    .filter((p) => !p.startsWith(".baglam/"));
 
   const format = "--format=%h\x1f%ct\x1f%s";
   const [recent, last] = await Promise.all([
