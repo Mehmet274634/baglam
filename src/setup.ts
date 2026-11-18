@@ -1,6 +1,8 @@
 import { ALL_CLIENTS } from "./clients/index.js";
 import type { Change, ClientAdapter } from "./clients/types.js";
 import type { HostEnv } from "./host.js";
+import { HOOK_INSTALLERS } from "./clients/hooks.js";
+import type { HookClient } from "./hooks/normalize.js";
 
 export interface SetupOptions {
   undo?: boolean;
@@ -26,14 +28,20 @@ export function runSetup(host: HostEnv, opts: SetupOptions): SetupResult {
   });
   if (!detected.length || !opts.confirm(detected)) return { detected: detected.map((c) => c.id), changes: [] };
 
-  const changes = detected.map((client): Change => {
+  const attempt = (client: ClientAdapter, part: Change["part"], fn: () => Change): Change => {
     try {
-      return opts.undo
-        ? client.uninstall(host, { dryRun: opts.dryRun })
-        : client.install(host, { dryRun: opts.dryRun });
+      return fn();
     } catch (err) {
-      return { client: client.id, file: "", action: "skipped", note: (err as Error).message };
+      return { client: client.id, file: "", action: "skipped", note: (err as Error).message, ...(part ? { part } : {}) };
     }
+  };
+  const changes = detected.flatMap((client): Change[] => {
+    const w = { dryRun: opts.dryRun };
+    const server = attempt(client, undefined, () => (opts.undo ? client.uninstall(host, w) : client.install(host, w)));
+    // Automatic saving: the tool's own hooks record requests, edited files and replies.
+    const hooks = HOOK_INSTALLERS[client.id as HookClient];
+    if (!hooks) return [server];
+    return [server, attempt(client, "auto-save", () => (opts.undo ? hooks.uninstall(host, w) : hooks.install(host, w)))];
   });
   return { detected: detected.map((c) => c.id), changes };
 }

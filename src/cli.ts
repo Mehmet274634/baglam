@@ -104,7 +104,7 @@ const MARK: Record<Change["action"], string> = {
 };
 
 export function formatChange(c: Change, label: string): string {
-  const line = `${MARK[c.action]} ${label.padEnd(12)} ${c.action.padEnd(9)} ${c.file}`;
+  const line = `${MARK[c.action]} ${label.padEnd(22)} ${c.action.padEnd(9)} ${c.file}`;
   return c.note ? `${line}
     ${c.note}` : line;
 }
@@ -279,7 +279,7 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
         }
         const label = (id: string) => found.find((c) => c.id === id)?.label ?? id;
         if (o["dry-run"]) print("Dry run, nothing was written:");
-        for (const c of result.changes) print(formatChange(c, label(c.client)));
+        for (const c of result.changes) print(formatChange(c, c.part ? `${label(c.client)} ${c.part}` : label(c.client)));
         const failed = result.changes.filter((c) => c.action === "skipped").length;
         if (!o["dry-run"]) print(`
 Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need attention (see ✗ above).` : ""}`);

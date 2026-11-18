@@ -21,7 +21,7 @@ describe("runSetup", () => {
     const host = hostWithCursorAndCodex();
     const r = runSetup(host, { confirm: () => true });
     expect(r.detected).toEqual(["codex", "cursor"]);
-    expect(r.changes.map((c) => [c.client, c.action])).toEqual([["codex", "added"], ["cursor", "added"]]);
+    expect(r.changes.filter((c) => !c.part).map((c) => [c.client, c.action])).toEqual([["codex", "added"], ["cursor", "added"]]);
     expect(existsSync(join(host.home, ".cursor", "mcp.json"))).toBe(true);
   });
 
@@ -37,7 +37,7 @@ describe("runSetup", () => {
   it("dry run writes nothing", () => {
     const host = hostWithCursorAndCodex();
     const r = runSetup(host, { confirm: () => true, dryRun: true });
-    expect(r.changes.map((c) => c.action)).toEqual(["added", "added"]);
+    expect(r.changes.filter((c) => !c.part).map((c) => c.action)).toEqual(["added", "added"]);
     expect(existsSync(join(host.home, ".cursor", "mcp.json"))).toBe(false);
   });
 
@@ -45,7 +45,7 @@ describe("runSetup", () => {
     const host = hostWithCursorAndCodex();
     runSetup(host, { confirm: () => true });
     const r = runSetup(host, { confirm: () => true, undo: true });
-    expect(r.changes.map((c) => c.action)).toEqual(["removed", "removed"]);
+    expect(r.changes.filter((c) => !c.part).map((c) => c.action)).toEqual(["removed", "removed"]);
     expect(JSON.parse(readFileSync(join(host.home, ".cursor", "mcp.json"), "utf8")).mcpServers).toEqual({});
   });
 
@@ -102,5 +102,25 @@ describe("runSetup", () => {
     expect(code).toBe(1);
     expect(out.join("\n")).toMatch(/npm i -g baglam/);
     expect(existsSync(join(host.home, ".cursor", "mcp.json"))).toBe(false);
+  });
+});
+
+describe("automatic saving hooks", () => {
+  it("setup installs them for each tool, undo removes them", () => {
+    const host = hostWithCursorAndCodex();
+    const r = runSetup(host, { confirm: () => true });
+    expect(r.changes.filter((c) => c.part === "auto-save").map((c) => [c.client, c.action])).toEqual([["codex", "added"], ["cursor", "added"]]);
+    expect(existsSync(join(host.home, ".codex", "hooks.json"))).toBe(true);
+    expect(existsSync(join(host.home, ".cursor", "hooks.json"))).toBe(true);
+    const u = runSetup(host, { confirm: () => true, undo: true });
+    expect(u.changes.filter((c) => c.part === "auto-save").map((c) => c.action)).toEqual(["removed", "removed"]);
+    expect(existsSync(join(host.home, ".cursor", "hooks.json"))).toBe(false);
+  });
+
+  it("cli prints the hook files as their own lines", () => {
+    const host = hostWithCursorAndCodex();
+    const out: string[] = [];
+    runCli(["setup", "--yes"], { store: new ContextStore(":memory:"), project: "x", user: "ev", print: (s) => out.push(s), host });
+    expect(out.join("\n")).toMatch(/Cursor auto-save\s+added\s+\S*hooks\.json/);
   });
 });
