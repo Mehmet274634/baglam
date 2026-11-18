@@ -12,7 +12,7 @@ All notable changes to Bağlam. The format follows [Keep a Changelog](https://ke
 - Export/import include tasks in progress; an import never turns autonomous mode on by itself.
 - `baglam doctor` reports outdated agent instructions and servers missing the new tools.
 
-- **Checkpoint nudges.** Every `context_checkpoint` reply for a task in progress asks for the next checkpoint, and an agent whose own task has not been checkpointed for 5 minutes is reminded on its next tool call (only the session that is working on it; never for blocked or finished tasks).
+- **Checkpoint nudges.** Every `context_checkpoint` reply for a task in progress asks for the next checkpoint, and an agent whose own task has not been checkpointed for 5 minutes is reminded on its next tool call (only the session that is working on it; never for blocked or finished tasks). Marking a task done tells the agent to checkpoint a new goal before working on the user's next request, and the agent instructions say a follow-up request in the same conversation is a new task.
 - `baglam init` suggests `git init` when the folder is not inside a git repository.
 
 ### Changed

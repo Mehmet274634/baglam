@@ -61,6 +61,21 @@ describe("checkpoint nudges", () => {
   });
 });
 
+describe("the next request after a finished task", () => {
+  it("the done reply tells the agent to checkpoint a new goal before any further work", async () => {
+    const { connect } = await setup();
+    const c = await connect("claude-code");
+    await c.callTool({ name: "context_checkpoint", arguments: { goal: "Todo app" } });
+    const done = text(await c.callTool({ name: "context_checkpoint", arguments: { status: "done" } }));
+    expect(done).toMatch(/If the user asks for anything more.*context_checkpoint.*new goal.*before/s);
+  });
+
+  it("agent instructions say follow-up requests in the same conversation are new tasks", async () => {
+    const { instructionBlock } = await import("../src/instructions.js");
+    expect(instructionBlock()).toMatch(/follow-up request in the same conversation/);
+  });
+});
+
 describe("reminders only for this connection's own task", () => {
   it("a fresh session meeting an older session's stale task is not nagged", async () => {
     const { connect, clock } = await setup();

@@ -363,7 +363,12 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
       const key = taskKey(r.project.key, branch);
       if (h.status === "in_progress") mine.set(key, { project: r.project.key, branch });
       else mine.delete(key);
-      const again = h.status === "in_progress" ? " Checkpoint again right after your next step (done_add, now, next)." : "";
+      const again =
+        h.status === "in_progress"
+          ? " Checkpoint again right after your next step (done_add, now, next)."
+          : h.status === "done"
+            ? " If the user asks for anything more, call context_checkpoint with the new goal before you start working on it."
+            : "";
       return `Saved progress for "${h.goal}" (${h.status.replace("_", " ")}, branch ${branch}). Any agent on this project can continue from here.${again}`;
     }, { remind: false }),
   );

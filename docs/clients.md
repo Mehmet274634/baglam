@@ -66,7 +66,7 @@ This project uses Bağlam to share decisions between AI agents.
 - Never put secrets, credentials or personal data in a proposal.
 
 ### Save progress so another agent can continue
-- When you start or pick up a task, call `context_checkpoint` with the `goal`. After every meaningful step (a file finished, a test passing, a decision made) call it again with `done_add`, `now` and `next`. Do this before long operations too: you may be stopped at any moment, and another agent will continue from your last checkpoint.
+- When you start or pick up a task, call `context_checkpoint` with the `goal` before you change anything. Every follow-up request in the same conversation ("now add X") is a new task too: checkpoint its goal first. After every meaningful step (a file finished, a test passing, a decision made) call it again with `done_add`, `now` and `next`. Do this before long operations too: you may be stopped at any moment, and another agent will continue from your last checkpoint.
 - If `context_brief` shows a task under "Continue from here" and the user's request is about it, continue from its next steps instead of starting over, and keep checkpointing it (do not pass `new_task`). Pass `new_task: true` only when you start something unrelated.
 - When the task is finished, call `context_checkpoint` with `status: "done"`.
 ```
