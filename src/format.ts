@@ -123,7 +123,7 @@ export function formatHandoff(h: BriefInput["handoff"], max: number, now = Date.
       `Task: ${live.goal} (${live.status === "blocked" ? "blocked" : "in progress"}) · last update ${ago(live.updatedAt, now)} by ${live.agent}`,
     ];
     const asked = live.requests?.at(-1);
-    if (asked) lines.push(`Asked: ${asked.slice(0, budget(0.08))}`);
+    if (asked && asked !== live.goal) lines.push(`Asked: ${asked.slice(0, budget(0.08))}`);
     if (live.agentAt === null) {
       lines.push("Saved automatically from the tool; the agent has not checkpointed this task yet. Check the files and git changes below.");
     }

@@ -103,3 +103,14 @@ describe("automatic saving in the brief", () => {
     expect(after).toMatch(/Asked: devam et/);
   });
 });
+
+describe("no repeated request line", () => {
+  it("Asked is left out when it is the task's own title", async () => {
+    const { ContextStore } = await import("../src/store.js");
+    const { formatHandoff } = await import("../src/format.js");
+    const s = new ContextStore(":memory:");
+    s.autoCapture({ project: "p", branch: "main", dir: "/tmp/p", agent: "cursor", event: { kind: "prompt", text: "Fatura PDF ekle" } });
+    const text = formatHandoff({ live: s.getHandoff("p", "main")!, git: null, otherBranches: [] }, 6000);
+    expect(text).not.toMatch(/Asked:/);
+  });
+});

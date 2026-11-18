@@ -130,6 +130,18 @@ describe("automatic saving in the panel", () => {
   });
 });
 
+describe("no repeated request on the card", () => {
+  it("İstenen is hidden when it equals the title", () => {
+    const { container } = render(
+      <I18nProvider lang="tr">
+        <ContinueCard handoff={handoff({ goal: "Fatura PDF ekle", requests: ["Fatura PDF ekle"], agentAt: null })} onCopy={() => {}} onDone={() => {}} />
+      </I18nProvider>,
+    );
+    expect(container.textContent).not.toContain("İstenen");
+    expect(container.textContent).toContain("Otomatik kaydedildi");
+  });
+});
+
 describe("AutonomousSwitch", () => {
   it("autonomous switch asks to confirm", async () => {
     const api = { autonomous: vi.fn(async () => false), setAutonomous: vi.fn(async (_k: string, on: boolean) => on) } as unknown as Api;

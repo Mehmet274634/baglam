@@ -15,6 +15,10 @@ All notable changes to Bağlam. The format follows [Keep a Changelog](https://ke
 - The stale-checkpoint reminder counts from the agent's own last checkpoint, so automatic saves never silence it.
 - An agent's `new_task` right after a request only the tool saved names that task instead of replacing it, and a real new task keeps the request that started it.
 - Agent instructions ask for checkpoints in the user's language; re-run `baglam init` after upgrading.
+- Search matches word beginnings, so "imza" finds "imzasını" and "deploy" finds "deployment" (agents and panel).
+- `baglam init` repairing a broken `.baglam/project.json` keeps the folder's id, so its records stay with it.
+- `baglam projects` shows names and folders; `baglam add` stops at a near-duplicate and explains `--replaces` / `--force`.
+- The task card and brief no longer repeat the request when it is the task's title; Bağlam's own `.baglam/` folder is not listed as changed work.
 
 ## [1.0.0-rc.2] - 2026-11-18
 

@@ -5,7 +5,7 @@ import type { Change } from "./clients/types.js";
 import { antigravity, cursor, geminiCli } from "./clients/json.js";
 import { claudeCode } from "./clients/claude.js";
 import { normalizeProject } from "./config.js";
-import { createMarker, resolveDirectory, type ProjectRef } from "./project.js";
+import { createMarker, readMarker, resolveDirectory, type ProjectRef } from "./project.js";
 import { CURSOR_RULE_HEADER, instructionBlock, removeBlock, upsertBlock } from "./instructions.js";
 
 export interface InitResult {
@@ -80,7 +80,14 @@ export function runInit(dir: string, opts: InitOptions): InitResult {
     );
   }
 
-  const project = createMarker(target); // throws for home/system folders before anything is written
+  // A broken marker (hand-edited, merge conflict): reuse the id this folder was last seen with.
+  const current = readMarker(target);
+  const previous =
+    current && "error" in current
+      ? opts.store.listProjects({ includeArchived: true }).find((p) => p.path && normalizeProject(p.path) === normalizeProject(target))
+      : undefined;
+  // Throws for home/system folders before anything is written.
+  const project = createMarker(target, previous ? { id: previous.key, name: previous.name } : undefined);
   // Always try: idempotent, and it finishes a move an earlier init could not complete.
   const moved = opts.store.rekeyProject(normalizeProject(target), project.key);
   opts.store.touchProject(project);

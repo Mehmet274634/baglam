@@ -153,3 +153,27 @@ describe("baglam init", () => {
     expect(instructionBlock()).toMatch(/new_task/);
   });
 });
+
+describe("init repairs a broken marker without losing the project", () => {
+  it("reuses the id this folder was registered with, so its records stay", () => {
+    const store = new ContextStore(":memory:");
+    const host = testHost();
+    const dir = mkdtempSync(join(tmpdir(), "baglam-repair-"));
+    const first = runInit(dir, { store, host }).project;
+    store.addApproved({ project: first.key, kind: "decision", title: "Use pnpm", body: "Always pnpm" }, "me");
+    writeFileSync(join(dir, ".baglam", "project.json"), "not json");
+    const again = runInit(dir, { store, host }).project;
+    expect(again.key).toBe(first.key);
+    expect(JSON.parse(readFileSync(join(dir, ".baglam", "project.json"), "utf8")).id).toBe(first.key);
+    expect(store.all(again.key).map((e) => e.title)).toEqual(["Use pnpm"]);
+  });
+
+  it("a folder Bağlam never saw still gets a fresh id", () => {
+    const store = new ContextStore(":memory:");
+    const dir = mkdtempSync(join(tmpdir(), "baglam-repair2-"));
+    mkdirSync(join(dir, ".baglam"));
+    writeFileSync(join(dir, ".baglam", "project.json"), "{}");
+    const r = runInit(dir, { store, host: testHost() }).project;
+    expect(r.key).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});

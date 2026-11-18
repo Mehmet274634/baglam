@@ -107,7 +107,7 @@ export function resolveDirectory(dir: string): ProjectRef {
 }
 
 /** Give `dir` a stable identity. Keeps an existing valid marker; replaces a corrupt one. */
-export function createMarker(dir: string): ProjectRef {
+export function createMarker(dir: string, reuse?: { id: string; name: string }): ProjectRef {
   const target = resolve(dir);
   if (isUnsafeProjectDir(target)) {
     throw new Error(`${target} cannot be a project (home, system or Bağlam's own folder). Run this inside a project folder.`);
@@ -116,7 +116,8 @@ export function createMarker(dir: string): ProjectRef {
   if (existing && "id" in existing) {
     return { key: existing.id, name: existing.name, dir: target, initialized: true, anchor: "marker" };
   }
-  const marker = { id: randomUUID(), name: basename(target) };
+  // A repaired marker keeps the identity the folder had, so its records stay with it.
+  const marker = reuse ?? { id: randomUUID(), name: basename(target) };
   mkdirSync(join(target, MARKER_DIR), { recursive: true });
   writeFileSync(markerPath(target), JSON.stringify(marker, null, 2) + "\n");
   return { key: marker.id, name: marker.name, dir: target, initialized: true, anchor: "marker" };

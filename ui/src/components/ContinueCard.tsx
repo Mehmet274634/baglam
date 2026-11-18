@@ -11,6 +11,7 @@ export function ContinueCard(props: {
 }) {
   const { t } = useI18n();
   const h = props.handoff;
+  const asked = h.requests?.at(-1);
   return (
     <article class={`card continue${h.status === "blocked" ? " is-blocked" : ""}`}>
       <header class="card-head">
@@ -21,11 +22,11 @@ export function ContinueCard(props: {
         <span class="meta">{t("continue.by", { agent: h.agent, when: relativeTime(t, h.updatedAt) })}</span>
       </header>
       <h3 class="card-title">{h.goal}</h3>
-      {(h.requests?.length || h.agentAt === null) && (
+      {((asked && asked !== h.goal) || h.agentAt === null) && (
         <p class="card-why">
-          {h.requests?.length ? (
+          {asked && asked !== h.goal ? (
             <>
-              <strong>{t("continue.asked")}:</strong> {h.requests.at(-1)}{" "}
+              <strong>{t("continue.asked")}:</strong> {asked}{" "}
             </>
           ) : null}
           {h.agentAt === null && <span class="badge badge-auto">{t("continue.auto")}</span>}

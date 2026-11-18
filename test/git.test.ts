@@ -71,3 +71,16 @@ describe.skipIf(!hasGit)("git snapshot", () => {
     expect(await gitSnapshot(d, undefined, { timeoutMs: 1 })).toBeNull();
   });
 });
+
+describe.skipIf(!hasGit)("git snapshot leaves out Bağlam's own files", () => {
+  it(".baglam/ is not listed as work the agent did", async () => {
+    const d = repo();
+    const { mkdirSync } = await import("node:fs");
+    mkdirSync(join(d, ".baglam"));
+    writeFileSync(join(d, ".baglam", "project.json"), "{}");
+    writeFileSync(join(d, "app.ts"), "x");
+    const s = (await gitSnapshot(d))!;
+    expect(s.changed).toEqual(["app.ts"]);
+    expect(s.changedCount).toBe(1);
+  });
+});
