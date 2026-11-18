@@ -34,7 +34,9 @@ for (const f of html) {
   for (const [, attr, value] of s.matchAll(/\s(href|src)="([^"]+)"/g)) {
     if (/^(mailto:|#|data:)/.test(value)) continue;
     if (/^https?:\/\//.test(value) || value.startsWith("//")) {
-      problems.push(`${url}: loads or links to another host: ${attr}="${value}"`);
+      // Plain links to the source repository are fine; nothing may be loaded from another host.
+      const repoLink = attr === "href" && value.startsWith("https://github.com/Mehmet274634/baglam") && new RegExp(`<a [^>]*href="${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`).test(s);
+      if (!repoLink) problems.push(`${url}: loads or links to another host: ${attr}="${value}"`);
       continue;
     }
     if (value.startsWith("/") && !exists(value)) problems.push(`${url}: broken link ${value}`);
