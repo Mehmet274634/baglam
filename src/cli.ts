@@ -2,9 +2,10 @@
 import { parseArgs } from "node:util";
 import { userInfo } from "node:os";
 import { pathToFileURL } from "node:url";
-import { readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { ContextStore, KINDS, type Entry, type Kind, type TrustRule } from "./store.js";
-import { day, formatEntry } from "./format.js";
+import { day, formatEntry, formatHandoff, resumePrompt } from "./format.js";
+import { currentBranch, gitSnapshot } from "./git.js";
 import { resolveDbPath } from "./config.js";
 import { resolveProject } from "./project.js";
 import { VERSION } from "./version.js";
@@ -39,6 +40,15 @@ Manage context yourself:
   list [--everything]                 Show active records (--everything: all statuses)
   show <id>                           Show one record in full
   projects                            Projects in the database with counts
+
+Continue work across agents:
+  handoff [--branch b] [--history] [--copy]   The task in progress (copy: resume prompt for any AI tool)
+  handoff clear [--branch b]          Mark the task in progress as done
+
+Autonomous mode (share now, review afterwards):
+  auto on [--yes] | auto off | auto status
+  review                              Records shared automatically, waiting for your look
+  keep <id...> | --all                Keep them · undo <id>  Take one back
 
 Trust (opt-in auto-approval):
   trust add [--agent id] [--kind k] [--global]  Let matching records skip review
@@ -126,6 +136,9 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
         "dry-run": { type: "boolean" },
         undo: { type: "boolean" },
         here: { type: "boolean" },
+        branch: { type: "string" },
+        history: { type: "boolean" },
+        copy: { type: "boolean" },
         force: { type: "boolean" },
         global: { type: "boolean" },
         agent: { type: "string" },
@@ -287,11 +300,113 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
         }
         const r = importJson(ctx.store, data, { force: o.force, by: user, source: basename(args[0]) });
         print(`Imported ${r.imported} record(s); ${r.skipped} skipped (already present or unreadable).`);
+        if (r.handoffs) print(`Restored ${r.handoffs} task(s) in progress.`);
+        if (r.autonomousInFile.length) {
+          print("Autonomous mode was on for some projects in the file; it stays off here. Turn it on with: baglam auto on");
+        }
         if (r.approvedNow) {
           print(`${r.approvedNow} of them ${r.approvedNow === 1 ? "is" : "are"} approved and visible to agents now (as in the file). Review them with baglam list.`);
         }
         for (const b of r.blocked) print(`✗ ${b.id} not imported: looks like a secret (${describeFindings(b.findings)}). Use --force to import anyway.`);
         return r.blocked.length ? 1 : 0;
+      }
+      case "auto": {
+        const sub = args[0] ?? "status";
+        const rules =
+          "Records from agents connected by baglam setup are shared at once and listed for you to review afterwards " +
+          "(baglam review, or the panel). Secrets are always blocked, the 20-proposal limit stays, and anything that looks " +
+          "like something you rejected before still waits for you.";
+        if (sub === "status") {
+          print(ctx.store.isAutonomous(project) ? `Autonomous mode is on for this project.\n${rules}` : "Autonomous mode is off: every proposal waits for your review.");
+          return 0;
+        }
+        if (sub === "off") {
+          ctx.store.setAutonomous(project, false, user);
+          print("Autonomous mode is off: proposals wait for your review again.");
+          return 0;
+        }
+        if (sub !== "on") throw new Error("use: baglam auto on|off|status");
+        if (!o.yes) {
+          if (!ctx.interactive || !ctx.confirm) {
+            print(`${rules}\n\nRun again with --yes to turn autonomous mode on (this shell cannot ask).`);
+            return 1;
+          }
+          if (!ctx.confirm(["autonomous mode for this project"])) {
+            print("Autonomous mode stays off.");
+            return 0;
+          }
+        }
+        ctx.store.setAutonomous(project, true, user);
+        print(`Autonomous mode is on for this project.\n${rules}`);
+        return 0;
+      }
+      case "handoff": {
+        const dir = o.project ?? process.cwd();
+        const branch = o.branch ?? currentBranch(dir);
+        if (args[0] === "clear") {
+          print(ctx.store.clearHandoff(project, branch, user) ? `Marked the task on ${branch} as done.` : `No task in progress on ${branch}.`);
+          return 0;
+        }
+        const live = ctx.store.getHandoff(project, branch);
+        if (!live) {
+          const others = ctx.store.listHandoffs(project).filter((h) => h.status !== "done");
+          print(`No task in progress on ${branch}.`);
+          for (const h of others) print(`  ${h.branch}: "${h.goal}" (${h.agent}) — baglam handoff --branch ${h.branch}`);
+          return 0;
+        }
+        if (o.history) {
+          for (const h of ctx.store.handoffHistory(project, branch, 50)) {
+            print(`${new Date(h.updatedAt).toISOString().slice(0, 16).replace("T", " ")}  ${h.agent.padEnd(12)} ${h.replaced ? "(replaced) " : ""}${h.goal}${h.now ? ` — ${h.now}` : ""}`);
+          }
+          return 0;
+        }
+        if (o.copy) {
+          const projectName = ctx.store.listProjects({ includeArchived: true }).find((p) => p.key === project)?.name ?? project;
+          const records = ctx.store.query({ project, status: "active", limit: 50 }).items;
+          const host = ctx.host ?? realHost();
+          return (live.dir && existsSync(live.dir) ? gitSnapshot(live.dir, live.updatedAt) : Promise.resolve(null)).then((git) => {
+          const text = resumePrompt({ projectName, dir: live.dir, handoff: live, git, records });
+          const [cmd, cmdArgs] =
+            host.platform === "win32" ? ["clip", []] : host.platform === "darwin" ? ["pbcopy", []] : ["xclip", ["-selection", "clipboard"]];
+          const r = host.run(cmd, cmdArgs as string[], text);
+          if (r.code === 0) {
+            print("Copied a resume prompt to the clipboard. Paste it into any AI tool to continue this task.");
+          } else {
+            print("Could not reach the clipboard; here is the resume prompt to copy:\n");
+            print(text.trimEnd());
+          }
+          return 0;
+          });
+        }
+        print(formatHandoff({ live, git: null, otherBranches: [] }, 20_000));
+        return 0;
+      }
+      case "review": {
+        const items = ctx.store.unreviewed(project);
+        if (!items.length) {
+          print("Nothing to review: no records were shared automatically since your last review.");
+          return 0;
+        }
+        for (const e of items) {
+          print(summary(e));
+          print(`         ${e.body.replace(/\s+/g, " ").slice(0, 160)}`);
+        }
+        print(`\n${items.length} shared automatically. Keep: baglam keep <id...> | --all  ·  Undo: baglam undo <id>`);
+        return 0;
+      }
+      case "keep": {
+        const ids = o.all ? ctx.store.unreviewed(project).map((e) => e.id) : args;
+        if (!ids.length) throw new Error(o.all ? "nothing to review" : "give at least one id, or --all");
+        print(`Kept ${ctx.store.keep(ids, user)} record(s).`);
+        return 0;
+      }
+      case "undo": {
+        if (args.length !== 1) throw new Error("give exactly one id");
+        const r = ctx.store.undoAuto(args[0], user);
+        print(`Undid ${r.undone.id} ("${r.undone.title}"); agents no longer see it and it will not be shared automatically again.`);
+        if (r.restored) print(`Restored ${r.restored.id} ("${r.restored.title}"), the record it had replaced.`);
+        if (r.note) print(`Note: ${r.note}.`);
+        return 0;
       }
       case "trust": {
         const [sub, id] = args;
@@ -411,6 +526,19 @@ if (isMain() && process.argv[2] === "ui") {
       const yes = answer === "" || answer === "y" || answer === "yes" || answer === "e" || answer === "evet";
       confirm = () => yes;
     }
+  }
+  if (argv[0] === "auto" && argv[1] === "on" && interactive && !argv.includes("--yes") && !argv.includes("-y")) {
+    const { createInterface } = await import("node:readline/promises");
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    console.log(
+      "Autonomous mode shares records from your set-up agents at once; you review them afterwards.\n" +
+        "Secrets stay blocked and anything you rejected before still waits for you.",
+    );
+    // Defaults to No: this removes a review step, so it must be a deliberate yes.
+    const answer = (await rl.question("Turn on autonomous mode for this project? [y/N] ")).trim().toLowerCase();
+    rl.close();
+    const yes = answer === "y" || answer === "yes" || answer === "e" || answer === "evet";
+    confirm = () => yes;
   }
   // Open (and so create or migrate) the database only when a command actually touches it:
   // help, version, setup and doctor must never write it.

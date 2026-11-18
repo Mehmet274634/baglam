@@ -26,6 +26,35 @@ export interface Entry {
   editedAt: number | null;
   autoApproved: boolean;
   similarTo: string[];
+  reviewState: "unreviewed" | "kept" | null;
+}
+
+export type HandoffStatus = "in_progress" | "blocked" | "done";
+
+export interface Handoff {
+  project: string;
+  branch: string;
+  dir: string | null;
+  taskId: string;
+  goal: string;
+  status: HandoffStatus;
+  done: string[];
+  now: string | null;
+  next: string[];
+  files: string[];
+  blockers: string | null;
+  notes: string | null;
+  agent: string;
+  createdAt: number;
+  updatedAt: number;
+  expiresAt: number;
+}
+
+export interface GitSnapshot {
+  branch: string;
+  changed: string[];
+  changedCount: number;
+  commitsSince: { hash: string; subject: string; at: number }[];
 }
 
 export interface PendingEntry extends Entry {
@@ -47,6 +76,9 @@ export interface ProjectRow {
   approved: number;
   pending: number;
   lastActivity: number | null;
+  /** Present on /api/projects. */
+  autonomous?: boolean;
+  task?: Handoff | null;
 }
 
 export interface TrustRule {

@@ -108,6 +108,29 @@ describe("submitProposal", () => {
     expect(store.removeTrustRule(a.id)).toBe(true);
     expect(store.removeTrustRule(a.id)).toBe(false);
   });
+
+  it("autonomous: verified agent shared now as unreviewed, even a replacement", () => {
+    const human = store.addApproved({ project: P, kind: "decision", title: "Use Postgres", body: "Primary DB is Postgres." }, "human");
+    const r = submitProposal(store, input({ kind: "decision", title: "Use MySQL", body: "Primary DB is MySQL 8.", supersedes: human.id }), { ...ctx, autonomous: true });
+    expect(r.status).toBe("auto-shared");
+    if (r.status === "auto-shared") expect(r.entry.reviewState).toBe("unreviewed");
+    expect(store.get(human.id)?.status).toBe("superseded");
+  });
+
+  it("autonomous: unverified waits", () => {
+    expect(submitProposal(store, input(), { ...ctx, agentVerified: false, autonomous: true }).status).toBe("pending");
+  });
+
+  it("autonomous: rejected look-alike waits", () => {
+    const first = submitProposal(store, input({ title: "Use yarn workspaces", body: "Switch to yarn workspaces." }), ctx);
+    if (first.status !== "pending") throw new Error("expected pending");
+    store.reject(first.entry.id, "human");
+    expect(submitProposal(store, input({ title: "Use yarn workspaces", body: "Switch to yarn workspaces." }), { ...ctx, autonomous: true }).status).toBe("pending");
+  });
+
+  it("autonomous: secret still blocked", () => {
+    expect(submitProposal(store, input({ body: AWS }), { ...ctx, autonomous: true }).status).toBe("blocked");
+  });
 });
 
 describe("floodLimitFromEnv", () => {
@@ -124,4 +147,5 @@ describe("floodLimitFromEnv", () => {
     process.env.BAGLAM_FLOOD_LIMIT = "nonsense";
     expect(floodLimitFromEnv()).toBe(20);
   });
+
 });

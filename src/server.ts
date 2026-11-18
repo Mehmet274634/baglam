@@ -2,7 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { RootsListChangedNotificationSchema, type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { KINDS, type ContextStore } from "./store.js";
-import { FRAMING, briefBudgetFromEnv, formatBrief, formatEntry } from "./format.js";
+import { FRAMING, briefBudgetFromEnv, formatBrief, formatEntry, formatHandoff } from "./format.js";
+import { currentBranch, gitSnapshot } from "./git.js";
 import { floodLimitFromEnv, submitProposal } from "./policy.js";
 import { describeFindings } from "./guards.js";
 import { resolveProjectFor, type Resolution } from "./resolve.js";
@@ -87,9 +88,22 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
       }
     };
 
-  function briefFor(project: ProjectRef, agent: string): string {
+  /** The live handoff for this folder's branch, git's view since, and other branches' tasks. */
+  async function workState(project: ProjectRef) {
+    const all = store.listHandoffs(project.key);
+    // Most briefs have no task in progress: don't spend a git call on them.
+    if (!all.length) return { branch: "-", live: undefined, git: null, otherBranches: [] };
+    const branch = currentBranch(project.dir);
+    const live = all.find((h) => h.branch === branch);
+    const git = live && live.status !== "done" ? await gitSnapshot(project.dir, live.updatedAt) : null;
+    return { branch, live, git, otherBranches: all.filter((h) => h.branch !== branch) };
+  }
+
+  async function briefFor(project: ProjectRef, agent: string): Promise<string> {
     const total = store.countVisible(project.key, agent, COUNT_CAP);
+    const work = await workState(project);
     return formatBrief({
+      handoff: { live: work.live, git: work.git, otherBranches: work.otherBranches },
       project,
       agent,
       // A brief holds a few dozen records at most; fetch the top slice in priority order and count the rest.
@@ -107,7 +121,7 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
     if (r.ok) return briefFor(r.project, agent);
     const known = r.candidates.filter((c) => c.initialized);
     if (r.reason === "ambiguous" && known.length) {
-      return [r.message, ...known.map((p) => briefFor(p, agent))].join("\n\n---\n\n");
+      return [r.message, ...(await Promise.all(known.map((p) => briefFor(p, agent))))].join("\n\n---\n\n");
     }
     return r.message;
   }
@@ -237,7 +251,7 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
       const outcome = submitProposal(
         store,
         { ...rest, ttlDays: ttl_days, project: r.project.key, sourceAgent: agentName() },
-        { agentVerified: opts.agent !== undefined, floodLimit: floodLimitFromEnv() },
+        { agentVerified: opts.agent !== undefined, floodLimit: floodLimitFromEnv(), autonomous: store.isAutonomous(r.project.key) },
       );
       switch (outcome.status) {
         case "blocked":
@@ -247,6 +261,8 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
           );
         case "refused":
           throw new Error(outcome.reason);
+        case "auto-shared":
+          return `Saved ${outcome.entry.id} ("${outcome.entry.title}") for ${label(r.project)} and shared now (autonomous mode); the owner reviews it afterwards.`;
         case "auto-approved":
           return `Saved ${outcome.entry.id} ("${outcome.entry.title}") for ${label(r.project)} and shared with other agents (auto-approved by a trust rule the owner set).`;
         case "pending": {
@@ -266,6 +282,96 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
           return `${base}\nSimilar records already exist: ${list}. If yours replaces one, propose again with supersedes set to its id.`;
         }
       }
+    }),
+  );
+
+  const list = (max: number) => z.array(z.string().max(300)).max(max).optional();
+
+  server.registerTool(
+    "context_checkpoint",
+    {
+      title: "Save progress on the current task",
+      description:
+        "Save where you are so any agent can continue if you stop (token limit, crash, the user switches tools). " +
+        'Call it when you start a task (with goal), after every meaningful step (done_add, now, next), and with status "done" at the end. ' +
+        "Fields you leave out keep their values. Shared at once, no review. Never include secrets.",
+      inputSchema: {
+        goal: z.string().max(300).optional().describe("What the task is (required when starting one)"),
+        status: z.enum(["in_progress", "blocked", "done"]).optional(),
+        done: list(30).describe("Replace the list of finished steps"),
+        done_add: list(30).describe("Append finished steps"),
+        now: z.string().max(1000).optional().describe("What you are doing right now"),
+        next: list(20).describe("Ordered next steps"),
+        files: list(50).describe("Files touched or important, relative to the project"),
+        blockers: z.string().max(1000).optional(),
+        notes: z.string().max(2000).optional().describe("Anything the next agent must know"),
+        new_task: z.boolean().optional().describe("Start a new, unrelated task (the current one goes to history)"),
+        project_path: projectPathSchema,
+      },
+    },
+    guard(async ({ project_path, done_add, new_task, ...fields }) => {
+      const r = await resolve(project_path);
+      if (!r.ok) throw new Error(r.message);
+      const branch = currentBranch(r.project.dir);
+      const h = store.checkpoint({
+        ...fields,
+        doneAdd: done_add,
+        newTask: new_task,
+        project: r.project.key,
+        branch,
+        dir: r.project.dir,
+        agent: agentName(),
+        agentVerified: opts.agent !== undefined,
+      });
+      return `Saved progress for "${h.goal}" (${h.status.replace("_", " ")}, branch ${branch}). Any agent on this project can continue from here.`;
+    }),
+  );
+
+  server.registerTool(
+    "context_handoff",
+    {
+      title: "Get the task in progress",
+      description: "Full details of the task in progress on this branch: progress, recent history and what git shows changed since.",
+      inputSchema: { project_path: projectPathSchema },
+      annotations: { readOnlyHint: true },
+    },
+    guard(async ({ project_path }) => {
+      const r = await resolve(project_path);
+      if (!r.ok) return r.message;
+      const work = await workState(r.project);
+      if (!work.live) return `No task in progress on branch ${work.branch}.`;
+      const h = work.live;
+      const history = store
+        .handoffHistory(r.project.key, h.branch, 10)
+        .map(
+          (x) =>
+            `- ${new Date(x.updatedAt).toISOString().slice(0, 16).replace("T", " ")} ${x.agent}: ${x.now ?? x.goal}${x.replaced ? " (replaced by a new task)" : ""}`,
+        );
+      return [
+        formatHandoff({ live: h, git: work.git, otherBranches: [] }, 20_000),
+        h.done.length ? `All done steps:\n${h.done.map((d) => `- ${d}`).join("\n")}` : "",
+        history.length ? `Recent checkpoints:\n${history.join("\n")}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }),
+  );
+
+  server.registerPrompt(
+    "baglam_resume",
+    { title: "Continue the task in progress", description: "Pick up the task another agent was working on." },
+    () => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text:
+              'Call context_brief (pass project_path with this workspace\'s folder). If it shows a task under "Continue from here", ' +
+              "continue it from its next steps, check the files git lists as changed, and keep calling context_checkpoint as you go.",
+          },
+        },
+      ],
     }),
   );
 

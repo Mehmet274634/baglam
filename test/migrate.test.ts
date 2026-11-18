@@ -73,7 +73,6 @@ describe("schema migrations", () => {
   });
 
   it("several processes opening a v0.1 file at once all succeed", async () => {
-    execSync("npm run build", { cwd: root, stdio: "ignore" });
     const path = tempDb();
     const old = new DatabaseSync(path);
     old.exec("PRAGMA journal_mode = WAL");
@@ -84,7 +83,7 @@ describe("schema migrations", () => {
     ).run();
     old.close();
 
-    const storeUrl = pathToFileURL(join(root, "dist", "store.js")).href;
+    const storeUrl = pathToFileURL(join(root, ".test-dist", "store.js")).href;
     const script = `import { ContextStore } from ${JSON.stringify(storeUrl)}; new ContextStore(${JSON.stringify(path)}).close();`;
     const run = () =>
       new Promise<string>((done) => {

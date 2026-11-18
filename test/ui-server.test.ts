@@ -195,7 +195,10 @@ describe("panel server", () => {
   it("sends an event after a change from another connection", async () => {
     const cookie = await login();
     const other = new ContextStore(dbPath);
-    const got = await new Promise<string>((resolve, reject) => {
+    const timers: NodeJS.Timeout[] = [];
+    let got: string;
+    try {
+    got = await new Promise<string>((resolve, reject) => {
       const req = request(
         { host: "127.0.0.1", port: panel.port, path: "/api/events", headers: { host: `127.0.0.1:${panel.port}`, cookie } },
         (res) => {
@@ -209,14 +212,18 @@ describe("panel server", () => {
               resolve(buf);
             }
           });
-          setTimeout(() => other.addApproved({ project: "p", kind: "fact", title: "t", body: "b" }, "human"), 100);
+          timers.push(setTimeout(() => other.addApproved({ project: "p", kind: "fact", title: "t", body: "b" }, "human"), 100));
         },
       );
       req.on("error", (e) => (String(e).includes("aborted") || String(e).includes("socket hang up") ? undefined : reject(e)));
       req.end();
-      setTimeout(() => reject(new Error("no change event within 3 s")), 3000);
+      timers.push(setTimeout(() => reject(new Error("no change event within 3 s")), 3000));
     });
-    other.close();
+    } finally {
+      // Leave nothing behind for the worker's teardown: no pending timers, no open database.
+      for (const t of timers) clearTimeout(t);
+      other.close();
+    }
     expect(got).toContain("event: change");
   });
 });

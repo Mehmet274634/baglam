@@ -3,6 +3,7 @@ import type { Api } from "../api";
 import { KINDS, KNOWN_AGENTS, type Kind, type Tool, type TrustRule } from "../types";
 import { useI18n, type Lang } from "../i18n";
 import { useToast } from "../toast";
+import { AutonomousSwitch } from "../components/AutonomousSwitch";
 
 export function Settings(props: {
   api: Api;
@@ -45,6 +46,16 @@ export function Settings(props: {
     <section class="settings">
       <div class="screen-head">
         <h1>{t("settings.title")}</h1>
+      </div>
+
+      <div class="panel">
+        <h2>{t("auto.title")}</h2>
+        <p class="muted">{t("auto.body")}</p>
+        {props.project ? (
+          <AutonomousSwitch api={props.api} projectKey={props.project} />
+        ) : (
+          <p class="muted small">{t("auto.pickProject")}</p>
+        )}
       </div>
 
       <div class="panel">

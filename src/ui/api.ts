@@ -2,6 +2,9 @@ import { KINDS, type Entry, type EntryPatch, type Kind, type Status } from "../s
 import { scanEntryFields } from "../guards.js";
 import { detectClients } from "../setup.js";
 import { HttpError, route, type Route } from "./http.js";
+import { existsSync } from "node:fs";
+import { gitSnapshot } from "../git.js";
+import { resumePrompt } from "../format.js";
 import type { PanelContext } from "./server.js";
 
 type Body = Record<string, unknown>;
@@ -73,7 +76,11 @@ export function panelApi(ctx: PanelContext): Route[] {
     }),
 
     route("GET", "/api/projects", ({ query }) => ({
-      items: store.listProjects({ includeArchived: query.get("archived") === "1" }),
+      items: store.listProjects({ includeArchived: query.get("archived") === "1" }).map((p) => ({
+        ...p,
+        autonomous: store.isAutonomous(p.key),
+        task: store.listHandoffs(p.key).find((h) => h.status !== "done") ?? null,
+      })),
     })),
 
     route("GET", "/api/pending", ({ query }) => ({
@@ -164,6 +171,54 @@ export function panelApi(ctx: PanelContext): Route[] {
       }
       return { deleted: store.deleteProject(params.key, user) };
     }),
+
+    // ---- Handoffs (work in progress) ----
+
+    route("GET", "/api/handoffs", ({ query }) => ({
+      items: store.listHandoffs(query.get("project") || undefined).filter((h) => h.status !== "done"),
+    })),
+
+    route("GET", "/api/handoffs/:project/:branch", async ({ params }) => {
+      const handoff = store.getHandoff(params.project, params.branch);
+      if (!handoff) throw new HttpError(404, `no task in progress on ${params.branch}`);
+      const git = handoff.dir && existsSync(handoff.dir) ? await gitSnapshot(handoff.dir, handoff.updatedAt) : null;
+      return { handoff, history: store.handoffHistory(params.project, params.branch, 30), git };
+    }),
+
+    route("GET", "/api/handoffs/:project/:branch/prompt", async ({ params }) => {
+      const handoff = store.getHandoff(params.project, params.branch);
+      if (!handoff) throw new HttpError(404, `no task in progress on ${params.branch}`);
+      const git = handoff.dir && existsSync(handoff.dir) ? await gitSnapshot(handoff.dir, handoff.updatedAt) : null;
+      const projectName = store.listProjects({ includeArchived: true }).find((p) => p.key === params.project)?.name ?? params.project;
+      const records = store.query({ project: params.project, status: "active", limit: 50 }).items;
+      return { text: resumePrompt({ projectName, dir: handoff.dir, handoff, git, records }) };
+    }),
+
+    route("POST", "/api/handoffs/:project/:branch/clear", ({ params }) => {
+      if (!store.clearHandoff(params.project, params.branch, user)) throw new HttpError(404, `no task in progress on ${params.branch}`);
+      return { ok: true };
+    }),
+
+    // ---- Autonomous mode: share now, review afterwards ----
+
+    route("GET", "/api/projects/:key/autonomous", ({ params }) => ({ on: store.isAutonomous(params.key) })),
+
+    route("POST", "/api/projects/:key/autonomous", ({ params, body }) => {
+      const on = obj(body).on;
+      if (typeof on !== "boolean") throw new HttpError(400, "on must be true or false");
+      store.setAutonomous(params.key, on, user);
+      return { on };
+    }),
+
+    route("GET", "/api/review", ({ query }) => ({ items: store.unreviewed(query.get("project") || undefined) })),
+
+    route("POST", "/api/review/keep", ({ body }) => {
+      const ids = strList(obj(body).ids, "ids");
+      if (!ids?.length) throw new HttpError(400, "ids is required");
+      return { kept: store.keep(ids, user) };
+    }),
+
+    route("POST", "/api/entries/:id/undo", ({ params }) => store.undoAuto(params.id, user)),
 
     route("GET", "/api/trust", ({ query }) => ({ items: store.listTrustRules(query.get("project") || undefined) })),
 

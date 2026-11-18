@@ -27,7 +27,7 @@ describe("export / import", () => {
     expect(data.entries).toHaveLength(4);
     const dst = new ContextStore(":memory:");
     const r = importJson(dst, JSON.parse(JSON.stringify(data)), { by: "human:ev" });
-    expect(r).toEqual({ imported: 4, approvedNow: 2, skipped: 0, blocked: [] });
+    expect(r).toEqual({ imported: 4, approvedNow: 2, skipped: 0, blocked: [], handoffs: 0, autonomousInFile: [] });
     expect(dst.visible(P, "cursor").map((e) => e.title).sort()).toEqual(src.visible(P, "cursor").map((e) => e.title).sort());
     const old = data.entries.find((e) => e.title === "Use Postgres")!;
     expect(dst.get(old.id)?.status).toBe("superseded");
@@ -39,7 +39,7 @@ describe("export / import", () => {
     const data = exportJson(src, { project: P });
     const dst = new ContextStore(":memory:");
     importJson(dst, data, { by: "x" });
-    expect(importJson(dst, data, { by: "x" })).toEqual({ imported: 0, approvedNow: 0, skipped: 4, blocked: [] });
+    expect(importJson(dst, data, { by: "x" })).toEqual({ imported: 0, approvedNow: 0, skipped: 4, blocked: [], handoffs: 0, autonomousInFile: [] });
     expect(dst.query({ project: P }).total).toBe(4);
   });
 
@@ -173,5 +173,48 @@ describe("export / import at scale and edge cases", () => {
     out.length = 0;
     expect(runCli(["export", "--format", "md", "--all-projects"], { store: dst, project: P, user: "u", print: (s) => out.push(s) })).toBe(1);
     expect(out.join("\n")).toMatch(/one project at a time/);
+  });
+});
+
+describe("export / import of work in progress", () => {
+  const P2 = "11111111-2222-4333-8444-555555555555";
+  it("exports live handoffs and autonomous mode; import restores the handoff and reports the mode", () => {
+    const src = new ContextStore(":memory:");
+    src.touchProject({ key: P2, name: "app", dir: "c:/app" });
+    src.checkpoint({ project: P2, branch: "main", agent: "claude-code", goal: "Stripe checkout", next: ["tests"] });
+    src.setAutonomous(P2, true, "human");
+    const data = exportJson(src, { project: P2 });
+    expect(data.handoffs?.map((h) => h.goal)).toEqual(["Stripe checkout"]);
+    expect(data.settings).toEqual([{ project: P2, autonomous: true }]);
+
+    const dst = new ContextStore(":memory:");
+    const r = importJson(dst, JSON.parse(JSON.stringify(data)), { by: "human:ev" });
+    expect(r.handoffs).toBe(1);
+    expect(dst.getHandoff(P2, "main")?.next).toEqual(["tests"]);
+    // Turning on autonomous mode removes a review step: an import never does it silently.
+    expect(dst.isAutonomous(P2)).toBe(false);
+    expect(r.autonomousInFile).toEqual([P2]);
+  });
+
+  it("import never replaces a live handoff that already exists", () => {
+    const src = new ContextStore(":memory:");
+    src.checkpoint({ project: P2, branch: "main", agent: "a", goal: "Old from file" });
+    const data = exportJson(src, { project: P2 });
+    const dst = new ContextStore(":memory:");
+    dst.checkpoint({ project: P2, branch: "main", agent: "b", goal: "Current work" });
+    const r = importJson(dst, data, { by: "x" });
+    expect(r.handoffs).toBe(0);
+    expect(dst.getHandoff(P2, "main")?.goal).toBe("Current work");
+  });
+
+  it("an imported handoff with a secret is not imported", () => {
+    const dst = new ContextStore(":memory:");
+    const r = importJson(
+      dst,
+      { format: "baglam/1", entries: [], handoffs: [{ project: P2, branch: "main", agent: "a", goal: "g", notes: ["AKIA", "IOSFODNN7EXAMPLE"].join(""), status: "in_progress", updatedAt: Date.now() }] },
+      { by: "x" },
+    );
+    expect(r.handoffs).toBe(0);
+    expect(dst.getHandoff(P2, "main")).toBeUndefined();
   });
 });

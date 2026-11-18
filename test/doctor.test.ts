@@ -98,4 +98,14 @@ describe("baglam doctor", () => {
     expect(out.join("\n")).toMatch(/✗ Cursor: registered/);
     expect(out.join("\n")).toMatch(/baglam setup/);
   });
+
+  it("doctor flags outdated instructions", async () => {
+    const { host, dbPath, project } = machine();
+    const store = new ContextStore(dbPath);
+    runInit(project, { store, host });
+    store.close();
+    writeFileSync(join(project, "AGENTS.md"), "<!-- baglam:start -->\nold text\n<!-- baglam:end -->\n");
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    expect(checks.find((x) => x.name === "Agent instructions")).toMatchObject({ ok: false, detail: expect.stringMatching(/outdated/), fix: "baglam init" });
+  });
 });

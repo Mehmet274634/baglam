@@ -6,7 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { SCHEMA_VERSION } from "./migrate.js";
 import { normalizeProject } from "./config.js";
 import { isUnsafeProjectDir, resolveDirectory } from "./project.js";
-import { BLOCK_START } from "./instructions.js";
+import { BLOCK_START, instructionBlock } from "./instructions.js";
 import { detectClients } from "./setup.js";
 import type { HostEnv } from "./host.js";
 import type { ServerEntryShape } from "./clients/types.js";
@@ -22,7 +22,7 @@ export interface Check {
 /** Start the entry like the tool would and list its tools. Returns an error message, or null when fine. */
 export type Handshake = (entry: ServerEntryShape) => Promise<string | null>;
 
-const EXPECTED_TOOLS = ["context_brief", "context_get", "context_propose", "context_search"];
+const EXPECTED_TOOLS = ["context_brief", "context_checkpoint", "context_get", "context_handoff", "context_propose", "context_search"];
 const MIN_NODE = [22, 13];
 
 export const defaultHandshake: Handshake = async (entry) => {
@@ -140,11 +140,15 @@ export async function runDoctor(opts: {
         : { name: "This folder", ok: false, detail: ref.warning ?? `${ref.dir} is not initialised`, fix: "baglam init" },
     );
     const agentsMd = join(ref.dir, "AGENTS.md");
-    const hasBlock = existsSync(agentsMd) && readFileSync(agentsMd, "utf8").includes(BLOCK_START);
+    const content = existsSync(agentsMd) ? readFileSync(agentsMd, "utf8").replace(/\r\n/g, "\n") : "";
+    const hasBlock = content.includes(BLOCK_START);
+    const current = content.includes(instructionBlock());
     checks.push(
-      hasBlock
-        ? { name: "Agent instructions", ok: true, detail: "AGENTS.md tells agents to use Bağlam" }
-        : { name: "Agent instructions", ok: false, detail: "agents in this folder are not told to use Bağlam", fix: "baglam init" },
+      !hasBlock
+        ? { name: "Agent instructions", ok: false, detail: "agents in this folder are not told to use Bağlam", fix: "baglam init" }
+        : !current
+          ? { name: "Agent instructions", ok: false, detail: "AGENTS.md has an outdated Bağlam block (agents miss newer features such as handoffs)", fix: "baglam init" }
+          : { name: "Agent instructions", ok: true, detail: "AGENTS.md tells agents to use Bağlam" },
     );
   }
   return checks;

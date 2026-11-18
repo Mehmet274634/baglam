@@ -1,6 +1,8 @@
 # Bağlam
 
-**Shared, human-approved project memory for AI coding agents.**
+**Shared, human-approved project memory for AI coding agents, and seamless handoff between them.**
+
+> Your agent ran out of tokens? The next one picks up where it stopped.
 
 [Türkçe](README.tr.md)
 
@@ -64,8 +66,43 @@ Kinds: `decision`, `convention`, `preference`, `fact`, `warning`.
 | `context_search` | Full-text search over approved records |
 | `context_get` | One record, including what it replaced |
 | `context_propose` | Propose a record; it waits for your review |
+| `context_checkpoint` | Save progress on the current task (goal, done, now, next, files), shared at once |
+| `context_handoff` | Full details of the task in progress, its recent checkpoints and git changes |
 
 Agents pass `project_path` (their workspace folder), so Bağlam always knows the project. If it can't tell, it refuses to write rather than guess.
+
+## Switch agents mid-task
+
+Agents save their progress with `context_checkpoint` after every meaningful step: the goal, what is done, what they are doing now, what comes next and which files matter. When you switch tools (Claude Code ran out, you open Codex), the next agent's brief opens with:
+
+```
+## Continue from here
+Task: Stripe checkout (in progress) · last update 12 min ago by claude-code
+Done: form validation; price calculation
+Now: webhook handler in src/payment/webhook.ts
+Next: 1) verify signature  2) idempotency  3) tests
+Since then (git): 3 files changed, not committed: src/payment/webhook.ts, …
+```
+
+The "Since then (git)" line comes from git, not from the agent, so it is right even when the previous agent stopped without warning. One live task per project and branch; it expires after 7 days. Progress notes are shared at once (no review) and secrets are still blocked.
+
+```bash
+baglam handoff            # the task in progress
+baglam handoff --copy     # copy a resume prompt for any AI tool, even one without Bağlam
+baglam handoff clear      # mark it done
+```
+
+The panel shows the same as a card at the top of the Inbox.
+
+## Autonomous mode (optional)
+
+Don't want to stop for approvals? Per project:
+
+```bash
+baglam auto on
+```
+
+Records from agents set up by `baglam setup` are shared at once and listed for you to review afterwards (`baglam review`, `baglam keep <id>`, `baglam undo <id>`, or the panel). Undoing a replacement brings the old record back. Secrets stay blocked, the proposal limit stays, and anything you rejected before still waits for you. `baglam auto off` returns to review-first.
 
 ## Trust rules (optional)
 

@@ -59,9 +59,11 @@ describe("MCP server", () => {
   const propose = (c: Client, extra: Record<string, unknown> = {}) =>
     c.callTool({ name: "context_propose", arguments: { kind: "fact", title: "t", body: "b", ...extra } });
 
-  it("exposes exactly the four agent tools (no approve/reject)", async () => {
+  it("exposes exactly the agent tools (no approve/reject/undo)", async () => {
     const { tools } = await (await agent("cursor")).listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(["context_brief", "context_get", "context_propose", "context_search"]);
+    expect(tools.map((t) => t.name).sort()).toEqual([
+      "context_brief", "context_checkpoint", "context_get", "context_handoff", "context_propose", "context_search",
+    ]);
     for (const t of tools) expect(Object.keys(t.inputSchema.properties ?? {})).toContain("project_path");
   });
 
@@ -222,5 +224,47 @@ describe("MCP server", () => {
     await propose(c);
     expect(store.pending(ka)).toHaveLength(1);
     expect(store.pending(kb)).toHaveLength(1);
+  });
+
+  it("checkpoint tool saves and brief shows Continue from here", async () => {
+    const c = await agent("claude-code", { agent: "claude-code" });
+    const saved = await c.callTool({ name: "context_checkpoint", arguments: { goal: "Stripe checkout", done: ["form validation"], now: "webhook handler", next: ["verify signature", "tests"], files: ["src/payment/webhook.ts"] } });
+    expect(saved.isError).toBeFalsy();
+    expect(text(saved)).toMatch(/Saved progress/);
+    const other = await agent("codex", { agent: "codex" });
+    const brief = text(await other.callTool({ name: "context_brief", arguments: {} }));
+    expect(brief).toMatch(/## Continue from here/);
+    expect(brief).toContain("Stripe checkout");
+    expect(brief).toContain("verify signature");
+    expect(brief).toContain("claude-code");
+    expect(brief.indexOf("Continue from here")).toBeLessThan(brief.indexOf("When you make or learn"));
+    const detail = text(await other.callTool({ name: "context_handoff", arguments: {} }));
+    expect(detail).toContain("webhook handler");
+  });
+
+  it("checkpoint with a secret is refused", async () => {
+    const c = await agent("claude-code", { agent: "claude-code" });
+    const r = await c.callTool({ name: "context_checkpoint", arguments: { goal: "x", notes: ["AKIA", "IOSFODNN7EXAMPLE"].join("") } });
+    expect(r.isError).toBe(true);
+    expect(store.listHandoffs()).toEqual([]);
+  });
+
+  it("other branch is mentioned, not continued", async () => {
+    store.checkpoint({ project: P, branch: "feature", agent: "codex", goal: "Feature work" });
+    const brief = text(await (await agent("cursor")).callTool({ name: "context_brief", arguments: {} }));
+    expect(brief).not.toMatch(/## Continue from here/);
+    expect(brief).toMatch(/Other branches.*feature.*Feature work/);
+  });
+
+  it("lists the resume prompt", async () => {
+    const { prompts } = await (await agent("cursor")).listPrompts();
+    expect(prompts.map((p) => p.name)).toContain("baglam_resume");
+  });
+
+  it("autonomous project: a verified agent's proposal is shared now", async () => {
+    store.setAutonomous(P, true, "human");
+    const res = await propose(await agent("whatever", { agent: "codex" }), { title: "Use Vite", body: "Bundler is Vite." });
+    expect(text(res)).toContain("shared now (autonomous mode)");
+    expect(store.unreviewed(P)).toHaveLength(1);
   });
 });

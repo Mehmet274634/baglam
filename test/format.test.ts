@@ -59,4 +59,30 @@ describe("formatBrief", () => {
     const out = formatBrief({ project, agent: "a", entries: [entry("fact", "F", 10)], pendingCount: 0, total: 1000, totalCapped: true });
     expect(out).toContain("999+ more record(s) not shown");
   });
+
+  const handoff = (over: Record<string, unknown> = {}) => ({
+    project: "k", branch: "main", dir: "c:/app", taskId: "t1", goal: "Stripe checkout", status: "in_progress" as const,
+    done: ["form"], now: "webhook", next: ["verify", "tests"], files: ["src/a.ts"], blockers: null, notes: null,
+    agent: "claude-code", createdAt: Date.now() - 3_600_000, updatedAt: Date.now() - 600_000, expiresAt: Date.now() + 1e9, ...over,
+  });
+
+  it("done task shows 24 h then disappears", () => {
+    const fresh = formatBrief({ project, agent: "a", entries: [], pendingCount: 0, handoff: { live: handoff({ status: "done" }), git: null, otherBranches: [] } });
+    expect(fresh).toMatch(/Last task.*finished/);
+    expect(fresh).not.toMatch(/Continue from here/);
+    const old = formatBrief({ project, agent: "a", entries: [], pendingCount: 0, handoff: { live: handoff({ status: "done", updatedAt: Date.now() - 25 * 3_600_000 }), git: null, otherBranches: [] } });
+    expect(old).not.toMatch(/Last task/);
+  });
+
+  it("brief stays within budget with a huge handoff and shows git changes", () => {
+    const big = handoff({ done: Array.from({ length: 30 }, (_, i) => "d".repeat(290) + i), next: Array.from({ length: 20 }, () => "n".repeat(290)), notes: "x".repeat(2000) });
+    const entries = Array.from({ length: 50 }, (_, i) => entry("fact", `Fact ${i}`));
+    const git = { branch: "main", ahead: null, behind: null, changed: ["src/a.ts", "src/b.ts"], changedCount: 2, commitsSince: [] };
+    const out = formatBrief({ project, agent: "cursor", entries, pendingCount: 0, handoff: { live: big, git, otherBranches: [] } });
+    expect(Math.ceil(out.length / 4)).toBeLessThanOrEqual(2000);
+    expect(out).toMatch(/Continue from here/);
+    expect(out).toContain("Since then (git): 2 files changed");
+    expect(out).toContain("Fact 0"); // durable records still get most of the budget
+    expect(out).toMatch(/more record\(s\) not shown/);
+  });
 });
