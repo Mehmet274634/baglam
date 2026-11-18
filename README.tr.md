@@ -1,6 +1,8 @@
 # Bağlam
 
-**Yapay zekâ kodlama ajanları için ortak, insan onaylı proje hafızası.**
+**Yapay zekâ kodlama ajanları için ortak, insan onaylı proje hafızası ve ajanlar arası kesintisiz devir.**
+
+> Ajanının tokenı mı bitti? Sıradaki, kaldığı yerden devam etsin.
 
 [English](README.md)
 
@@ -64,8 +66,43 @@ Türler: `decision` (karar), `convention` (kural), `preference` (tercih), `fact`
 | `context_search` | Onaylı kayıtlarda tam metin arama |
 | `context_get` | Tek bir kayıt; neyin yerine geçtiği dahil |
 | `context_propose` | Kayıt önerir; senin onayını bekler |
+| `context_checkpoint` | Görevdeki ilerlemeyi kaydeder (hedef, bitenler, şu an, sıradaki, dosyalar); hemen paylaşılır |
+| `context_handoff` | Devam eden görevin tüm ayrıntıları, son kayıtları ve git değişiklikleri |
 
 Ajanlar `project_path` (çalıştıkları klasör) gönderir, böylece Bağlam projeyi her zaman bilir. Emin olamazsa tahmin etmek yerine yazmayı reddeder.
+
+## Görevin ortasında ajan değiştirmek
+
+Ajanlar her anlamlı adımdan sonra `context_checkpoint` ile ilerlemelerini kaydeder: hedef, bitenler, şu an yapılan, sıradaki adımlar ve önemli dosyalar. Araç değiştirdiğinde (Claude Code'un tokenı bitti, Codex'i açtın) yeni ajanın özeti şöyle başlar:
+
+```
+## Continue from here
+Task: Stripe checkout (in progress) · last update 12 min ago by claude-code
+Done: form validation; price calculation
+Now: webhook handler in src/payment/webhook.ts
+Next: 1) verify signature  2) idempotency  3) tests
+Since then (git): 3 files changed, not committed: src/payment/webhook.ts, …
+```
+
+"Since then (git)" satırı ajandan değil git'ten gelir; önceki ajan habersiz kapansa bile doğrudur. Her proje ve dal için tek bir canlı görev tutulur, 7 gün sonra kendiliğinden silinir. İlerleme notları onaysız paylaşılır, gizli bilgi yine engellenir.
+
+```bash
+baglam handoff            # devam eden görev
+baglam handoff --copy     # Bağlam'a bağlı olmayan bir araç için devam metnini kopyala
+baglam handoff clear      # bitti olarak işaretle
+```
+
+Panel aynı bilgiyi Gelen kutusunun en üstünde bir kart olarak gösterir.
+
+## Otonom mod (isteğe bağlı)
+
+Onay için durmak istemiyor musun? Proje bazında:
+
+```bash
+baglam auto on
+```
+
+`baglam setup` ile kurulmuş ajanların kayıtları hemen paylaşılır, sen de sonradan gözden geçirirsin (`baglam review`, `baglam keep <id>`, `baglam undo <id>` ya da panel). Bir kaydın yerine geçeni geri alırsan eski kayıt geri gelir. Gizli bilgi yine engellenir, öneri sınırı geçerlidir, daha önce reddettiğin şeyler yine sana gelir. `baglam auto off` önce-onay düzenine döner.
 
 ## Güven kuralları (isteğe bağlı)
 

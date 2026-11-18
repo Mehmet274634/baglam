@@ -2,6 +2,20 @@
 
 All notable changes to Bağlam. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.0-rc.2] - 2026-11-18
+
+### Added
+- **Handoff between agents.** `context_checkpoint` saves the task in progress (goal, done, now, next, files, blockers, notes) per project and branch; `context_brief` opens with "Continue from here", including the files git shows changed since, so a task survives an agent stopping abruptly. `context_handoff` gives the details; prompt `baglam_resume`.
+- `baglam handoff` (`--history`, `--copy` for a resume prompt usable in any AI tool, `clear`).
+- **Autonomous mode** per project: `baglam auto on|off|status`; records from set-up agents are shared at once and reviewed afterwards with `baglam review`, `keep` and `undo` (undoing a replacement restores the original).
+- Panel: "Continue from here" cards, "Shared automatically" review list, autonomous switch, task line and badge on Projects.
+- Export/import include tasks in progress; an import never turns autonomous mode on by itself.
+- `baglam doctor` reports outdated agent instructions and servers missing the new tools.
+
+### Changed
+- Agent instructions written by `baglam init` teach checkpointing; re-run `baglam init` after upgrading.
+- Schema v6 (automatic backup and upgrade).
+
 ## [1.0.0-rc.1] - 2026-11-17
 
 First release candidate.

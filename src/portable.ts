@@ -2,6 +2,7 @@ import type { ContextStore, Entry, EventType, Kind } from "./store.js";
 import { KINDS } from "./store.js";
 import { scanEntryFields, type SecretFinding } from "./guards.js";
 import { day } from "./format.js";
+import type { Handoff } from "./handoff.js";
 
 export const EXPORT_FORMAT = "baglam/1";
 
@@ -36,6 +37,10 @@ export interface BaglamExport {
   projects: { key: string; name: string }[];
   entries: Entry[];
   events: ExportedEvent[];
+  /** Live tasks in progress (optional section). */
+  handoffs?: Handoff[];
+  /** Per-project settings (optional section). */
+  settings?: { project: string; autonomous: boolean }[];
 }
 
 /** Every record (all statuses) and its history, for one project or all of them. */
@@ -47,7 +52,10 @@ export function exportJson(store: ContextStore, opts: { project?: string } = {})
   const entries = projects.flatMap((p) => allOf(store, { project: p.key }));
   entries.sort((a, b) => a.createdAt - b.createdAt);
   const events = store.eventsOf(entries.map((e) => e.id)).map(({ project: _p, ...ev }) => ev);
-  return { format: EXPORT_FORMAT, exportedAt: new Date().toISOString(), projects, entries, events };
+  const keys = projects.map((p) => p.key);
+  const handoffs = store.listHandoffs().filter((h) => keys.includes(h.project));
+  const settings = keys.filter((k) => store.isAutonomous(k)).map((project) => ({ project, autonomous: true }));
+  return { format: EXPORT_FORMAT, exportedAt: new Date().toISOString(), projects, entries, events, handoffs, settings };
 }
 
 const KIND_ORDER: Kind[] = ["warning", "decision", "convention", "preference", "fact"];
@@ -91,6 +99,10 @@ export interface ImportResult {
   imported: number;
   /** Imported records that arrived approved, so agents can see them right away. */
   approvedNow: number;
+  /** Tasks in progress restored (never replacing a live one). */
+  handoffs: number;
+  /** Projects that had autonomous mode on in the file; an import never turns it on by itself. */
+  autonomousInFile: string[];
   skipped: number;
   blocked: { id: string; findings: SecretFinding[] }[];
 }
@@ -127,7 +139,7 @@ export function importJson(
     throw new Error(`not a Bağlam export (expected "format": "${EXPORT_FORMAT}")`);
   }
   const events = Array.isArray(data.events) ? data.events.filter(isObj) : [];
-  const result: ImportResult = { imported: 0, approvedNow: 0, skipped: 0, blocked: [] };
+  const result: ImportResult = { imported: 0, approvedNow: 0, skipped: 0, blocked: [], handoffs: 0, autonomousInFile: [] };
   if (Array.isArray(data.projects)) {
     for (const p of data.projects.filter(isObj)) {
       if (typeof p.key === "string" && typeof p.name === "string") store.ensureProject(p.key, p.name);
@@ -157,6 +169,37 @@ export function importJson(
       } else result.skipped++;
     } catch {
       result.skipped++;
+    }
+  }
+  for (const raw of Array.isArray(data.handoffs) ? data.handoffs.filter(isObj) : []) {
+    if (typeof raw.project !== "string" || typeof raw.branch !== "string" || typeof raw.goal !== "string") continue;
+    if (store.getHandoff(raw.project, raw.branch)) continue; // never replace work in progress here
+    const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined);
+    const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+    try {
+      store.checkpoint({
+        project: raw.project,
+        branch: raw.branch,
+        dir: str(raw.dir),
+        agent: str(raw.agent) ?? opts.by,
+        goal: raw.goal,
+        status: raw.status === "blocked" || raw.status === "done" ? raw.status : "in_progress",
+        done: strs(raw.done),
+        now: str(raw.now),
+        next: strs(raw.next),
+        files: strs(raw.files),
+        blockers: str(raw.blockers),
+        notes: str(raw.notes),
+        newTask: true,
+      });
+      result.handoffs++;
+    } catch {
+      /* secrets or invalid fields: not imported */
+    }
+  }
+  if (Array.isArray(data.settings)) {
+    for (const s of data.settings.filter(isObj)) {
+      if (typeof s.project === "string" && s.autonomous === true) result.autonomousInFile.push(s.project);
     }
   }
   return result;

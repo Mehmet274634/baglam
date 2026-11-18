@@ -85,3 +85,46 @@ describe("speed with 10,000 records", () => {
     expect(median(() => store.listProjects(), 5)).toBeLessThan(BUDGET_MS * 4);
   });
 });
+
+describe("speed with work in progress", () => {
+  it(`brief with a live handoff stays under ${BUDGET_MS} ms; git snapshot under ${BUDGET_MS * 3} ms`, async () => {
+    const { execFileSync, spawnSync } = await import("node:child_process");
+    const { writeFileSync, mkdirSync } = await import("node:fs");
+    const { gitSnapshot } = await import("../src/git.js");
+    const store = new ContextStore(join(mkdtempSync(join(tmpdir(), "baglam-perf-h-")), "p.db"));
+    for (let i = 0; i < 2000; i++) store.addApproved({ project: P, kind: KINDS[i % 5], title: `rule ${i}`, body: `body ${i}` }, "h");
+    const h = store.checkpoint({
+      project: P, branch: "main", agent: "claude-code", goal: "Checkout", done: Array.from({ length: 30 }, (_, i) => `step ${i}`),
+      next: Array.from({ length: 20 }, (_, i) => `next ${i}`), files: Array.from({ length: 50 }, (_, i) => `src/f${i}.ts`),
+    });
+    const briefMs = median(() =>
+      formatBrief({
+        project: { key: P, name: "app", dir: "c:/app", initialized: true, anchor: "marker" },
+        agent: "codex",
+        entries: store.visible(P, "codex", { limit: 150, byPriority: true }),
+        total: store.countVisible(P, "codex", 1000),
+        pendingCount: 0,
+        handoff: { live: h, git: null, otherBranches: [] },
+      }),
+    );
+    expect(briefMs).toBeLessThan(BUDGET_MS);
+
+    if (spawnSync("git", ["--version"]).status !== 0) return;
+    const repo = mkdtempSync(join(tmpdir(), "baglam-perf-git-"));
+    const git = (...a: string[]) => execFileSync("git", ["-c", "user.email=t@e.com", "-c", "user.name=T", "-c", "commit.gpgsign=false", ...a], { cwd: repo, stdio: "ignore" });
+    git("init", "-q", "-b", "main");
+    mkdirSync(join(repo, "src"));
+    for (let i = 0; i < 300; i++) writeFileSync(join(repo, "src", `f${i}.ts`), `export const v = ${i};`);
+    git("add", ".");
+    git("commit", "-q", "-m", "init");
+    for (let i = 0; i < 5; i++) writeFileSync(join(repo, "src", `f${i}.ts`), "changed");
+    const times: number[] = [];
+    for (let i = 0; i < 7; i++) {
+      const t = performance.now();
+      await gitSnapshot(repo, Date.now() - 60_000);
+      times.push(performance.now() - t);
+    }
+    times.sort((x, y) => x - y);
+    expect(times[3]).toBeLessThan(BUDGET_MS * 3);
+  }, 120_000);
+});

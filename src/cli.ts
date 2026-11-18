@@ -300,6 +300,10 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
         }
         const r = importJson(ctx.store, data, { force: o.force, by: user, source: basename(args[0]) });
         print(`Imported ${r.imported} record(s); ${r.skipped} skipped (already present or unreadable).`);
+        if (r.handoffs) print(`Restored ${r.handoffs} task(s) in progress.`);
+        if (r.autonomousInFile.length) {
+          print("Autonomous mode was on for some projects in the file; it stays off here. Turn it on with: baglam auto on");
+        }
         if (r.approvedNow) {
           print(`${r.approvedNow} of them ${r.approvedNow === 1 ? "is" : "are"} approved and visible to agents now (as in the file). Review them with baglam list.`);
         }
