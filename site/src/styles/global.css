@@ -19,7 +19,7 @@ body {
   font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 img,
@@ -212,7 +212,9 @@ p code {
   color: var(--light-text);
   --text: var(--light-text);
   --muted: var(--light-muted);
-  --faint: #8a9099;
+  --faint: #656b75;
+  --accent: #5b52f0;
+  --accent-hover: #4a41e0;
   --border: var(--light-border);
   --border-strong: #d3d6dd;
   --raised: var(--light-surface);
@@ -343,6 +345,7 @@ p code {
   background: rgb(15 16 17 / 88%);
   box-shadow: var(--highlight), 0 40px 120px -40px rgb(0 0 0 / 80%), 0 0 0 1px rgb(0 0 0 / 40%);
   overflow: hidden;
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   text-align: left;
 }

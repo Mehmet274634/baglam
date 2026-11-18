@@ -14,6 +14,7 @@
   --primary-bg: #f7f8f8;
   --primary-text: #08090a;
   --danger: #ff7a6e;
+  --danger-text: #08090a;
   --danger-soft: rgb(255 122 110 / 12%);
   --ok: #4cc58a;
   --warn-bg: rgb(240 180 76 / 12%);
@@ -47,6 +48,7 @@
     --primary-bg: #0b0c0e;
     --primary-text: #ffffff;
     --danger: #c2362b;
+    --danger-text: #ffffff;
     --danger-soft: #fdecea;
     --ok: #1f8a4c;
     --warn-bg: #fff6e0;
@@ -167,8 +169,8 @@ nav a.active {
   color: var(--text);
 }
 nav a:focus-visible {
-  outline: none;
-  box-shadow: var(--ring);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .count {
   margin-left: auto;
@@ -408,7 +410,7 @@ textarea:focus-visible {
 .btn-danger {
   background: var(--danger);
   border-color: var(--danger);
-  color: #fff;
+  color: var(--danger-text);
 }
 .btn-danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--danger) 88%, black);
@@ -434,7 +436,7 @@ textarea {
   font: inherit;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 9px;
   padding: 0.42rem 0.6rem;
   min-width: 0;
@@ -745,7 +747,7 @@ textarea {
 }
 .toast-error {
   background: var(--danger);
-  color: #fff;
+  color: var(--danger-text);
 }
 @keyframes rise {
   from {

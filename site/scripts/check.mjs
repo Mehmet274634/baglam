@@ -46,8 +46,8 @@ for (const f of html) {
 }
 
 // Same keys in both languages.
-const { en } = await import(pathToFileURL(join(root, "src", "i18n", "en.ts")).href).catch(() => ({}));
-if (en) {
+const { en } = await import(pathToFileURL(join(root, "src", "i18n", "en.ts")).href);
+{
   const { tr } = await import(pathToFileURL(join(root, "src", "i18n", "tr.ts")).href);
   const shape = (o, p = "") =>
     Array.isArray(o) ? [`${p}[${o.length}]`, ...o.flatMap((x, i) => shape(x, `${p}[${i}]`))] : o && typeof o === "object" ? Object.keys(o).sort().flatMap((k) => [`${p}.${k}`, ...shape(o[k], `${p}.${k}`)]) : [];

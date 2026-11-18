@@ -20,7 +20,7 @@ const pillarArt = ["local", "shield", "approve"] as const;
       {p.pillars.map((x, i) => (
         <article class="card reveal">
           <div class="art"><Art name={pillarArt[i]} /></div>
-          <h3 class="h3">{x.t}</h3>
+          <h2 class="h3">{x.t}</h2>
           <p>{x.d}</p>
         </article>
       ))}

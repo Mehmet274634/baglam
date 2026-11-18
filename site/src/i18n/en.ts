@@ -5,7 +5,7 @@ export const en = {
     tagline: "Shared memory and seamless handoff for AI coding agents",
   },
   nav: {
-    product: "Product",
+    product: "Main",
     how: "How it works",
     handoff: "Handoff",
     auto: "Automatic saving",
@@ -77,7 +77,7 @@ export const en = {
     cards: [
       { t: "One shared memory", d: "Decisions, conventions, preferences and pitfalls live in one place every connected agent reads." },
       { t: "Seamless handoff", d: "The task in progress, what's done, what's next and which files changed, ready for the next agent." },
-      { t: "Saves even when agents forget", d: "Tool hooks record your request, every edited file and the last reply. No cooperation needed." },
+      { t: "Saves even when agents forget", d: "Tool hooks record your request, every edited file and, where the tool provides it, the last reply. No cooperation needed." },
       { t: "You approve what spreads", d: "Agents propose. Nothing reaches other agents until you say yes, unless you choose autonomous mode." },
       { t: "Secrets never get in", d: "API keys, tokens, private keys and passwords are blocked before they are stored." },
       { t: "Stays on your computer", d: "One local database. No account, no cloud, no telemetry." },
@@ -147,7 +147,7 @@ export const en = {
       { t: "Your request", d: "The user's latest request, saved by the tool's hooks, so “keep going” is enough." },
     ],
     flowTitle: "A real handoff",
-    flowDim: "Recorded with Claude Code and Codex.",
+    flowDim: "A real run with Claude Code and Codex.",
     flow: [
       { who: "You → Claude Code", text: "Add three features: due dates, search, JSON export. Do only the first." },
       { who: "Claude Code", text: "Checkpoints: due dates done; next: search, JSON export." },
@@ -156,7 +156,7 @@ export const en = {
     ],
     branchTitle: "One task per branch",
     branchText:
-      "Handoffs are kept per project and branch, so work on feature/payments never mixes with main. A task expires after 7 days; history keeps the last 50 checkpoints.",
+      "Handoffs are kept per project and branch, so work on feature/payments never mixes with main. A task expires after 7 days without a checkpoint; history keeps the last 50 checkpoints.",
     copyTitle: "Even for tools without Bağlam",
     copyText: "baglam handoff --copy puts a ready resume prompt on your clipboard. Paste it into any AI chat.",
     remindTitle: "Gentle reminders",
@@ -175,7 +175,7 @@ export const en = {
     saved: [
       { t: "Your request", d: "When you send it. It starts a task, or joins the one in progress, so the next agent continues instead of starting over." },
       { t: "Every edited file", d: "Each file the agent writes with its editing tools is added to the task's file list." },
-      { t: "The last reply", d: "When the agent's turn ends, its reply becomes “where it stands”, unless the agent checkpointed itself." },
+      { t: "The last reply", d: "When the agent's turn ends, its reply becomes “where it stands”, unless the agent checkpointed itself. Antigravity does not provide it." },
     ],
     rulesTitle: "Built not to get in the way",
     rules: [
@@ -208,7 +208,7 @@ export const en = {
     lead: "No account, no cloud, no telemetry. Bağlam is a local program that stores everything in one SQLite file in your home folder.",
     pillars: [
       { t: "Local-first", d: "One database at ~/.baglam/baglam.db. Back it up, move it or delete it like any file." },
-      { t: "Secrets blocked", d: "API keys, tokens, private keys, passwords in URLs and high-entropy strings are refused before storage, in proposals, checkpoints and automatic saves." },
+      { t: "Secrets blocked", d: "API keys, tokens, private keys, passwords in URLs and high-entropy strings are refused in proposals and checkpoints, and replaced with “hidden” in automatic saves." },
       { t: "Human approval", d: "Nothing an agent writes reaches other agents until you approve it. Trust rules and autonomous mode are opt-in." },
     ],
     panelTitle: "A panel only you can open",
@@ -220,10 +220,10 @@ export const en = {
     ],
     trustTitle: "Careful with your files",
     trust: [
-      { t: "Backups first", d: "setup and init keep the first backup of every file they change next to it." },
-      { t: "Undo everything", d: "baglam setup --undo and baglam init --undo remove exactly what Bağlam added." },
+      { t: "Backups first", d: "setup keeps a first backup of each tool config file it edits; init only adds a fenced block of instructions." },
+      { t: "Undo everything", d: "baglam setup --undo and baglam init --undo remove Bağlam's entries and instructions. Your project id and database stay until you delete them." },
       { t: "Never in the wrong place", d: "Home, system and other unsafe folders are never used as projects." },
-      { t: "Read-only git", d: "Git is only read, with optional locks and repository hooks disabled." },
+      { t: "Read-only git", d: "Git is only read, without optional locks and with fsmonitor disabled, so it never races your own commits." },
     ],
   },
 
@@ -233,7 +233,7 @@ export const en = {
     eyebrow: "Tools",
     h1: "Works with the tools",
     h1dim: "you already use.",
-    lead: "One command connects every AI tool installed on your computer. Each gets Bağlam's MCP server and its automatic-saving hooks.",
+    lead: "One command connects every AI tool installed on your computer. Each of the six tools below gets Bağlam's MCP server and its automatic-saving hooks.",
     list: [
       { t: "Claude Code", d: "Registered through Claude Code's own CLI. Hooks in ~/.claude/settings.json: your request, file edits, the last reply." },
       { t: "Codex CLI", d: "A fenced block in ~/.codex/config.toml. Hooks in ~/.codex/hooks.json; trust them once with /hooks." },
@@ -259,7 +259,7 @@ export const en = {
     steps: [
       { t: "Install Bağlam", d: "A global command-line tool.", c: "npm i -g baglam" },
       { t: "Connect your AI tools", d: "Finds Claude Code, Codex, Cursor, Antigravity, Gemini CLI and VS Code, and connects each. Restart the tools afterwards.", c: "baglam setup" },
-      { t: "Prepare a project", d: "Run inside your project folder. A git repository makes handoffs even better.", c: "cd my-project\nbaglam init" },
+      { t: "Prepare a project", d: "Run inside your project folder. A git repository makes handoffs even better.", c: "baglam init" },
       { t: "Check everything", d: "Every line should be green. Each problem comes with its fix.", c: "baglam doctor" },
       { t: "Open the panel", d: "Review proposals, browse records, see tasks in progress.", c: "baglam ui" },
     ],
@@ -325,11 +325,11 @@ export const en = {
       { q: "Does my code or data go to a server?", a: "No. Bağlam stores everything in one database on your computer and sends nothing anywhere. Your AI tools still talk to their own providers as usual." },
       { q: "Do I have to approve everything?", a: "By default, yes: agents propose and you approve, in the panel or the terminal. Progress notes for handoff are shared at once. If you'd rather not stop, turn on autonomous mode for a project and review afterwards." },
       { q: "What happens when an agent stops mid-task?", a: "Its last checkpoint, plus what the tool's hooks saved and what git shows changed, is waiting. Open any connected tool in the same folder and say “keep going”." },
-      { q: "What if the agent never saves its progress?", a: "Automatic saving covers it: hooks in each tool record your request, every edited file and the last reply on their own." },
+      { q: "What if the agent never saves its progress?", a: "Automatic saving covers it: hooks in each tool record your request and every edited file on their own, and the last reply wherever the tool provides it (all but Antigravity)." },
       { q: "Can a secret end up in the memory?", a: "Bağlam blocks API keys, tokens, private keys, passwords in URLs and high-entropy strings everywhere it stores text. In automatic saves they are replaced with “hidden”." },
       { q: "Does it slow my tools down?", a: "No. The brief is built in milliseconds, and an automatic-saving hook takes about a tenth of a second and never waits on the network." },
       { q: "Does it need git?", a: "No, but git makes handoffs better: Bağlam then shows the next agent which files changed after the last checkpoint." },
-      { q: "How do I remove it?", a: "baglam setup --undo removes it from every tool, baglam init --undo removes the instructions from a project. Your first backups stay next to each changed file." },
+      { q: "How do I remove it?", a: "baglam setup --undo removes it from every tool, baglam init --undo removes the instructions from a project. The first backup of each tool config file stays next to it." },
       { q: "What does it cost?", a: "Nothing. Bağlam is open source under the MIT licence. Team features are planned for later." },
       { q: "Why the name?", a: "Bağlam is Turkish for “context”: the one thing every AI agent needs and none of them keeps." },
     ],

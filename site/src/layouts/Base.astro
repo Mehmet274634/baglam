@@ -35,7 +35,6 @@ const other: Lang = lang === "en" ? "tr" : "en";
     <link rel="alternate" hreflang={other} href={href(other, page)} />
     <link rel="alternate" hreflang="x-default" href={href("en", page)} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <script is:inline>document.documentElement.classList.remove("no-js");</script>
   </head>
   <body>
     <a class="skip" href="#main">{d.nav.skip}</a>
@@ -46,6 +45,7 @@ const other: Lang = lang === "en" ? "tr" : "en";
     <Footer lang={lang} page={page} />
     <script>
       // Fade sections in as they scroll into view (CSS keeps them visible without JS or with reduced motion).
+      if ("IntersectionObserver" in window) document.documentElement.classList.remove("no-js");
       const io = new IntersectionObserver(
         (entries) => {
           for (const e of entries) {
@@ -71,10 +71,11 @@ const other: Lang = lang === "en" ? "tr" : "en";
       // Copy buttons.
       document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((btn) => {
         btn.hidden = false;
+        btn.setAttribute("aria-live", "polite");
+        const label = btn.textContent;
         btn.addEventListener("click", async () => {
           try {
             await navigator.clipboard.writeText(btn.dataset.copy ?? "");
-            const label = btn.textContent;
             btn.textContent = btn.dataset.done ?? "✓";
             setTimeout(() => (btn.textContent = label), 1600);
           } catch {
