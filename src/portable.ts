@@ -113,7 +113,7 @@ function toEntry(raw: unknown): Entry | null {
     audience: audience.length ? audience : ["*"], status: status as Entry["status"], sourceAgent, createdAt,
     decidedAt: n("decidedAt"), decidedBy: s("decidedBy"), decisionNote: s("decisionNote"), expiresAt: n("expiresAt"),
     supersedes: s("supersedes"), supersededBy: s("supersededBy"), editedAt: n("editedAt"),
-    autoApproved: raw.autoApproved === true, similarTo: list("similarTo"),
+    autoApproved: raw.autoApproved === true, similarTo: list("similarTo"), reviewState: null,
   };
 }
 

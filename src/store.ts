@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { basename, dirname } from "node:path";
 import { migrate } from "./migrate.js";
+import { HandoffRepo, type CheckpointInput, type Handoff } from "./handoff.js";
 
 export const KINDS = ["decision", "convention", "preference", "fact", "warning"] as const;
 export type Kind = (typeof KINDS)[number];
@@ -33,6 +34,8 @@ export interface Entry {
   autoApproved: boolean;
   /** Ids of records that looked like this one when it was proposed. */
   similarTo: string[];
+  /** Autonomous mode: shared before the owner looked at it ("unreviewed"), then "kept". */
+  reviewState: "unreviewed" | "kept" | null;
 }
 
 export interface NewEntry {
@@ -158,6 +161,7 @@ function toEntry(r: Row): Entry {
     editedAt: r.edited_at == null ? null : Number(r.edited_at),
     autoApproved: Number(r.auto_approved ?? 0) === 1,
     similarTo: JSON.parse((r.similar_to as string | undefined) ?? "[]"),
+    reviewState: ((r.review_state as string | null | undefined) ?? null) as Entry["reviewState"],
   };
 }
 
@@ -200,6 +204,7 @@ export class ContextStore {
     // WAL + synchronous=NORMAL: never corrupts; at worst the last commit is lost on power failure.
     this.db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
     migrate(this.db, path);
+    this.handoffs = new HandoffRepo(this.db, this.clock, (fn) => this.transaction(fn));
   }
 
   close(): void {
@@ -222,10 +227,10 @@ export class ContextStore {
     return r ? toEntry(r) : undefined;
   }
 
-  approve(id: string, by: string, note?: string, opts: { auto?: boolean } = {}): Entry {
+  approve(id: string, by: string, note?: string, opts: { auto?: boolean; review?: boolean } = {}): Entry {
     const e = this.mustBePending(id);
     const now = this.clock();
-    this.transaction(() => this.approveRow(e, by, note, opts.auto ?? false, now));
+    this.transaction(() => this.approveRow(e, by, note, opts.auto ?? false, now, opts.review ?? false));
     return this.get(id)!;
   }
 
@@ -247,12 +252,12 @@ export class ContextStore {
   }
 
   /** Inside a transaction. The status guard in the UPDATE makes a concurrent decision lose cleanly. */
-  private approveRow(e: Entry, by: string, note: string | undefined, auto: boolean, now: number): void {
+  private approveRow(e: Entry, by: string, note: string | undefined, auto: boolean, now: number, review = false): void {
     const res = this.db
       .prepare(
-        "UPDATE entries SET status='approved', decided_at=?, decided_by=?, decision_note=?, auto_approved=? WHERE id=? AND status='proposed'",
+        "UPDATE entries SET status='approved', decided_at=?, decided_by=?, decision_note=?, auto_approved=?, review_state=? WHERE id=? AND status='proposed'",
       )
-      .run(now, by, note ?? null, auto ? 1 : 0, e.id);
+      .run(now, by, note ?? null, auto ? 1 : 0, review ? "unreviewed" : null, e.id);
     if (!Number(res.changes)) this.notPending(e.id);
     this.event(e.id, e.project, "approved", by, note ?? null);
     if (e.supersedes) {
@@ -455,6 +460,8 @@ export class ContextStore {
     this.transaction(() => {
       moved = Number(this.db.prepare("UPDATE entries SET project = ? WHERE project = ?").run(to, from).changes);
       this.db.prepare("UPDATE events SET project = ? WHERE project = ?").run(to, from);
+      this.handoffs.rekey(from, to);
+      this.db.prepare("UPDATE OR REPLACE project_settings SET project = ? WHERE project = ?").run(to, from);
     });
     return moved;
   }
@@ -687,6 +694,117 @@ export class ContextStore {
       text,
       opts,
     );
+  }
+
+  /** Look-alikes among records the owner rejected (autonomous mode never re-shares those). */
+  findRejectedSimilar(
+    project: string,
+    text: { title: string; body: string },
+    opts: { kind?: Kind; excludeId?: string; limit?: number } = {},
+  ): Entry[] {
+    return this.similarAmong("e.status = 'rejected'", project, text, opts);
+  }
+
+  // ---- Handoffs (work in progress) ----
+
+  private readonly handoffs: HandoffRepo;
+
+  checkpoint(i: CheckpointInput): Handoff {
+    return this.handoffs.checkpoint(i);
+  }
+
+  getHandoff(project: string, branch: string): Handoff | undefined {
+    return this.handoffs.get(project, branch);
+  }
+
+  listHandoffs(project?: string): Handoff[] {
+    return this.handoffs.list(project);
+  }
+
+  handoffHistory(project: string, branch: string, limit = 20): (Handoff & { replaced: boolean })[] {
+    return this.handoffs.history(project, branch, limit);
+  }
+
+  clearHandoff(project: string, branch: string, by: string): boolean {
+    return this.handoffs.clear(project, branch, by);
+  }
+
+  // ---- Autonomous mode ----
+
+  setAutonomous(project: string, on: boolean, by: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO project_settings (project, autonomous, changed_at, changed_by) VALUES (?, ?, ?, ?)
+         ON CONFLICT(project) DO UPDATE SET autonomous = excluded.autonomous, changed_at = excluded.changed_at, changed_by = excluded.changed_by`,
+      )
+      .run(project, on ? 1 : 0, this.clock(), by);
+  }
+
+  isAutonomous(project: string): boolean {
+    const r = this.db.prepare("SELECT autonomous FROM project_settings WHERE project = ?").get(project) as Row | undefined;
+    return Number(r?.autonomous ?? 0) === 1;
+  }
+
+  /** Records autonomous mode shared before the owner looked at them, newest first. */
+  unreviewed(project?: string): Entry[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM entries WHERE review_state = 'unreviewed' AND status = 'approved'
+         AND (:p IS NULL OR project = :p) ORDER BY decided_at DESC, rowid DESC`,
+      )
+      .all({ p: project ?? null }) as Row[];
+    return rows.map(toEntry);
+  }
+
+  /** The owner looked at these auto-shared records and keeps them. */
+  keep(ids: string[], by: string): number {
+    let n = 0;
+    this.transaction(() => {
+      for (const id of ids) {
+        const res = this.db.prepare("UPDATE entries SET review_state = 'kept' WHERE id = ? AND review_state = 'unreviewed'").run(id);
+        if (Number(res.changes)) {
+          n++;
+          this.event(id, this.get(id)!.project, "approved", by, "kept after automatic sharing");
+        }
+      }
+    });
+    return n;
+  }
+
+  /**
+   * Undo a record autonomous mode shared. It becomes rejected (so it is not auto-shared again);
+   * a record it replaced comes back only if nothing changed it since.
+   */
+  undoAuto(id: string, by: string): { undone: Entry; restored?: Entry; note?: string } {
+    const e = this.get(id);
+    if (!e) throw new Error(`unknown entry ${id}`);
+    if (!e.autoApproved || !e.reviewState) throw new Error(`entry ${id} was not shared automatically; retire it instead`);
+    if (e.status === "superseded" && e.supersededBy) throw new Error(`entry ${id} was already replaced; undo ${e.supersededBy} first`);
+    if (e.status !== "approved") throw new Error(`entry ${id} is not active (status: ${e.status})`);
+    const note = "undone after automatic sharing";
+    let restored: Entry | undefined;
+    let message: string | undefined;
+    this.transaction(() => {
+      const res = this.db
+        .prepare(
+          "UPDATE entries SET status = 'rejected', decided_at = ?, decided_by = ?, decision_note = ?, review_state = NULL WHERE id = ? AND status = 'approved'",
+        )
+        .run(this.clock(), by, note, id);
+      if (!Number(res.changes)) this.notPending(id);
+      this.event(id, e.project, "rejected", by, note);
+      if (e.supersedes) {
+        const back = this.db
+          .prepare("UPDATE entries SET status = 'approved', superseded_by = NULL WHERE id = ? AND status = 'superseded' AND superseded_by = ?")
+          .run(e.supersedes, id);
+        if (Number(back.changes)) {
+          this.event(e.supersedes, e.project, "restored", by, `undo of ${id}`);
+        } else {
+          message = `${e.supersedes} was not restored because it changed since it was replaced`;
+        }
+      }
+    });
+    if (e.supersedes && !message) restored = this.get(e.supersedes);
+    return { undone: this.get(id)!, ...(restored ? { restored } : {}), ...(message ? { note: message } : {}) };
   }
 
   /** Like findSimilar, but among records the owner already rejected or replaced. */

@@ -72,6 +72,40 @@ ALTER TABLE entries ADD COLUMN edited_at INTEGER;
 ALTER TABLE entries ADD COLUMN auto_approved INTEGER NOT NULL DEFAULT 0;
 `;
 
+const V6_SCHEMA = `
+CREATE TABLE handoffs (
+  project    TEXT NOT NULL,
+  branch     TEXT NOT NULL,
+  dir        TEXT,
+  task_id    TEXT NOT NULL,
+  data       TEXT NOT NULL,
+  agent      TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  PRIMARY KEY (project, branch)
+);
+CREATE TABLE handoff_history (
+  seq      INTEGER PRIMARY KEY AUTOINCREMENT,
+  project  TEXT NOT NULL,
+  branch   TEXT NOT NULL,
+  dir      TEXT,
+  task_id  TEXT NOT NULL,
+  data     TEXT NOT NULL,
+  agent    TEXT NOT NULL,
+  at       INTEGER NOT NULL,
+  replaced INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX handoff_history_key ON handoff_history(project, branch, seq);
+CREATE TABLE project_settings (
+  project    TEXT PRIMARY KEY,
+  autonomous INTEGER NOT NULL DEFAULT 0,
+  changed_at INTEGER NOT NULL,
+  changed_by TEXT NOT NULL
+);
+ALTER TABLE entries ADD COLUMN review_state TEXT;
+`;
+
 const V5_SCHEMA = `
 CREATE INDEX IF NOT EXISTS entries_visible ON entries(project, status, kind, decided_at);
 CREATE INDEX IF NOT EXISTS events_project_at ON events(project, at);
@@ -92,6 +126,7 @@ const STEPS: ((db: DatabaseSync) => void)[] = [
   (db) => db.exec(V3_SCHEMA),
   (db) => db.exec(V4_SCHEMA),
   (db) => db.exec(V5_SCHEMA),
+  (db) => db.exec(V6_SCHEMA),
 ];
 
 export const SCHEMA_VERSION = STEPS.length;
