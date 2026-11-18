@@ -111,9 +111,17 @@ export function App() {
           <aside class="rail">
             <div class="brand">
               <span class="logo" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="16" height="16">
-                  <path d="M5 8h7M5 12h12M5 16h7" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" fill="none" />
-                  <circle cx="17" cy="8" r="2" fill="currentColor" />
+                <svg viewBox="0 0 32 32" width="26" height="26" fill="none">
+                  <defs>
+                    <linearGradient id="baglam-lens" x1="12" y1="9" x2="20" y2="23" gradientUnits="userSpaceOnUse">
+                      <stop stop-color="#958fff" />
+                      <stop offset="1" stop-color="#3fd0c9" />
+                    </linearGradient>
+                  </defs>
+                  <rect x="0.5" y="0.5" width="31" height="31" rx="9" fill="#111214" stroke="rgb(255 255 255 / 0.14)" />
+                  <circle cx="12.5" cy="16" r="7" stroke="#f7f8f8" stroke-width="1.7" />
+                  <circle cx="19.5" cy="16" r="7" stroke="#f7f8f8" stroke-width="1.7" />
+                  <path d="M16 9.94 A7 7 0 0 1 16 22.06 A7 7 0 0 1 16 9.94 Z" fill="url(#baglam-lens)" />
                 </svg>
               </span>
               <span>Bağlam</span>

@@ -1,9 +1,10 @@
 ---
 import Base from "../layouts/Base.astro";
 import Brief from "../components/Brief.astro";
-import Works from "../components/Works.astro";
+import Marquee from "../components/Marquee.astro";
 import SectionHead from "../components/SectionHead.astro";
 import Terminal from "../components/Terminal.astro";
+import PanelMock from "../components/PanelMock.astro";
 import Cta from "../components/Cta.astro";
 import Art from "../components/illustrations/Art.astro";
 import { href, t, type Lang } from "../i18n";
@@ -14,17 +15,22 @@ const d = t(lang);
 const h = d.home;
 const arts = ["stack", "handoff", "spark", "approve", "shield", "local"] as const;
 const widths = ["wide", "wide", "", "", "", ""];
+const secArts = ["local", "shield", "approve", "panel"] as const;
+const faq = d.faq.items.slice(0, 4);
 ---
 
 <Base lang={lang} page="" title={h.title} description={h.description}>
   <section class="hero wrap">
     <div class="glow" aria-hidden="true"></div>
-    <span class="eyebrow"><span class="dot"></span>{h.eyebrow}</span>
+    <div class="grid-bg" aria-hidden="true"></div>
     <h1 class="display">{h.h1}</h1>
     <p class="lead two-tone hero-lead">{h.lead1} <span class="dim">{h.lead2}</span></p>
     <div class="actions">
       <a class="btn btn-primary" href={href(lang, "get-started")}>{h.primary} <span class="arrow">→</span></a>
       <a class="btn btn-ghost" href={href(lang, "how-it-works")}>{h.secondary}</a>
+    </div>
+    <div class="install-line mono">
+      <span class="p">$</span> npm i -g baglam <span class="sep">&amp;&amp;</span> baglam setup
     </div>
     <div class="stage hero-stage reveal">
       <div class="hero-grid">
@@ -43,9 +49,9 @@ const widths = ["wide", "wide", "", "", "", ""];
     </div>
   </section>
 
-  <Works lang={lang} />
+  <Marquee lang={lang} />
 
-  <section class="section wrap">
+  <section class="section wrap" style="padding-top:clamp(40px,6vw,80px)">
     <p class="statement reveal">{h.statement1} <span class="dim">{h.statement2}</span></p>
   </section>
 
@@ -62,9 +68,52 @@ const widths = ["wide", "wide", "", "", "", ""];
     </div>
   </section>
 
+  <section class="section band">
+    <div class="wrap">
+      <div class="split">
+        <div class="reveal copy-col">
+          <span class="kicker">{d.nav.panel}</span>
+          <h2 class="h2 two-tone">{h.tourTitle} <span class="dim">{h.tourDim}</span></h2>
+          <p class="lead">{h.tourText}</p>
+          <ul class="ticks">{h.tourPoints.map((x) => <li>{x}</li>)}</ul>
+          <a class="btn btn-ghost" style="width:fit-content" href={href(lang, "panel")}>{d.nav.panel} <span class="arrow">→</span></a>
+        </div>
+        <div class="reveal tilt"><PanelMock lang={lang} view="inbox" /></div>
+      </div>
+    </div>
+  </section>
+
   <section class="section wrap">
-    <div class="grid-2">
-      <div class="reveal" style="display:grid;gap:22px">
+    <div class="split reverse">
+      <div class="reveal">
+        <Terminal
+          lang={lang}
+          lines={[
+            { cmd: "baglam setup" },
+            { out: "Found: Claude Code, Codex CLI, Antigravity, Gemini CLI, Cursor, VS Code" },
+            { out: "✓ Claude Code auto-save  updated   ~/.claude/settings.json", kind: "ok" },
+            { out: "✓ Cursor                 added     ~/.cursor/mcp.json", kind: "ok" },
+            { out: "✓ Cursor auto-save       added     ~/.cursor/hooks.json", kind: "ok" },
+            { cmd: "baglam init" },
+            { out: "✓ AGENTS.md    added", kind: "ok" },
+            { cmd: "baglam doctor" },
+            { out: "Everything looks good.", kind: "ac" },
+          ]}
+        />
+      </div>
+      <div class="reveal copy-col">
+        <span class="kicker">{d.nav.start}</span>
+        <h2 class="h2 two-tone">{h.setupTitle} <span class="dim">{h.setupDim}</span></h2>
+        <p class="lead">{h.setupText}</p>
+        <a class="btn btn-ghost" style="width:fit-content" href={href(lang, "get-started")}>{d.nav.docs} <span class="arrow">→</span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" style="padding-top:0">
+    <div class="split">
+      <div class="reveal copy-col">
+        <span class="kicker">{d.nav.handoff}</span>
         <h2 class="h2 two-tone">{h.handoffTitle} <span class="dim">{h.handoffDim}</span></h2>
         <p class="lead">{h.handoffText}</p>
         <a class="btn btn-ghost" style="width:fit-content" href={href(lang, "handoff")}>{h.handoffLink} <span class="arrow">→</span></a>
@@ -73,7 +122,51 @@ const widths = ["wide", "wide", "", "", "", ""];
     </div>
   </section>
 
-  <section class="section light">
+  <section class="section band">
+    <div class="wrap">
+      <SectionHead title={h.autoTitle} dim={h.autoDim} />
+      <div class="grid-3">
+        {h.autoCards.map((c) => (
+          <article class="card reveal autocard">
+            <div class="mini">
+              <span class="mini-chip">{c.chip}</span>
+              <span class="mini-line"></span>
+              <span class="mini-line short"></span>
+            </div>
+            <h3 class="h3">{c.t}</h3>
+            <p>{c.d}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap">
+    <SectionHead title={h.secTitle} dim={h.secDim} />
+    <div class="grid-4">
+      {h.secCards.map((c, i) => (
+        <article class="card reveal">
+          <div class="art small-art"><Art name={secArts[i]} /></div>
+          <h3 class="h3">{c.t}</h3>
+          <p>{c.d}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="section wrap" style="padding-top:0">
+    <SectionHead title={h.statsTitle} />
+    <div class="stats">
+      {h.stats.map((s) => (
+        <div class="stat reveal">
+          <div class="num">{s.n}</div>
+          <div class="muted">{s.l}</div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="section band">
     <div class="wrap">
       <SectionHead title={h.stepsTitle} dim={h.stepsDim} />
       <div class="steps">
@@ -89,6 +182,23 @@ const widths = ["wide", "wide", "", "", "", ""];
     </div>
   </section>
 
+  <section class="section wrap">
+    <div class="split faq-split">
+      <div class="reveal copy-col">
+        <h2 class="h2">{h.faqTitle}</h2>
+        <a class="btn btn-ghost" style="width:fit-content" href={href(lang, "faq")}>{h.faqLink} <span class="arrow">→</span></a>
+      </div>
+      <div class="faq reveal">
+        {faq.map((x, i) => (
+          <details open={i === 0}>
+            <summary>{x.q}</summary>
+            <div class="answer"><p>{x.a}</p></div>
+          </details>
+        ))}
+      </div>
+    </div>
+  </section>
+
   <Cta lang={lang} />
 </Base>
 
@@ -98,11 +208,29 @@ const widths = ["wide", "wide", "", "", "", ""];
     display: grid;
     justify-items: center;
     text-align: center;
-    gap: 22px;
-    padding-top: clamp(96px, 14vw, 168px);
+    gap: 24px;
+    padding-top: clamp(110px, 15vw, 180px);
+  }
+  .grid-bg {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 640px;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgb(255 255 255 / 3.5%) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(255 255 255 / 3.5%) 1px, transparent 1px);
+    background-size: 56px 56px;
+    -webkit-mask-image: radial-gradient(60% 70% at 50% 20%, #000, transparent 75%);
+    mask-image: radial-gradient(60% 70% at 50% 20%, #000, transparent 75%);
   }
   .hero .display {
     max-width: 14ch;
+    background: linear-gradient(180deg, #ffffff 30%, #b8bcc6);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    padding-bottom: 0.04em;
   }
   .hero-lead {
     max-width: 44rem;
@@ -112,11 +240,23 @@ const widths = ["wide", "wide", "", "", "", ""];
     gap: 12px;
     flex-wrap: wrap;
     justify-content: center;
-    margin-top: 6px;
+    margin-top: 4px;
+  }
+  .install-line {
+    font-size: 13.5px;
+    color: var(--muted);
+    padding: 9px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgb(255 255 255 / 2%);
+  }
+  .install-line .p,
+  .install-line .sep {
+    color: var(--faint);
   }
   .hero-stage {
     width: 100%;
-    margin-top: clamp(40px, 6vw, 72px);
+    margin-top: clamp(32px, 5vw, 56px);
   }
   .hero-grid {
     display: grid;
@@ -128,9 +268,156 @@ const widths = ["wide", "wide", "", "", "", ""];
   .hero > * {
     min-width: 0;
   }
-  @media (max-width: 900px) {
-    .hero-grid {
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1.25fr;
+    gap: clamp(32px, 6vw, 80px);
+    align-items: center;
+  }
+  .split.reverse {
+    grid-template-columns: 1.25fr 1fr;
+  }
+  .split > * {
+    min-width: 0;
+  }
+  .faq-split {
+    grid-template-columns: 1fr 1.6fr;
+    align-items: start;
+  }
+  .copy-col {
+    display: grid;
+    gap: 20px;
+    align-content: center;
+  }
+  .kicker {
+    font: 500 12px/1 var(--mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-hover);
+  }
+  .ticks {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 10px;
+    color: var(--muted);
+  }
+  .ticks li::before {
+    content: "✓";
+    color: var(--cyan);
+    margin-right: 10px;
+  }
+  .tilt {
+    perspective: 1600px;
+  }
+  .tilt :global(.window) {
+    transform: rotateY(-6deg) rotateX(3deg);
+    transform-origin: left center;
+    transition: transform 600ms var(--ease);
+  }
+  .tilt:hover :global(.window) {
+    transform: none;
+  }
+  .grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .grid-4 > * {
+    min-width: 0;
+  }
+  .small-art {
+    height: 120px !important;
+  }
+  .autocard .mini {
+    height: 120px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background:
+      radial-gradient(80% 100% at 0% 0%, rgb(124 116 255 / 14%), transparent 60%),
+      rgb(255 255 255 / 2%);
+    padding: 18px;
+    display: grid;
+    align-content: start;
+    gap: 12px;
+  }
+  .mini-chip {
+    width: fit-content;
+    font: 600 11px/1 var(--mono);
+    color: var(--accent-hover);
+    background: var(--accent-soft);
+    border: 1px solid rgb(124 116 255 / 28%);
+    padding: 5px 9px;
+    border-radius: 999px;
+  }
+  .mini-line {
+    height: 8px;
+    border-radius: 4px;
+    background: rgb(255 255 255 / 10%);
+    width: 86%;
+  }
+  .mini-line.short {
+    width: 54%;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border: 1px solid var(--border);
+    border-radius: var(--r-card);
+    overflow: hidden;
+  }
+  .stat {
+    padding: 30px 26px;
+    border-right: 1px solid var(--border);
+    background: linear-gradient(180deg, rgb(255 255 255 / 2.5%), transparent);
+  }
+  .stat:last-child {
+    border-right: 0;
+  }
+  .stat .num {
+    font-size: clamp(2rem, 3.6vw, 2.8rem);
+    font-weight: 620;
+    letter-spacing: -0.03em;
+    margin-bottom: 8px;
+    background: linear-gradient(180deg, #fff, #9aa0ab);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  @media (max-width: 960px) {
+    .hero-grid,
+    .split,
+    .split.reverse,
+    .faq-split {
       grid-template-columns: 1fr;
+    }
+    .grid-4,
+    .stats {
+      grid-template-columns: 1fr 1fr;
+    }
+    .stat:nth-child(2) {
+      border-right: 0;
+    }
+    .stat:nth-child(-n + 2) {
+      border-bottom: 1px solid var(--border);
+    }
+    .tilt :global(.window) {
+      transform: none;
+    }
+  }
+  @media (max-width: 560px) {
+    .grid-4,
+    .stats {
+      grid-template-columns: 1fr;
+    }
+    .stat {
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .install-line {
+      font-size: 12px;
     }
   }
 </style>
