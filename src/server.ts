@@ -8,6 +8,7 @@ import { floodLimitFromEnv, submitProposal } from "./policy.js";
 import { describeFindings } from "./guards.js";
 import { resolveProjectFor, type Resolution } from "./resolve.js";
 import type { ProjectRef } from "./project.js";
+import type { Handoff } from "./handoff.js";
 
 export { VERSION } from "./version.js";
 import { VERSION } from "./version.js";
@@ -22,7 +23,12 @@ export interface ServerOptions {
   envProject?: string;
   /** Agent name; when omitted, the MCP client's own name is used. */
   agent?: string;
+  /** Clock for checkpoint reminders (tests). */
+  now?: () => number;
 }
+
+/** An agent whose own task has not been checkpointed for this long gets a reminder on its next tool call. */
+const STALE_CHECKPOINT_MS = 5 * 60_000;
 
 const kindSchema = z.enum(KINDS);
 const projectPathSchema = z
@@ -76,13 +82,44 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
     return r;
   }
 
+  /**
+   * Tasks (project + branch) this very connection is working on, i.e. has checkpointed as in progress.
+   * Only these get reminders: a fresh session never inherits nagging about a crashed session's task.
+   */
+  const mine = new Map<string, { project: string; branch: string }>();
+  const taskKey = (project: string, branch: string) => `${project}\u0000${branch}`;
+
+  /** Agents forget to save progress; remind this connection when its own task in progress has gone stale. */
+  function checkpointReminder(): string {
+    if (!mine.size) return "";
+    const me = agentName();
+    const now = (opts.now ?? Date.now)();
+    let stale: Handoff | undefined;
+    for (const [key, t] of mine) {
+      const h = store.getHandoff(t.project, t.branch);
+      // Someone else took it over, or it was finished or blocked elsewhere: no longer ours to nag about.
+      if (!h || h.agent !== me || h.status !== "in_progress") {
+        mine.delete(key);
+        continue;
+      }
+      if (now - h.updatedAt >= STALE_CHECKPOINT_MS && (!stale || h.updatedAt < stale.updatedAt)) stale = h;
+    }
+    if (!stale) return "";
+    const min = Math.round((now - stale.updatedAt) / 60_000);
+    return (
+      `\n\nReminder: your last checkpoint on "${stale.goal}" was ${min} min ago. Call context_checkpoint with what you have done since ` +
+      "(done_add, now, next), so another agent can continue if you are stopped."
+    );
+  }
+
   const label = (p: ProjectRef) => `${p.name} (${p.dir})`;
 
   const guard =
-    <A>(fn: (args: A) => Promise<string>) =>
+    <A>(fn: (args: A) => Promise<string>, opts2: { remind?: boolean } = {}) =>
     async (args: A): Promise<CallToolResult> => {
       try {
-        return ok(await fn(args));
+        const out = await fn(args);
+        return ok(opts2.remind === false ? out : out + checkpointReminder());
       } catch (err) {
         return fail(err);
       }
@@ -323,8 +360,12 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
         agent: agentName(),
         agentVerified: opts.agent !== undefined,
       });
-      return `Saved progress for "${h.goal}" (${h.status.replace("_", " ")}, branch ${branch}). Any agent on this project can continue from here.`;
-    }),
+      const key = taskKey(r.project.key, branch);
+      if (h.status === "in_progress") mine.set(key, { project: r.project.key, branch });
+      else mine.delete(key);
+      const again = h.status === "in_progress" ? " Checkpoint again right after your next step (done_add, now, next)." : "";
+      return `Saved progress for "${h.goal}" (${h.status.replace("_", " ")}, branch ${branch}). Any agent on this project can continue from here.${again}`;
+    }, { remind: false }),
   );
 
   server.registerTool(
