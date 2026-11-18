@@ -1,0 +1,115 @@
+---
+import Base from "../layouts/Base.astro";
+import PageHero from "../components/PageHero.astro";
+import SectionHead from "../components/SectionHead.astro";
+import PanelMock from "../components/PanelMock.astro";
+import Terminal from "../components/Terminal.astro";
+import Cta from "../components/Cta.astro";
+import { t, type Lang } from "../i18n";
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const p = t(lang).panelPage;
+const parts = [
+  { view: "inbox", title: p.inboxTitle, text: p.inboxText, points: p.inboxPoints },
+  { view: "records", title: p.recordsTitle, text: p.recordsText, points: p.recordsPoints },
+  { view: "settings", title: p.settingsTitle, text: p.settingsText, points: p.settingsPoints },
+] as const;
+---
+
+<Base lang={lang} page="panel" title={p.title} description={p.description}>
+  <PageHero eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} lead={p.lead}>
+    <div class="reveal" style="margin-top:12px;max-width:340px">
+      <Terminal lang={lang} lines={[{ cmd: p.cmd }, { out: "Bağlam panel: http://127.0.0.1:4777/?t=…", kind: "ac" }]} />
+    </div>
+  </PageHero>
+
+  <section class="wrap" style="padding-bottom:clamp(56px,8vw,100px)">
+    <div class="stage reveal"><PanelMock lang={lang} view="inbox" /></div>
+  </section>
+
+  {parts.map((part, i) => (
+    <section class:list={["section", { band: i % 2 === 1 }]}>
+      <div class="wrap">
+        <div class:list={["split", { reverse: i % 2 === 1 }]}>
+          <div class="reveal copy-col">
+            <h2 class="h2">{part.title}</h2>
+            <p class="lead">{part.text}</p>
+            <ul class="ticks">{part.points.map((x) => <li>{x}</li>)}</ul>
+          </div>
+          <div class="reveal"><PanelMock lang={lang} view={part.view} /></div>
+        </div>
+      </div>
+    </section>
+  ))}
+
+  <section class="section wrap">
+    <SectionHead title={p.moreTitle} />
+    <div class="grid-4">
+      {p.more.map((m) => (
+        <article class="card reveal">
+          <h3 class="h3">{m.t}</h3>
+          <p>{m.d}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <Cta lang={lang} />
+</Base>
+
+<style>
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1.35fr;
+    gap: clamp(32px, 6vw, 80px);
+    align-items: center;
+  }
+  .split.reverse > :first-child {
+    order: 2;
+  }
+  .split > * {
+    min-width: 0;
+  }
+  .copy-col {
+    display: grid;
+    gap: 20px;
+  }
+  .ticks {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 10px;
+    color: var(--muted);
+  }
+  .ticks li::before {
+    content: "✓";
+    color: var(--cyan);
+    margin-right: 10px;
+  }
+  .grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .grid-4 > * {
+    min-width: 0;
+  }
+  @media (max-width: 960px) {
+    .split {
+      grid-template-columns: 1fr;
+    }
+    .split.reverse > :first-child {
+      order: 0;
+    }
+    .grid-4 {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 560px) {
+    .grid-4 {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -187,11 +187,11 @@ p code {
 
 /* ---------- Sections ---------- */
 .section {
-  padding: clamp(72px, 11vw, 140px) 0;
+  padding-block: clamp(72px, 11vw, 140px);
   position: relative;
 }
 .section-tight {
-  padding: clamp(48px, 7vw, 88px) 0;
+  padding-block: clamp(48px, 7vw, 88px);
 }
 .section-head {
   display: grid;
@@ -206,7 +206,16 @@ p code {
   margin: 0;
 }
 
-/* Light sections ("yer yer açık tonlar") */
+/* Bands: a lifted dark surface between sections (the site is dark only). */
+.band {
+  background:
+    radial-gradient(60% 80% at 50% 0%, rgb(124 116 255 / 7%), transparent 70%),
+    linear-gradient(180deg, #0c0d0f, #0a0b0c);
+  border-top: 1px solid rgb(255 255 255 / 6%);
+  border-bottom: 1px solid rgb(255 255 255 / 6%);
+}
+
+/* Light sections (no longer used; kept for reference) */
 .light {
   background: var(--light-canvas);
   color: var(--light-text);
@@ -643,9 +652,10 @@ p code {
   list-style: none;
   cursor: pointer;
   padding: 22px 0;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
+  overflow-wrap: anywhere;
   font-size: 17px;
   font-weight: 560;
   letter-spacing: -0.01em;
@@ -709,7 +719,7 @@ p code {
 
 /* ---------- Page hero ---------- */
 .page-hero {
-  padding: clamp(120px, 16vw, 190px) 0 clamp(48px, 7vw, 88px);
+  padding-block: clamp(120px, 16vw, 190px) clamp(48px, 7vw, 88px);
   display: grid;
   gap: 22px;
 }

@@ -1,0 +1,317 @@
+---
+/** A faithful HTML rendering of Bağlam's review panel (not a screenshot), in three views. */
+import Logo from "./Logo.astro";
+import { t, type Lang } from "../i18n";
+
+interface Props { lang: Lang; view?: "inbox" | "records" | "settings" }
+const { lang, view = "inbox" } = Astro.props;
+const m = t(lang).mock;
+---
+
+<div class="pm window" aria-hidden="true">
+  <div class="window-bar">
+    <span class="lights"><i></i><i></i><i></i></span>
+    <span>127.0.0.1 · baglam ui</span>
+  </div>
+  <div class="pm-body">
+    <aside class="pm-rail">
+      <div class="pm-brand"><Logo size={20} /><span>Bağlam</span></div>
+      <ul>
+        <li class:list={{ on: view === "inbox" }}><span>{m.inbox}</span><b>2</b></li>
+        <li class:list={{ on: view === "records" }}><span>{m.records}</span></li>
+        <li><span>{m.projects}</span></li>
+        <li class:list={{ on: view === "settings" }}><span>{m.settings}</span></li>
+      </ul>
+    </aside>
+    <div class="pm-main">
+      {view === "inbox" && (
+        <>
+          <div class="pm-h">{m.continueTitle}</div>
+          <div class="pm-card cont">
+            <div class="pm-meta"><span class="pm-chip violet">{m.continueChip}</span><span>{m.branch}</span><span class="pm-right">cursor · {m.ago}</span></div>
+            <div class="pm-title">{m.taskTitle}</div>
+            <div class="pm-files"><code>src/mail.ts</code><code class="g">src/invoice.ts •</code></div>
+            <div class="pm-actions"><span class="pm-btn primary">{m.copy}</span><span class="pm-btn quiet">{m.markDone}</span></div>
+          </div>
+          <div class="pm-h">{m.pendingTitle}</div>
+          <div class="pm-card kind-warn">
+            <div class="pm-meta"><span class="pm-chip red">{m.warning}</span><span class="pm-right">claude-code · {m.ago}</span></div>
+            <div class="pm-title">{m.rec1}</div>
+            <div class="pm-sub">{m.rec1body}</div>
+            <div class="pm-actions"><span class="pm-btn primary">{m.approve}</span><span class="pm-btn">{m.edit}</span><span class="pm-btn quiet">{m.reject}</span></div>
+          </div>
+          <div class="pm-card kind-conv faded">
+            <div class="pm-meta"><span class="pm-chip cyan">{m.convention}</span><span class="pm-right">codex · {m.ago}</span></div>
+            <div class="pm-title">{m.rec2}</div>
+          </div>
+        </>
+      )}
+      {view === "records" && (
+        <>
+          <div class="pm-h">{m.records}</div>
+          <div class="pm-search"><span>{m.searchPh}</span><span class="pm-pill">{m.statusActive}</span><span class="pm-pill">{m.allKinds}</span></div>
+          {m.recordsList.map((r, i) => (
+            <div class:list={["pm-card", ["kind-dec", "kind-conv", "kind-warn", "kind-pref"][i % 4]]}>
+              <div class="pm-meta"><span class:list={["pm-chip", ["violet", "cyan", "red", "amber"][i % 4]]}>{r.kind}</span><span class="pm-ok">{m.approved}</span><span class="pm-right mono">{r.id}</span></div>
+              <div class="pm-title">{r.title}</div>
+            </div>
+          ))}
+        </>
+      )}
+      {view === "settings" && (
+        <>
+          <div class="pm-h">{m.settings}</div>
+          <div class="pm-card">
+            <div class="pm-title">{m.autoSave}</div>
+            <div class="pm-sub">{m.autoSaveBody}</div>
+            <div class="pm-switch on"><i></i><span>{m.on}</span></div>
+          </div>
+          <div class="pm-card">
+            <div class="pm-title">{m.autonomous}</div>
+            <div class="pm-sub">{m.autonomousBody}</div>
+            <div class="pm-switch"><i></i><span>{m.off}</span></div>
+          </div>
+          <div class="pm-card">
+            <div class="pm-title">{m.tools}</div>
+            <div class="pm-tools">{["Claude Code", "Codex CLI", "Cursor", "Antigravity", "Gemini CLI", "VS Code"].map((x) => <span><i></i>{x}</span>)}</div>
+          </div>
+        </>
+      )}
+    </div>
+  </div>
+</div>
+
+<style>
+  .pm {
+    font-size: 13px;
+    user-select: none;
+  }
+  .pm-body {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    min-height: 420px;
+  }
+  .pm-rail {
+    border-right: 1px solid var(--border);
+    padding: 16px 10px;
+    display: grid;
+    align-content: start;
+    gap: 18px;
+    background: rgb(255 255 255 / 1%);
+  }
+  .pm-brand {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-weight: 600;
+    padding: 0 6px;
+  }
+  .pm-rail ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .pm-rail li {
+    display: flex;
+    justify-content: space-between;
+    padding: 7px 8px;
+    border-radius: 8px;
+    color: var(--muted);
+  }
+  .pm-rail li.on {
+    color: var(--text);
+    background: rgb(255 255 255 / 6%);
+  }
+  .pm-rail b {
+    font-size: 11px;
+    min-width: 18px;
+    text-align: center;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #08090a;
+  }
+  .pm-main {
+    padding: 18px 20px;
+    display: grid;
+    gap: 10px;
+    align-content: start;
+  }
+  .pm-h {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-top: 4px;
+  }
+  .pm-card {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px 12px 16px;
+    background: linear-gradient(180deg, #141518, #0f1011);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
+    display: grid;
+    gap: 6px;
+  }
+  .pm-card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 10px;
+    bottom: 10px;
+    width: 2.5px;
+    border-radius: 0 3px 3px 0;
+    background: transparent;
+  }
+  .pm-card.cont::before { background: var(--accent); }
+  .pm-card.kind-warn::before { background: #ff7a6e; }
+  .pm-card.kind-conv::before { background: #3fd0c9; }
+  .pm-card.kind-dec::before { background: #958fff; }
+  .pm-card.kind-pref::before { background: #f0b44c; }
+  .pm-card.faded {
+    opacity: 0.55;
+  }
+  .pm-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    color: var(--muted);
+    font-size: 11.5px;
+  }
+  .pm-right {
+    margin-left: auto;
+  }
+  .pm-chip {
+    font-size: 10px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 5px;
+  }
+  .pm-chip.violet { color: #b3aeff; background: rgb(124 116 255 / 16%); }
+  .pm-chip.red { color: #ff9b91; background: rgb(255 122 110 / 14%); }
+  .pm-chip.cyan { color: #6fe0da; background: rgb(63 208 201 / 14%); }
+  .pm-chip.amber { color: #f4c56d; background: rgb(240 180 76 / 14%); }
+  .pm-ok {
+    color: var(--ok);
+    border: 1px solid rgb(76 197 138 / 35%);
+    border-radius: 999px;
+    padding: 0 7px;
+  }
+  .pm-title {
+    font-weight: 600;
+    font-size: 13.5px;
+  }
+  .pm-sub {
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+  .pm-files {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .pm-files code {
+    font: 11px/1 var(--mono);
+    padding: 4px 7px;
+    border-radius: 6px;
+    background: rgb(255 255 255 / 4%);
+    border: 1px solid var(--border);
+  }
+  .pm-files code.g {
+    color: var(--warn);
+  }
+  .pm-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 2px;
+  }
+  .pm-btn {
+    font-size: 11.5px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+  }
+  .pm-btn.primary {
+    background: var(--text);
+    color: #08090a;
+    border-color: var(--text);
+  }
+  .pm-btn.quiet {
+    border-color: transparent;
+    color: var(--muted);
+  }
+  .pm-search {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .pm-search > span:first-child {
+    flex: 1;
+    color: var(--faint);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 6px 10px;
+  }
+  .pm-pill {
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .pm-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+  }
+  .pm-switch i {
+    width: 30px;
+    height: 17px;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 12%);
+    position: relative;
+  }
+  .pm-switch i::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: #fff;
+  }
+  .pm-switch.on i {
+    background: var(--accent);
+  }
+  .pm-switch.on i::after {
+    left: 15px;
+  }
+  .pm-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    color: var(--muted);
+  }
+  .pm-tools i {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ok);
+    margin-right: 6px;
+  }
+  @media (max-width: 640px) {
+    .pm-body {
+      grid-template-columns: 1fr;
+    }
+    .pm-rail {
+      display: none;
+    }
+  }
+</style>

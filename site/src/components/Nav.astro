@@ -1,108 +1,237 @@
 ---
 import Logo from "./Logo.astro";
-import { href, t, type Lang, type Page } from "../i18n";
+import { siGithub } from "simple-icons";
+import { href, REPO_URL, t, type Lang, type Page } from "../i18n";
 
 interface Props { lang: Lang; page: Page }
 const { lang, page } = Astro.props;
 const d = t(lang);
 const other: Lang = lang === "en" ? "tr" : "en";
-const links: [Page, string][] = [
-  ["how-it-works", d.nav.how],
-  ["handoff", d.nav.handoff],
-  ["automatic-saving", d.nav.auto],
-  ["security", d.nav.security],
+const product: [Page, string, string][] = [
+  ["how-it-works", d.nav.how, d.nav.howDesc],
+  ["handoff", d.nav.handoff, d.nav.handoffDesc],
+  ["automatic-saving", d.nav.auto, d.nav.autoDesc],
+  ["panel", d.nav.panel, d.nav.panelDesc],
+  ["security", d.nav.security, d.nav.securityDesc],
+];
+const top: [Page, string][] = [
   ["tools", d.nav.tools],
   ["pricing", d.nav.pricing],
   ["faq", d.nav.faq],
 ];
+const inProduct = product.some(([p]) => p === page);
 ---
 
-<header class="nav">
-  <div class="wrap nav-inner">
+<header class="nav-wrap">
+  <nav class="nav" aria-label={d.nav.product}>
     <a class="brand" href={href(lang, "")} aria-label="Bağlam">
-      <Logo />
+      <Logo size={26} />
       <span>Bağlam</span>
     </a>
-    <nav class="links" aria-label={d.nav.product}>
-      {links.map(([p, label]) => (
-        <a href={href(lang, p)} aria-current={p === page ? "page" : undefined}>{label}</a>
+
+    <div class="links">
+      <details class="dd" data-dd>
+        <summary class:list={["link", { current: inProduct }]}>
+          {d.nav.productMenu}
+          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" /></svg>
+        </summary>
+        <div class="menu-panel">
+          {product.map(([p, label, desc]) => (
+            <a class="menu-item" href={href(lang, p)} aria-current={p === page ? "page" : undefined}>
+              <span class="mi-title">{label}</span>
+              <span class="mi-desc">{desc}</span>
+            </a>
+          ))}
+        </div>
+      </details>
+      {top.map(([p, label]) => (
+        <a class="link" href={href(lang, p)} aria-current={p === page ? "page" : undefined}>{label}</a>
       ))}
-    </nav>
+      <a class="link" href={href(lang, "get-started")} aria-current={page === "get-started" ? "page" : undefined}>{d.nav.docs}</a>
+    </div>
+
     <div class="right">
-      <a class="lang" href={href(other, page)} hreflang={other} lang={other} aria-label={d.nav.languageLabel}>{d.nav.language}</a>
-      <a class="btn btn-primary btn-sm" href={href(lang, "get-started")}>{d.nav.start}</a>
-      <details class="menu">
+      <a class="icon-link" href={REPO_URL} rel="noopener" aria-label="GitHub">
+        <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d={siGithub.path} fill="currentColor" /></svg>
+      </a>
+      <div class="lang" role="group" aria-label={d.nav.languageLabel}>
+        <a href={href("en", page)} hreflang="en" lang="en" aria-current={lang === "en" ? "true" : undefined}>EN</a>
+        <a href={href("tr", page)} hreflang="tr" lang="tr" aria-current={lang === "tr" ? "true" : undefined}>TR</a>
+      </div>
+      <a class="btn btn-primary btn-sm cta" href={href(lang, "get-started")}>{d.nav.start}</a>
+      <details class="menu" data-dd>
         <summary aria-label={d.nav.menu}><span></span><span></span></summary>
         <div class="sheet">
-          {links.map(([p, label]) => (
-            <a href={href(lang, p)} aria-current={p === page ? "page" : undefined}>{label}</a>
-          ))}
+          {product.map(([p, label]) => <a href={href(lang, p)} aria-current={p === page ? "page" : undefined}>{label}</a>)}
+          {top.map(([p, label]) => <a href={href(lang, p)} aria-current={p === page ? "page" : undefined}>{label}</a>)}
+          <a href={href(lang, "get-started")}>{d.nav.docs}</a>
           <a href={href(other, page)} hreflang={other} lang={other}>{d.nav.language}</a>
         </div>
       </details>
     </div>
-  </div>
+  </nav>
 </header>
 
+<script>
+  // Dropdowns close on Escape, on an outside click and when another one opens.
+  const dds = [...document.querySelectorAll<HTMLDetailsElement>("[data-dd]")];
+  document.addEventListener("click", (e) => {
+    for (const dd of dds) if (dd.open && !dd.contains(e.target as Node)) dd.open = false;
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    for (const dd of dds) if (dd.open) {
+      dd.open = false;
+      dd.querySelector("summary")?.focus();
+    }
+  });
+  for (const dd of dds) dd.addEventListener("toggle", () => {
+    if (dd.open) for (const o of dds) if (o !== dd) o.open = false;
+  });
+</script>
+
 <style>
-  .nav {
+  .nav-wrap {
     position: sticky;
     top: 0;
     z-index: 50;
-    background: rgb(8 9 10 / 72%);
-    backdrop-filter: saturate(160%) blur(14px);
-    -webkit-backdrop-filter: saturate(160%) blur(14px);
-    border-bottom: 1px solid rgb(255 255 255 / 6%);
+    padding: 12px var(--gutter) 0;
+    pointer-events: none;
   }
-  .nav-inner {
-    height: 64px;
+  .nav {
+    pointer-events: auto;
+    max-width: var(--wrap);
+    margin: 0 auto;
+    height: 58px;
     display: flex;
     align-items: center;
-    gap: 24px;
+    gap: 20px;
+    padding: 0 10px 0 16px;
+    border-radius: 16px;
+    border: 1px solid rgb(255 255 255 / 9%);
+    background: linear-gradient(180deg, rgb(22 23 26 / 78%), rgb(13 14 16 / 72%));
+    backdrop-filter: saturate(170%) blur(18px);
+    -webkit-backdrop-filter: saturate(170%) blur(18px);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%), 0 18px 50px -24px rgb(0 0 0 / 90%);
   }
   .brand {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    font-size: 16px;
+    font-weight: 620;
+    letter-spacing: -0.02em;
+    font-size: 16.5px;
   }
   .links {
     display: flex;
-    gap: 4px;
+    align-items: center;
+    gap: 2px;
     margin: 0 auto;
   }
-  .links a {
+  .link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 14px;
     color: var(--muted);
-    padding: 6px 10px;
-    border-radius: 8px;
-    transition: color 140ms;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    list-style: none;
+    transition: color 140ms, background 140ms;
   }
-  .links a:hover,
-  .links a[aria-current="page"] {
+  .link::-webkit-details-marker {
+    display: none;
+  }
+  .link:hover,
+  .link[aria-current="page"],
+  .link.current,
+  .dd[open] > .link {
     color: var(--text);
+    background: rgb(255 255 255 / 5%);
+  }
+  .dd {
+    position: relative;
+  }
+  .dd[open] svg {
+    transform: rotate(180deg);
+  }
+  .menu-panel {
+    position: absolute;
+    top: calc(100% + 12px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 520px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 8px;
+    border-radius: 16px;
+    border: 1px solid rgb(255 255 255 / 10%);
+    background: #111214;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%), 0 30px 80px -20px rgb(0 0 0 / 90%);
+  }
+  .menu-item {
+    display: grid;
+    gap: 3px;
+    padding: 12px 14px;
+    border-radius: 11px;
+    transition: background 140ms;
+  }
+  .menu-item:hover,
+  .menu-item[aria-current="page"] {
+    background: rgb(255 255 255 / 5%);
+  }
+  .mi-title {
+    font-size: 14px;
+    font-weight: 560;
+  }
+  .mi-desc {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.45;
   }
   .right {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+  }
+  .icon-link {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    color: var(--muted);
+  }
+  .icon-link:hover {
+    color: var(--text);
+    background: rgb(255 255 255 / 5%);
   }
   .lang {
-    font-size: 13px;
-    color: var(--muted);
-    padding: 6px 10px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
+    display: inline-flex;
+    padding: 3px;
+    border-radius: 10px;
+    border: 1px solid rgb(255 255 255 / 8%);
+    background: rgb(255 255 255 / 2%);
   }
-  .lang:hover {
+  .lang a {
+    font: 600 11.5px/1 var(--font);
+    letter-spacing: 0.04em;
+    color: var(--faint);
+    padding: 6px 8px;
+    border-radius: 7px;
+  }
+  .lang a[aria-current="true"] {
     color: var(--text);
-    border-color: var(--border-strong);
+    background: rgb(255 255 255 / 8%);
+  }
+  .lang a:hover {
+    color: var(--text);
   }
   :global(.btn-sm) {
-    height: 34px;
-    padding: 0 14px;
+    height: 36px;
+    padding: 0 15px;
     font-size: 14px;
   }
   .menu {
@@ -112,12 +241,12 @@ const links: [Page, string][] = [
   .menu summary {
     list-style: none;
     width: 38px;
-    height: 34px;
+    height: 36px;
     display: grid;
     place-content: center;
     gap: 5px;
     cursor: pointer;
-    border: 1px solid var(--border);
+    border: 1px solid rgb(255 255 255 / 9%);
     border-radius: 10px;
   }
   .menu summary::-webkit-details-marker {
@@ -132,26 +261,26 @@ const links: [Page, string][] = [
   .sheet {
     position: absolute;
     right: 0;
-    top: 46px;
-    width: min(280px, calc(100vw - 32px));
+    top: 48px;
+    width: min(290px, calc(100vw - 32px));
     display: grid;
     padding: 8px;
-    background: var(--raised);
-    border: 1px solid var(--border-strong);
-    border-radius: 14px;
-    box-shadow: 0 30px 60px -20px rgb(0 0 0 / 80%);
+    background: #111214;
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 16px;
+    box-shadow: 0 30px 60px -20px rgb(0 0 0 / 90%);
   }
   .sheet a {
-    padding: 10px 12px;
-    border-radius: 8px;
+    padding: 11px 12px;
+    border-radius: 9px;
     color: var(--muted);
   }
   .sheet a:hover,
   .sheet a[aria-current="page"] {
     color: var(--text);
-    background: rgb(255 255 255 / 4%);
+    background: rgb(255 255 255 / 5%);
   }
-  @media (max-width: 1060px) {
+  @media (max-width: 1080px) {
     .links {
       display: none;
     }
@@ -162,9 +291,13 @@ const links: [Page, string][] = [
       display: block;
     }
   }
-  @media (max-width: 520px) {
-    .lang {
+  @media (max-width: 560px) {
+    .lang,
+    .icon-link {
       display: none;
+    }
+    .nav {
+      padding-left: 12px;
     }
   }
 </style>
