@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { backupOnce, serverEntry, writeFileAtomic, type HostEnv } from "../host.js";
 import type { Change, ClientAdapter, ClientStatus, ServerEntryShape, WriteOptions } from "./types.js";
 
-type Json = Record<string, unknown>;
+export type Json = Record<string, unknown>;
 
 interface JsonClientOptions {
   id: string;
@@ -21,11 +21,11 @@ const SERVER_NAME = "baglam";
 
 const BOM = "﻿";
 
-type ReadResult = { ok: true; data: Json; exists: boolean; bom: boolean } | { ok: false; error: string };
+export type ReadResult = { ok: true; data: Json; exists: boolean; bom: boolean } | { ok: false; error: string };
 
-const isPlainObject = (v: unknown): v is Json => !!v && typeof v === "object" && !Array.isArray(v);
+export const isPlainObject = (v: unknown): v is Json => !!v && typeof v === "object" && !Array.isArray(v);
 
-function read(file: string): ReadResult {
+export function read(file: string): ReadResult {
   if (!existsSync(file)) return { ok: true, data: {}, exists: false, bom: false };
   const raw = readFileSync(file, "utf8");
   const bom = raw.startsWith(BOM);
@@ -48,7 +48,7 @@ function serversOf(data: Json, key: string, file: string): { ok: true; servers: 
   return { ok: true, servers: v };
 }
 
-function write(file: string, data: Json, bom: boolean): void {
+export function write(file: string, data: Json, bom: boolean): void {
   backupOnce(file);
   writeFileAtomic(file, (bom ? BOM : "") + JSON.stringify(data, null, 2) + "\n");
 }

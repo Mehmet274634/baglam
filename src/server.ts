@@ -102,10 +102,12 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
         mine.delete(key);
         continue;
       }
-      if (now - h.updatedAt >= STALE_CHECKPOINT_MS && (!stale || h.updatedAt < stale.updatedAt)) stale = h;
+      // Automatic saves from tool hooks refresh updatedAt; what matters is the agent's own last checkpoint.
+      const last = h.agentAt ?? h.updatedAt;
+      if (now - last >= STALE_CHECKPOINT_MS && (!stale || last < (stale.agentAt ?? stale.updatedAt))) stale = h;
     }
     if (!stale) return "";
-    const min = Math.round((now - stale.updatedAt) / 60_000);
+    const min = Math.round((now - (stale.agentAt ?? stale.updatedAt)) / 60_000);
     return (
       `\n\nReminder: your last checkpoint on "${stale.goal}" was ${min} min ago. Call context_checkpoint with what you have done since ` +
       "(done_add, now, next), so another agent can continue if you are stopped."

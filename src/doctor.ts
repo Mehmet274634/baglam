@@ -10,6 +10,8 @@ import { BLOCK_START, instructionBlock } from "./instructions.js";
 import { detectClients } from "./setup.js";
 import type { HostEnv } from "./host.js";
 import type { ServerEntryShape } from "./clients/types.js";
+import { HOOK_INSTALLERS } from "./clients/hooks.js";
+import type { HookClient } from "./hooks/normalize.js";
 
 export interface Check {
   name: string;
@@ -58,6 +60,40 @@ function nodeOk(version: string): boolean {
 
 const samePath = (a: string, b: string) => normalizeProject(a) === normalizeProject(b);
 
+/** When each tool's hook last fired; read-only, empty for a database older than schema 7. */
+function hookSeenReadOnly(dbPath: string): Record<string, number> {
+  if (!existsSync(dbPath)) return {};
+  try {
+    const db = new DatabaseSync(dbPath, { readOnly: true, timeout: 5000 });
+    try {
+      const rows = db.prepare("SELECT client, at FROM hook_seen").all() as { client: string; at: number }[];
+      return Object.fromEntries(rows.map((r) => [r.client, Number(r.at)]));
+    } finally {
+      db.close();
+    }
+  } catch {
+    return {};
+  }
+}
+
+function ago(at: number): string {
+  const min = Math.round((Date.now() - at) / 60_000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`;
+}
+
+function autoSaveCheck(id: string, label: string, s: { installed: boolean; problem?: string }, lastAt: number | undefined): Check {
+  const name = `${label}: auto-save`;
+  if (s.problem) return { name, ok: false, detail: s.problem, fix: "fix the file, then baglam setup" };
+  if (!s.installed) return { name, ok: false, detail: "requests and edits are not saved automatically", fix: "baglam setup" };
+  const when = lastAt ? `last automatic save ${ago(lastAt)}` : "no automatic save yet (use the tool in a project)";
+  // Codex skips new hooks until the user trusts them once.
+  const trust = id === "codex" && !lastAt ? "; open Codex, run /hooks and trust Bağlam's hooks once" : "";
+  return { name, ok: true, detail: `installed; ${when}${trust}` };
+}
+
 export async function runDoctor(opts: {
   host: HostEnv;
   dbPath: string;
@@ -100,7 +136,10 @@ export async function runDoctor(opts: {
     }
   }
 
+  const seen = hookSeenReadOnly(opts.dbPath);
   for (const client of detectClients(host)) {
+    const hooks = HOOK_INSTALLERS[client.id as HookClient];
+    if (hooks) checks.push(autoSaveCheck(client.id, client.label, hooks.status(host), seen[client.id]));
     const s = client.status(host);
     const pointsHere = !!s.entry?.args?.some((a) => samePath(a, host.cliPath));
     if (s.problem) {

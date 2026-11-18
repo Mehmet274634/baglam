@@ -109,3 +109,33 @@ describe("baglam doctor", () => {
     expect(checks.find((x) => x.name === "Agent instructions")).toMatchObject({ ok: false, detail: expect.stringMatching(/outdated/), fix: "baglam init" });
   });
 });
+
+describe("doctor: automatic saving", () => {
+  it("reports missing hooks with the fix", async () => {
+    const { host, dbPath, project } = machine();
+    writeFileSync(join(host.home, ".cursor", "mcp.json"), "{}");
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    expect(checks.find((c) => c.name === "Cursor: auto-save")).toMatchObject({ ok: false, fix: "baglam setup" });
+  });
+
+  it("says when each tool last saved automatically", async () => {
+    const { host, dbPath, project } = machine();
+    runSetup(host, { confirm: () => true });
+    let checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    expect(checks.find((c) => c.name === "Cursor: auto-save")).toMatchObject({ ok: true });
+    expect(checks.find((c) => c.name === "Cursor: auto-save")!.detail).toMatch(/installed; no automatic save yet/);
+    const store = new ContextStore(dbPath);
+    store.noteHookSeen("cursor", "prompt");
+    store.close();
+    checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    expect(checks.find((c) => c.name === "Cursor: auto-save")!.detail).toMatch(/last automatic save just now/);
+  });
+
+  it("tells Codex users to trust the hooks once", async () => {
+    const { host, dbPath, project } = machine();
+    mkdirSync(join(host.home, ".codex"));
+    runSetup(host, { confirm: () => true });
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    expect(checks.find((c) => c.name === "Codex CLI: auto-save")!.detail).toMatch(/run \/hooks and trust/);
+  });
+});

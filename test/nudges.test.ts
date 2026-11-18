@@ -124,3 +124,17 @@ describe("init git hint", () => {
     expect(out.join("\n")).not.toMatch(/not a git repository/);
   });
 });
+
+describe("reminders and automatic saving", () => {
+  it("automatic saves do not silence the reminder about the agent's own checkpoint", async () => {
+    const { dir, store, clock, connect } = await setup();
+    const c = await connect("claude-code");
+    const r = text(await c.callTool({ name: "context_checkpoint", arguments: { goal: "Calc" } }));
+    expect(r).toMatch(/Saved progress/);
+    const h = store.listHandoffs()[0];
+    clock.set(clock.get() + 5 * 60_000);
+    store.autoCapture({ project: h.project, branch: h.branch, dir, agent: "claude-code", event: { kind: "edit", files: [join(dir, "a.ts")] } });
+    clock.set(clock.get() + 60_000);
+    expect(text(await c.callTool({ name: "context_search", arguments: { query: "x" } }))).toMatch(/Reminder: your last checkpoint on "Calc" was 6 min ago/);
+  });
+});

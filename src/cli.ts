@@ -55,6 +55,7 @@ Manage context yourself:
 Continue work across agents:
   handoff [--branch b] [--history] [--copy]   The task in progress (copy: resume prompt for any AI tool)
   handoff clear [--branch b]          Mark the task in progress as done
+  capture on|off|status               Automatic saving of requests, edited files and replies (on by default)
 
 Autonomous mode (share now, review afterwards):
   auto on [--yes] | auto off | auto status
@@ -104,7 +105,7 @@ const MARK: Record<Change["action"], string> = {
 };
 
 export function formatChange(c: Change, label: string): string {
-  const line = `${MARK[c.action]} ${label.padEnd(12)} ${c.action.padEnd(9)} ${c.file}`;
+  const line = `${MARK[c.action]} ${label.padEnd(22)} ${c.action.padEnd(9)} ${c.file}`;
   return c.note ? `${line}
     ${c.note}` : line;
 }
@@ -279,7 +280,7 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
         }
         const label = (id: string) => found.find((c) => c.id === id)?.label ?? id;
         if (o["dry-run"]) print("Dry run, nothing was written:");
-        for (const c of result.changes) print(formatChange(c, label(c.client)));
+        for (const c of result.changes) print(formatChange(c, c.part ? `${label(c.client)} ${c.part}` : label(c.client)));
         const failed = result.changes.filter((c) => c.action === "skipped").length;
         if (!o["dry-run"]) print(`
 Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need attention (see ✗ above).` : ""}`);
@@ -349,6 +350,16 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
         }
         ctx.store.setAutonomous(project, true, user);
         print(`Autonomous mode is on for this project.\n${rules}`);
+        return 0;
+      }
+      case "capture": {
+        const sub = args[0] ?? "status";
+        const what =
+          "Your requests, the files agents edit and their last reply are saved to the task in progress by each tool's hooks " +
+          "(set up by baglam setup), even when the agent forgets to checkpoint. Stored only on this computer; secrets are hidden.";
+        if (sub === "on" || sub === "off") ctx.store.setAutoCapture(project, sub === "on", user);
+        else if (sub !== "status") throw new Error("use: baglam capture on|off|status");
+        print(ctx.store.isAutoCapture(project) ? `Automatic saving is on for this project.\n${what}` : "Automatic saving is off for this project.");
         return 0;
       }
       case "handoff": {

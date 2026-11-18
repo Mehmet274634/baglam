@@ -210,7 +210,18 @@ export function panelApi(ctx: PanelContext): Route[] {
       return { on };
     }),
 
-    route("GET", "/api/review", ({ query }) => ({ items: store.unreviewed(query.get("project") || undefined) })),
+    // ---- Automatic saving from tool hooks ----
+
+    route("GET", "/api/projects/:key/capture", ({ params }) => ({ on: store.isAutoCapture(params.key) })),
+
+    route("POST", "/api/projects/:key/capture", ({ params, body }) => {
+      const on = obj(body).on;
+      if (typeof on !== "boolean") throw new HttpError(400, "on must be true or false");
+      store.setAutoCapture(params.key, on, user);
+      return { on };
+    }),
+
+    route("GET", "/api/review",({ query }) => ({ items: store.unreviewed(query.get("project") || undefined) })),
 
     route("POST", "/api/review/keep", ({ body }) => {
       const ids = strList(obj(body).ids, "ids");

@@ -86,3 +86,20 @@ describe("formatBrief", () => {
     expect(out).toMatch(/more record\(s\) not shown/);
   });
 });
+
+describe("automatic saving in the brief", () => {
+  it("shows the latest request and says when only the tool saved the task", async () => {
+    const { ContextStore } = await import("../src/store.js");
+    const { formatHandoff } = await import("../src/format.js");
+    const s = new ContextStore(":memory:");
+    s.autoCapture({ project: "p", branch: "main", dir: "/tmp/p", agent: "claude-code", event: { kind: "prompt", text: "Add search" } });
+    s.autoCapture({ project: "p", branch: "main", dir: "/tmp/p", agent: "codex", event: { kind: "prompt", text: "devam et" } });
+    const text = formatHandoff({ live: s.getHandoff("p", "main")!, git: null, otherBranches: [] }, 6000);
+    expect(text).toMatch(/Asked: devam et/);
+    expect(text).toMatch(/Saved automatically from the tool; the agent has not checkpointed this task yet/);
+    s.checkpoint({ project: "p", branch: "main", agent: "codex", agentVerified: true, now: "Writing search" });
+    const after = formatHandoff({ live: s.getHandoff("p", "main")!, git: null, otherBranches: [] }, 6000);
+    expect(after).not.toMatch(/Saved automatically/);
+    expect(after).toMatch(/Asked: devam et/);
+  });
+});

@@ -94,6 +94,22 @@ baglam handoff clear      # bitti olarak işaretle
 
 Panel aynı bilgiyi Gelen kutusunun en üstünde bir kart olarak gösterir.
 
+### Otomatik kayıt
+
+Ajanlar bazen ilerlemeyi kaydetmeyi unutur. Bu yüzden `baglam setup` her araca küçük kancalar da kurar. Bu kancalar, ajan Bağlam'ı hiç çağırmasa bile devam eden görevi kendiliğinden kaydeder:
+
+- **isteğin**, gönderdiğin anda (yeni bir görev başlatır ya da devam edene eklenir; böylece sonraki ajana "devam et" demen yeter);
+- **ajanın değiştirdiği her dosya**;
+- **ajanın son cevabı**, sırası bittiğinde ("Last reply: …"); ajan kendisi kaydettiyse bu adım atlanır.
+
+Ajanın kendi kayıtları yine daha ayrıntılı kaynaktır; otomatik kayıt bir görevi asla "bitti" yapmaz, sıradaki adımları değiştirmez. Yalnızca `baglam init` çalıştırdığın klasörlerde çalışır, her şey bu bilgisayarda kalır, gizli bilgiler gizlenir.
+
+```bash
+baglam capture off        # bu projede kapat (varsayılan açık); panelde Ayarlar'da da var
+```
+
+Desteklenenler: Claude Code, Codex CLI, Cursor, Antigravity, Gemini CLI, VS Code (Copilot ajan kancaları, önizleme). Antigravity son cevabın metnini vermediği için orada yalnızca istek ve dosyalar kaydedilir. **Codex yeni kancalar için bir kez onay ister:** Codex'i aç, `/hooks` yaz ve Bağlam'ın kancalarını onayla. `baglam doctor` her araç için son otomatik kaydın ne zaman yapıldığını gösterir.
+
 ## Otonom mod (isteğe bağlı)
 
 Onay için durmak istemiyor musun? Proje bazında:

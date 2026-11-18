@@ -73,6 +73,21 @@ This project uses Bağlam to share decisions between AI agents.
 
 After upgrading Bağlam, run `baglam init` again in each project to refresh this block; `baglam doctor` tells you when it is outdated.
 
+## Automatic saving hooks
+
+`baglam setup` also adds hooks that run `node <install>/dist/hook.js <tool> <prompt|edit|stop>`. Your own hooks in the same files are kept; `setup --undo` removes only Bağlam's.
+
+| Tool | File | Events |
+|---|---|---|
+| Claude Code | `~/.claude/settings.json` | UserPromptSubmit, PostToolUse (Write/Edit/MultiEdit/NotebookEdit), Stop |
+| Codex CLI | `~/.codex/hooks.json` | UserPromptSubmit, PostToolUse (apply_patch), Stop; trust them once with `/hooks` |
+| Gemini CLI | `~/.gemini/settings.json` | BeforeAgent, AfterTool (write_file/replace), AfterAgent |
+| Cursor | `~/.cursor/hooks.json` | beforeSubmitPrompt, afterFileEdit, afterAgentResponse |
+| Antigravity | `~/.gemini/config/hooks.json` (entry `baglam`) | PreInvocation, PostToolUse (file tools) |
+| VS Code | `~/.copilot/hooks/baglam.json` | userPromptSubmitted, postToolUse, agentStop |
+
+A hook never blocks or changes the tool: it always exits 0, prints only an empty or neutral reply, and does nothing in folders without `.baglam/project.json`. Problems are written to `~/.baglam/hook-errors.log`. Turn saving off per project with `baglam capture off`, or everywhere with `BAGLAM_AUTO_CAPTURE=0`.
+
 ## Undo
 
 ```bash

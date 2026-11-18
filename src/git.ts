@@ -1,4 +1,6 @@
 import { execFile, spawnSync } from "node:child_process";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 
 /** What git can tell the next agent without any help from the previous one. */
 export interface GitSnapshot {
@@ -39,6 +41,34 @@ export function currentBranch(dir: string): string {
   if (sym.status === 0 && sym.stdout.trim()) return sym.stdout.trim();
   const inside = git(["rev-parse", "--is-inside-work-tree"]);
   return inside.status === 0 && inside.stdout.trim() === "true" ? "detached" : "-";
+}
+
+/**
+ * Same answer as currentBranch, read straight from .git/HEAD (no git process: hooks run on every
+ * prompt and edit). Falls back to currentBranch for anything unusual.
+ */
+export function fastBranch(dir: string): string {
+  try {
+    for (let d = resolve(dir); ; d = dirname(d)) {
+      const dotGit = join(d, ".git");
+      if (existsSync(dotGit)) {
+        let gitDir = dotGit;
+        if (statSync(dotGit).isFile()) {
+          const m = /^gitdir:\s*(.+)$/m.exec(readFileSync(dotGit, "utf8"));
+          if (!m) return currentBranch(dir);
+          gitDir = resolve(d, m[1].trim());
+        }
+        const head = readFileSync(join(gitDir, "HEAD"), "utf8").trim();
+        const ref = /^ref:\s*refs\/heads\/(.+)$/.exec(head);
+        if (ref) return ref[1];
+        if (/^[0-9a-f]{40,64}$/.test(head)) return "detached";
+        return currentBranch(dir);
+      }
+      if (dirname(d) === d) return "-";
+    }
+  } catch {
+    return currentBranch(dir);
+  }
 }
 
 const parseLog = (out: string) =>

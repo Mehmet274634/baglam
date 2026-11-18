@@ -98,4 +98,15 @@ describe("baglam auto / handoff / review", () => {
     expect(run(["review"])).toBe(0);
     expect(out.join("\n")).toMatch(/Nothing to review/);
   });
+
+  it("capture off, on and status", () => {
+    expect(run(["capture", "status"])).toBe(0);
+    expect(out.join("\n")).toMatch(/Automatic saving is on/);
+    expect(run(["capture", "off"])).toBe(0);
+    expect(store.isAutoCapture(P)).toBe(false);
+    expect(out.join("\n")).toMatch(/Automatic saving is off/);
+    expect(run(["capture", "on"])).toBe(0);
+    expect(store.isAutoCapture(P)).toBe(true);
+    expect(run(["capture", "maybe"])).toBe(1);
+  });
 });

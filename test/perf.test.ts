@@ -128,3 +128,28 @@ describe("speed with work in progress", () => {
     expect(times[3]).toBeLessThan(BUDGET_MS * 3);
   }, 120_000);
 });
+
+describe("hook speed", () => {
+  // A hook runs on every prompt and every file edit: the tool waits for it.
+  const HOOK_BUDGET_MS = Number(process.env.BAGLAM_HOOK_BUDGET_MS) || 250;
+  it(`a real hook process finishes under ${HOOK_BUDGET_MS} ms (median of 15)`, async () => {
+    const { spawnSync } = await import("node:child_process");
+    const { createMarker } = await import("../src/project.js");
+    const dir = mkdtempSync(join(tmpdir(), "baglam-hookperf-"));
+    createMarker(dir);
+    const db = join(mkdtempSync(join(tmpdir(), "baglam-hookperfdb-")), "b.db");
+    const hook = join(import.meta.dirname, "..", ".test-dist", "hook.js");
+    const once = (event: string, payload: object) =>
+      spawnSync(process.execPath, [hook, "claude-code", event], { input: JSON.stringify({ cwd: dir, ...payload }), env: { ...process.env, BAGLAM_DB: db } });
+    once("prompt", { prompt: "warm up" });
+    const times: number[] = [];
+    for (let i = 0; i < 15; i++) {
+      const t = performance.now();
+      once(i % 2 ? "edit" : "prompt", i % 2 ? { tool_name: "Edit", tool_input: { file_path: join(dir, `f${i}.ts`) } } : { prompt: `step ${i}` });
+      times.push(performance.now() - t);
+    }
+    times.sort((x, y) => x - y);
+    console.log(`hook median ${times[7].toFixed(0)} ms`);
+    expect(times[7]).toBeLessThan(HOOK_BUDGET_MS);
+  }, 120_000);
+});

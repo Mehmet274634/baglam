@@ -7,6 +7,8 @@ export interface Change {
   file: string;
   action: ChangeAction;
   note?: string;
+  /** Set for the automatic-saving hooks; absent for the MCP server entry. */
+  part?: "auto-save";
 }
 
 export interface ServerEntryShape {

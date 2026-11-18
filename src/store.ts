@@ -4,6 +4,7 @@ import { mkdirSync } from "node:fs";
 import { basename, dirname } from "node:path";
 import { migrate } from "./migrate.js";
 import { HandoffRepo, type CheckpointInput, type Handoff } from "./handoff.js";
+import { planAutoEvent, type AutoEvent } from "./capture.js";
 
 export const KINDS = ["decision", "convention", "preference", "fact", "warning"] as const;
 export type Kind = (typeof KINDS)[number];
@@ -729,6 +730,42 @@ export class ContextStore {
 
   clearHandoff(project: string, branch: string, by: string): boolean {
     return this.handoffs.clear(project, branch, by);
+  }
+
+  // ---- Automatic saving (tool hooks) ----
+
+  /** Apply what a tool hook saw to the live handoff. Undefined when there was nothing to save. */
+  autoCapture(i: { project: string; branch: string; dir: string; agent: string; event: AutoEvent }): Handoff | undefined {
+    // Planned under the write lock: parallel hooks (one per edited file) each add to the latest lists.
+    return this.handoffs.checkpointPlanned(i.project, i.branch, (existing) => {
+      const plan = planAutoEvent(existing, i.event, { now: this.clock(), dir: i.dir });
+      return plan && { ...plan, project: i.project, branch: i.branch, dir: i.dir, agent: i.agent, agentVerified: true, origin: "auto" };
+    });
+  }
+
+  setAutoCapture(project: string, on: boolean, by: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO project_settings (project, auto_capture, changed_at, changed_by) VALUES (?, ?, ?, ?)
+         ON CONFLICT(project) DO UPDATE SET auto_capture = excluded.auto_capture, changed_at = excluded.changed_at, changed_by = excluded.changed_by`,
+      )
+      .run(project, on ? 1 : 0, this.clock(), by);
+  }
+
+  /** On unless turned off for this project, or everywhere with BAGLAM_AUTO_CAPTURE=0. */
+  isAutoCapture(project: string): boolean {
+    if (process.env.BAGLAM_AUTO_CAPTURE === "0") return false;
+    const r = this.db.prepare("SELECT auto_capture FROM project_settings WHERE project = ?").get(project) as Row | undefined;
+    return Number(r?.auto_capture ?? 1) === 1;
+  }
+
+  noteHookSeen(client: string, event: string): void {
+    this.db.prepare("INSERT OR REPLACE INTO hook_seen (client, at, event) VALUES (?, ?, ?)").run(client, this.clock(), event);
+  }
+
+  hookSeen(): Record<string, { at: number; event: string }> {
+    const rows = this.db.prepare("SELECT client, at, event FROM hook_seen").all() as Row[];
+    return Object.fromEntries(rows.map((r) => [r.client as string, { at: Number(r.at), event: r.event as string }]));
   }
 
   // ---- Autonomous mode ----

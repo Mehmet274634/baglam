@@ -94,6 +94,22 @@ baglam handoff clear      # mark it done
 
 The panel shows the same as a card at the top of the Inbox.
 
+### Automatic saving
+
+Agents sometimes forget to checkpoint. `baglam setup` therefore also installs small hooks in each tool, and they save the task in progress on their own, even when the agent never calls Bağlam:
+
+- **your request**, when you send it (it starts a task, or joins the one in progress, so "continue" to the next agent picks it up);
+- **every file the agent edits**;
+- **the agent's last reply** when its turn ends ("Last reply: …"), unless the agent checkpointed itself.
+
+The agent's own checkpoints stay the richer source; automatic saving never marks a task done or rewrites its next steps. It only works in folders where you ran `baglam init`, everything stays on this computer, and secrets are hidden.
+
+```bash
+baglam capture off        # turn it off for this project (on by default); also in the panel's Settings
+```
+
+Supported: Claude Code, Codex CLI, Cursor, Antigravity, Gemini CLI, VS Code (Copilot agent hooks, preview). Antigravity gives no reply text, so there only the request and the files are saved. **Codex asks you to trust new hooks once:** open Codex, run `/hooks` and trust Bağlam's. `baglam doctor` shows, per tool, when it last saved automatically.
+
 ## Autonomous mode (optional)
 
 Don't want to stop for approvals? Per project:

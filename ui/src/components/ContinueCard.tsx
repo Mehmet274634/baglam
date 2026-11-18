@@ -21,6 +21,16 @@ export function ContinueCard(props: {
         <span class="meta">{t("continue.by", { agent: h.agent, when: relativeTime(t, h.updatedAt) })}</span>
       </header>
       <h3 class="card-title">{h.goal}</h3>
+      {(h.requests?.length || h.agentAt === null) && (
+        <p class="card-why">
+          {h.requests?.length ? (
+            <>
+              <strong>{t("continue.asked")}:</strong> {h.requests.at(-1)}{" "}
+            </>
+          ) : null}
+          {h.agentAt === null && <span class="badge badge-auto">{t("continue.auto")}</span>}
+        </p>
+      )}
 
       <div class="progress">
         {h.done.length > 0 && (

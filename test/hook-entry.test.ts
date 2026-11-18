@@ -1,0 +1,157 @@
+import { describe, it, expect } from "vitest";
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { runHook } from "../src/hook.js";
+import { createMarker } from "../src/project.js";
+import { ContextStore } from "../src/store.js";
+import { currentBranch, fastBranch } from "../src/git.js";
+
+const root = join(import.meta.dirname, "..");
+
+function project(opts: { git?: boolean } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "baglam-hook-"));
+  if (opts.git) execFileSync("git", ["init", "-q", "-b", "main"], { cwd: dir });
+  const ref = createMarker(dir);
+  const dbPath = join(mkdtempSync(join(tmpdir(), "baglam-hookdb-")), "b.db");
+  const run = (client: string, event: string, payload: unknown) =>
+    runHook([client, event], { stdin: typeof payload === "string" ? payload : JSON.stringify(payload), env: {}, dbPath, cwd: dir });
+  const open = () => new ContextStore(dbPath);
+  return { dir, key: ref.key, dbPath, run, open };
+}
+
+describe("runHook", () => {
+  it("prompt in an initialised folder starts a task", () => {
+    const p = project({ git: true });
+    expect(p.run("claude-code", "prompt", { cwd: p.dir, prompt: "Build a todo app" })).toEqual({ stdout: "", code: 0 });
+    const s = p.open();
+    const h = s.getHandoff(p.key, "main")!;
+    expect(h.goal).toBe("Build a todo app");
+    expect(h.agent).toBe("claude-code");
+    s.close();
+  });
+
+  it("edits and the reply land on the same task", () => {
+    const p = project({ git: true });
+    p.run("cursor", "prompt", { prompt: "Add search", workspace_roots: [p.dir] });
+    expect(p.run("cursor", "edit", { file_path: join(p.dir, "app.js"), workspace_roots: [p.dir] }).stdout).toBe("{}");
+    p.run("cursor", "stop", { text: "Search works", workspace_roots: [p.dir] });
+    const s = p.open();
+    const h = s.getHandoff(p.key, "main")!;
+    expect([h.goal, h.files, h.now]).toEqual(["Add search", ["app.js"], "Last reply: Search works"]);
+    s.close();
+  });
+
+  it("works outside git (branch '-')", () => {
+    const p = project();
+    p.run("gemini-cli", "prompt", { cwd: p.dir, prompt: "p" });
+    const s = p.open();
+    expect(s.getHandoff(p.key, "-")?.goal).toBe("p");
+    s.close();
+  });
+
+  it("no marker: exits without opening the database", () => {
+    const dir = mkdtempSync(join(tmpdir(), "baglam-nomark-"));
+    const dbPath = join(tmpdir(), `baglam-never-${Date.now()}`, "b.db");
+    const r = runHook(["claude-code", "prompt"], { stdin: JSON.stringify({ cwd: dir, prompt: "x" }), env: {}, dbPath, cwd: dir });
+    expect(r).toEqual({ stdout: "", code: 0 });
+    expect(existsSync(dbPath)).toBe(false);
+  });
+
+  it("auto-capture off: nothing saved, but the hook is still seen", () => {
+    const p = project();
+    const s = p.open();
+    s.setAutoCapture(p.key, false, "me");
+    s.close();
+    p.run("codex", "prompt", { cwd: p.dir, prompt: "x" });
+    const s2 = p.open();
+    expect(s2.getHandoff(p.key, "-")).toBeUndefined();
+    expect(Object.keys(s2.hookSeen())).toEqual(["codex"]);
+    s2.close();
+  });
+
+  it("bad JSON, empty stdin and unknown client or event still give the neutral output", () => {
+    const p = project();
+    expect(p.run("cursor", "prompt", "{not json")).toEqual({ stdout: '{"continue":true}', code: 0 });
+    expect(p.run("gemini-cli", "stop", "")).toEqual({ stdout: "{}", code: 0 });
+    expect(runHook(["nope", "prompt"], { stdin: "{}", env: {}, dbPath: p.dbPath, cwd: p.dir })).toEqual({ stdout: "", code: 0 });
+    expect(runHook(["cursor", "nope"], { stdin: "{}", env: {}, dbPath: p.dbPath, cwd: p.dir })).toEqual({ stdout: "{}", code: 0 });
+    expect(runHook([], { stdin: "{}", env: {}, dbPath: p.dbPath, cwd: p.dir })).toEqual({ stdout: "", code: 0 });
+  });
+
+  it("a failure is logged next to the database, never thrown", () => {
+    const p = project();
+    // A directory where the database file should be makes opening it fail.
+    const dbPath = join(mkdtempSync(join(tmpdir(), "baglam-baddb-")), "b.db");
+    mkdirSync(dbPath);
+    const r = runHook(["claude-code", "prompt"], { stdin: JSON.stringify({ cwd: p.dir, prompt: "x" }), env: {}, dbPath, cwd: p.dir });
+    expect(r).toEqual({ stdout: "", code: 0 });
+    const log = readFileSync(join(dbPath, "..", "hook-errors.log"), "utf8");
+    expect(log).toMatch(/claude-code prompt/);
+  });
+
+  it("the compiled hook prints exactly the neutral output", () => {
+    const p = project();
+    const r = spawnSync(process.execPath, [join(root, ".test-dist", "hook.js"), "cursor", "prompt"], {
+      input: JSON.stringify({ prompt: "From a real process", workspace_roots: [p.dir] }),
+      encoding: "utf8",
+      env: { ...process.env, BAGLAM_DB: p.dbPath },
+    });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe('{"continue":true}');
+    const s = p.open();
+    expect(s.getHandoff(p.key, "-")?.goal).toBe("From a real process");
+    s.close();
+  });
+});
+
+describe("fastBranch agrees with git", () => {
+  it("normal branch, fresh repo, detached head, not a repo", () => {
+    const dir = mkdtempSync(join(tmpdir(), "baglam-fb-"));
+    expect(fastBranch(dir)).toBe(currentBranch(dir));
+    execFileSync("git", ["init", "-q", "-b", "feature/x"], { cwd: dir });
+    expect(fastBranch(dir)).toBe("feature/x");
+    expect(fastBranch(dir)).toBe(currentBranch(dir));
+    writeFileSync(join(dir, "a.txt"), "a");
+    execFileSync("git", ["add", "."], { cwd: dir });
+    execFileSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "a"], { cwd: dir });
+    const sub = join(dir, "sub");
+    mkdirSync(sub);
+    expect(fastBranch(sub)).toBe("feature/x");
+    execFileSync("git", ["checkout", "-q", "--detach"], { cwd: dir });
+    expect(fastBranch(dir)).toBe("detached");
+    expect(fastBranch(dir)).toBe(currentBranch(dir));
+  });
+
+  it("a linked worktree reads its own HEAD", () => {
+    const dir = mkdtempSync(join(tmpdir(), "baglam-wt-"));
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: dir });
+    writeFileSync(join(dir, "a.txt"), "a");
+    execFileSync("git", ["add", "."], { cwd: dir });
+    execFileSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "a"], { cwd: dir });
+    const wt = join(mkdtempSync(join(tmpdir(), "baglam-wt2-")), "w");
+    execFileSync("git", ["worktree", "add", "-q", "-b", "other", wt], { cwd: dir });
+    expect(fastBranch(wt)).toBe("other");
+    expect(fastBranch(wt)).toBe(currentBranch(wt));
+  });
+});
+
+describe("hooks firing at the same time", () => {
+  it("parallel edit hooks never lose a file", async () => {
+    const { spawn } = await import("node:child_process");
+    const p = project();
+    p.run("claude-code", "prompt", { cwd: p.dir, prompt: "Many edits" });
+    const hook = join(root, ".test-dist", "hook.js");
+    const one = (i: number) =>
+      new Promise<void>((done) => {
+        const c = spawn(process.execPath, [hook, "claude-code", "edit"], { env: { ...process.env, BAGLAM_DB: p.dbPath } });
+        c.on("exit", () => done());
+        c.stdin.end(JSON.stringify({ cwd: p.dir, tool_name: "Write", tool_input: { file_path: join(p.dir, `f${i}.ts`) } }));
+      });
+    await Promise.all(Array.from({ length: 12 }, (_, i) => one(i)));
+    const s = p.open();
+    expect(s.getHandoff(p.key, "-")!.files.sort()).toEqual(Array.from({ length: 12 }, (_, i) => `f${i}.ts`).sort());
+    s.close();
+  }, 60_000);
+});
