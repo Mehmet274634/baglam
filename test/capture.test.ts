@@ -86,6 +86,33 @@ describe("auto-capture: requests", () => {
   });
 });
 
+describe("the agent's own checkpoint right after a captured request", () => {
+  it("new_task on a task only the tool saved names that task instead of replacing it", () => {
+    const { store, cap, live } = setup();
+    cap("codex", { kind: "prompt", text: "notlar.txt oluştur" });
+    const auto = live()!;
+    store.checkpoint({ project: "p", branch: "main", agent: "codex", agentVerified: true, goal: "Create notlar.txt", newTask: true, files: ["notlar.txt"] });
+    const h = live()!;
+    expect(h.taskId).toBe(auto.taskId);
+    expect(h.goal).toBe("Create notlar.txt");
+    expect(h.requests).toEqual(["notlar.txt oluştur"]);
+  });
+
+  it("a real new task keeps the request that started it", () => {
+    const { store, cap, live } = setup();
+    store.checkpoint({ project: "p", branch: "main", agent: "codex", agentVerified: true, goal: "Old work" });
+    cap("codex", { kind: "prompt", text: "now something unrelated" });
+    store.checkpoint({ project: "p", branch: "main", agent: "codex", agentVerified: true, goal: "Unrelated", newTask: true });
+    expect(live()!.goal).toBe("Unrelated");
+    expect(live()!.requests).toEqual(["now something unrelated"]);
+  });
+
+  it("agent instructions ask for the user's language", async () => {
+    const { instructionBlock } = await import("../src/instructions.js");
+    expect(instructionBlock()).toMatch(/in the language the user writes in/);
+  });
+});
+
 describe("auto-capture: secrets cut by a size limit", () => {
   it("a secret straddling the request limit is not stored in part", () => {
     const { cap, live } = setup();
