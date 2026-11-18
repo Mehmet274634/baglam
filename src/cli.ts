@@ -215,6 +215,16 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
           );
           return 1;
         }
+        const like = o.force || o.replaces ? [] : ctx.store.findSimilar(project, { title, body }, { kind: kind as Kind, limit: 1 });
+        if (like.length) {
+          const l = like[0];
+          print(
+            `This looks like ${l.id} "${l.title}", which agents already see.\n` +
+              `  To replace it:   add the same again with --replaces ${l.id}\n` +
+              "  To keep both:    add --force",
+          );
+          return 1;
+        }
         const e = ctx.store.addApproved(
           {
             project,
@@ -502,9 +512,11 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
         return 0;
       }
       case "projects": {
-        const rows = ctx.store.projects();
+        const rows = ctx.store.listProjects();
         if (!rows.length) print("No projects yet.");
-        for (const r of rows) print(`${String(r.approved).padStart(4)} active  ${String(r.pending).padStart(3)} pending  ${r.project}`);
+        for (const r of rows) {
+          print(`${String(r.approved).padStart(4)} active  ${String(r.pending).padStart(3)} pending  ${r.name}${r.path ? `  (${r.path})` : ""}`);
+        }
         return 0;
       }
       case undefined:

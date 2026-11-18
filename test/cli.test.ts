@@ -138,3 +138,34 @@ describe("baglam --version", () => {
     expect(out).toEqual([pkg.version]);
   });
 });
+
+describe("cli: readable output", () => {
+  it("projects shows names and folders, not only ids", async () => {
+    const store = new ContextStore(":memory:");
+    const key = "11111111-2222-4333-8444-555555555555";
+    store.touchProject({ key, name: "Ödeme Sistemi", dir: "c:/work/odeme" });
+    store.addApproved({ project: key, kind: "decision", title: "Use pnpm", body: "Always pnpm" }, "me");
+    const out: string[] = [];
+    await runCli(["projects"], { store, project: key, user: "me", print: (s) => out.push(s) });
+    const text = out.join("\n");
+    expect(text).toMatch(/Ödeme Sistemi/);
+    expect(text).toMatch(/c:\/work\/odeme/);
+    expect(text).toMatch(/1 active/);
+  });
+
+  it("add stops at a record that says nearly the same and says how to replace it or add anyway", async () => {
+    const store = new ContextStore(":memory:");
+    const first = store.addApproved({ project: "p", kind: "decision", title: "Use pnpm", body: "Always pnpm, never npm" }, "me");
+    const out: string[] = [];
+    const args = ["add", "decision", "Use pnpm always", "Always pnpm and never npm"];
+    const code = await runCli(args, { store, project: "p", user: "me", print: (s) => out.push(s) });
+    const text = out.join("\n");
+    expect(code).toBe(1);
+    expect(store.all("p")).toHaveLength(1);
+    expect(text).toMatch(new RegExp(`looks like ${first.id}`));
+    expect(text).toMatch(new RegExp(`--replaces ${first.id}`));
+    expect(text).toMatch(/--force/);
+    expect(await runCli([...args, "--force"], { store, project: "p", user: "me", print: () => {} })).toBe(0);
+    expect(await runCli(["add", "decision", "Use pnpm v9", "Always pnpm 9", "--replaces", first.id], { store, project: "p", user: "me", print: () => {} })).toBe(0);
+  });
+});
