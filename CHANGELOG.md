@@ -12,8 +12,12 @@ All notable changes to Bağlam. The format follows [Keep a Changelog](https://ke
 - Export/import include tasks in progress; an import never turns autonomous mode on by itself.
 - `baglam doctor` reports outdated agent instructions and servers missing the new tools.
 
+- **Checkpoint nudges.** Every `context_checkpoint` reply for a task in progress asks for the next checkpoint, and an agent whose own task has not been checkpointed for 5 minutes is reminded on its next tool call (only the session that is working on it; never for blocked or finished tasks).
+- `baglam init` suggests `git init` when the folder is not inside a git repository.
+
 ### Changed
 - Agent instructions written by `baglam init` teach checkpointing; re-run `baglam init` after upgrading.
+- A git repository without commits now keys tasks by its branch name (for example `main`) instead of `-`, so the key no longer changes at the first commit.
 - Schema v6 (automatic backup and upgrade).
 
 ## [1.0.0-rc.1] - 2026-11-17

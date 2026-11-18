@@ -18,7 +18,18 @@ const KNOWN_AGENT_IDS = ALL_CLIENTS.map((c) => c.id);
 import { describeFindings, scanEntryFields } from "./guards.js";
 import { exportJson, exportMarkdown, importJson } from "./portable.js";
 import { formatCheck, runDoctor, type Handshake } from "./doctor.js";
-import { basename } from "node:path";
+import { basename, dirname, join } from "node:path";
+
+/**
+ * True when the folder or a parent holds `.git` (a folder, or a file in worktrees and submodules).
+ * Checked on disk, not by running git, so a missing or refusing git never makes us blame the folder.
+ */
+function insideGitRepo(dir: string): boolean {
+  for (let d = dir; ; d = dirname(d)) {
+    if (existsSync(join(d, ".git"))) return true;
+    if (dirname(d) === d) return false;
+  }
+}
 import type { Change } from "./clients/types.js";
 
 const USAGE = `Usage: baglam <command> [options]
@@ -468,7 +479,7 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
         print(`Folder:  ${r.project.dir}`);
         if (r.moved) print(`Moved ${r.moved} existing record(s) to this project id.`);
         for (const c of r.changes) print(formatChange(c, basename(c.file)));
-        if (!o.undo && currentBranch(r.project.dir) === "-") {
+        if (!o.undo && !insideGitRepo(r.project.dir)) {
           print(
             "\nNote: this folder is not a git repository. Handoffs between agents work much better with git: Bağlam then\n" +
               "shows the next agent which files changed after the last checkpoint, even if the previous one stopped abruptly.\n" +

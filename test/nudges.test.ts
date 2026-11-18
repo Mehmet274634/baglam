@@ -61,7 +61,36 @@ describe("checkpoint nudges", () => {
   });
 });
 
+describe("reminders only for this connection's own task", () => {
+  it("a fresh session meeting an older session's stale task is not nagged", async () => {
+    const { connect, clock } = await setup();
+    const crashed = await connect("claude-code");
+    await crashed.callTool({ name: "context_checkpoint", arguments: { goal: "Old task" } });
+    clock.set(clock.get() + 60 * 60_000);
+    const fresh = await connect("claude-code"); // same client name, new session
+    expect(text(await fresh.callTool({ name: "context_search", arguments: { query: "x" } }))).not.toMatch(/Reminder/);
+    expect(text(await crashed.callTool({ name: "context_search", arguments: { query: "x" } }))).toMatch(/Reminder/);
+  });
+
+  it("a blocked task is not nagged and its reply does not ask for more", async () => {
+    const { connect, clock } = await setup();
+    const c = await connect("claude-code");
+    const r = text(await c.callTool({ name: "context_checkpoint", arguments: { goal: "Waiting", status: "blocked", blockers: "needs the user's API choice" } }));
+    expect(r).not.toMatch(/Checkpoint again/);
+    clock.set(clock.get() + 30 * 60_000);
+    expect(text(await c.callTool({ name: "context_search", arguments: { query: "x" } }))).not.toMatch(/Reminder/);
+  });
+});
+
 describe("init git hint", () => {
+  it("does not blame the folder when a .git folder exists (git missing or refusing)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "baglam-fakegit-"));
+    mkdirSync(join(dir, ".git"));
+    const out: string[] = [];
+    await runCli(["init", "--project", dir], { store: new ContextStore(":memory:"), project: "x", user: "u", print: (s) => out.push(s), host: testHost() });
+    expect(out.join("\n")).not.toMatch(/not a git repository/);
+  });
+
   it("suggests git init when the folder is not a git repository", async () => {
     const dir = mkdtempSync(join(tmpdir(), "baglam-nogit-"));
     const out: string[] = [];
