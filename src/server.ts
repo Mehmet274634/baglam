@@ -94,6 +94,10 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
     if (!mine.size) return "";
     const me = agentName();
     const now = (opts.now ?? Date.now)();
+    // Automatic saves from tool hooks refresh updatedAt, so never count from it: count from the agent's
+    // own last checkpoint, or, for a task only the hooks saved so far (a request after 12 idle hours
+    // starts one in this same session), from when that task began.
+    const since = (h: Handoff) => h.agentAt ?? h.createdAt;
     let stale: Handoff | undefined;
     for (const [key, t] of mine) {
       const h = store.getHandoff(t.project, t.branch);
@@ -102,16 +106,15 @@ export function createServer(store: ContextStore, opts: ServerOptions): McpServe
         mine.delete(key);
         continue;
       }
-      // Automatic saves from tool hooks refresh updatedAt; what matters is the agent's own last checkpoint.
-      const last = h.agentAt ?? h.updatedAt;
-      if (now - last >= STALE_CHECKPOINT_MS && (!stale || last < (stale.agentAt ?? stale.updatedAt))) stale = h;
+      if (now - since(h) >= STALE_CHECKPOINT_MS && (!stale || since(h) < since(stale))) stale = h;
     }
     if (!stale) return "";
-    const min = Math.round((now - (stale.agentAt ?? stale.updatedAt)) / 60_000);
-    return (
-      `\n\nReminder: your last checkpoint on "${stale.goal}" was ${min} min ago. Call context_checkpoint with what you have done since ` +
-      "(done_add, now, next), so another agent can continue if you are stopped."
-    );
+    const min = Math.round((now - since(stale)) / 60_000);
+    const what =
+      stale.agentAt === null
+        ? `you have not checkpointed "${stale.goal}" yet (started ${min} min ago). Call context_checkpoint with this task's goal and what you have done`
+        : `your last checkpoint on "${stale.goal}" was ${min} min ago. Call context_checkpoint with what you have done since`;
+    return `\n\nReminder: ${what} (done_add, now, next), so another agent can continue if you are stopped.`;
   }
 
   const label = (p: ProjectRef) => `${p.name} (${p.dir})`;

@@ -63,10 +63,11 @@ export const claudeCode: ClientAdapter = {
     if (r.code !== 0) return { installed, registered: false };
     const args = /Args:\s*(.*)/.exec(r.stdout)?.[1]?.trim().split(/\s+/) ?? [];
     const command = /Command:\s*(.*)/.exec(r.stdout)?.[1]?.trim() ?? "";
+    const agent = /BAGLAM_AGENT=(\S+)/.exec(r.stdout)?.[1];
     return {
       installed,
       registered: true,
-      entry: { command, args: matches(h, r.stdout) ? [h.cliPath, "mcp"] : args },
+      entry: { command, args: matches(h, r.stdout) ? [h.cliPath, "mcp"] : args, env: agent ? { BAGLAM_AGENT: agent } : undefined },
     };
   },
 };

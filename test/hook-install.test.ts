@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { testHost } from "./helpers.js";
 import { HOOK_INSTALLERS, hookCommand } from "../src/clients/hooks.js";
@@ -219,6 +220,35 @@ describe("installed hooks are recognised whatever order the tool keeps", () => {
     expect(HOOK_INSTALLERS.cursor.status(h).installed).toBe(false);
     expect(HOOK_INSTALLERS.cursor.install(h).action).toBe("updated");
     expect(read(f).hooks.afterFileEdit).toHaveLength(1);
+  });
+
+  it("another tool's hook.js with the same arguments is never taken for ours", () => {
+    const h = testHost();
+    const other = mkdtempSync(join(tmpdir(), "other-tool-"));
+    put(join(other, "package.json"), { name: "other-tool" });
+    put(join(other, "dist", "hook.js"), {});
+    const theirs = { hooks: [{ type: "command", command: `node "${other.replace(/\\/g, "/")}/dist/hook.js" claude-code stop` }] };
+    const f = join(h.home, ".claude", "settings.json");
+    put(f, { hooks: { Stop: [theirs] } });
+    expect(HOOK_INSTALLERS["claude-code"].install(h).action).toBe("updated");
+    expect(read(f).hooks.Stop).toHaveLength(2);
+    expect(read(f).hooks.Stop[0]).toEqual(theirs);
+    expect(HOOK_INSTALLERS["claude-code"].status(h).installed).toBe(true);
+    HOOK_INSTALLERS["claude-code"].uninstall(h);
+    expect(read(f)).toEqual({ hooks: { Stop: [theirs] } });
+  });
+
+  it("an existing Bağlam install elsewhere (package name baglam) is still ours and gets replaced", () => {
+    const h = testHost();
+    const old = mkdtempSync(join(tmpdir(), "old-baglam-"));
+    put(join(old, "package.json"), { name: "baglam" });
+    put(join(old, "dist", "hook.js"), {});
+    const f = join(h.home, ".cursor", "hooks.json");
+    put(f, { version: 1, hooks: { afterFileEdit: [{ command: `node "${old.replace(/\\/g, "/")}/dist/hook.js" cursor edit` }] } });
+    expect(HOOK_INSTALLERS.cursor.status(h).installed).toBe(false);
+    HOOK_INSTALLERS.cursor.install(h);
+    expect(read(f).hooks.afterFileEdit).toHaveLength(1);
+    expect(read(f).hooks.afterFileEdit[0].command).toContain("C:/baglam/dist/hook.js");
   });
 
   it("keys the tool reorders inside our own entry still match", () => {

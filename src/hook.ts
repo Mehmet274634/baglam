@@ -15,6 +15,12 @@ import { ContextStore } from "./store.js";
 
 const MAX_STDIN = 1024 * 1024;
 const DEADLINE_MS = 3000;
+/**
+ * SQLite waits for a lock synchronously, so the deadline timer cannot fire meanwhile. Each wait is
+ * capped well below the deadline instead: at most two writes wait, so a locked database costs the
+ * tool under 1.5 s and the save is skipped (and logged) rather than holding the tool up.
+ */
+export const HOOK_BUSY_MS = 700;
 const MAX_LOG = 256 * 1024;
 
 export interface HookIo {
@@ -59,12 +65,13 @@ export function runHook(argv: string[], io: HookIo): { stdout: string; code: 0 }
     const project = resolveDirectory(n.cwd ?? io.cwd ?? process.cwd());
     // Hooks fire in every folder; only projects set up with `baglam init` are touched.
     if (!project.initialized) return { stdout, code: 0 };
-    const store = new ContextStore(io.dbPath, io.now);
+    const store = new ContextStore(io.dbPath, io.now, { busyTimeoutMs: HOOK_BUSY_MS });
     try {
-      store.noteHookSeen(client, event);
+      // The save first: if the database stays locked, it is the write worth its one wait.
       if (n.event && store.isAutoCapture(project.key)) {
         store.autoCapture({ project: project.key, branch: fastBranch(project.dir), dir: project.dir, agent: client, event: n.event });
       }
+      store.noteHookSeen(client, event);
     } finally {
       store.close();
     }

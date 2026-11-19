@@ -1,5 +1,5 @@
-import { existsSync, rmSync } from "node:fs";
-import { join, posix } from "node:path";
+import { existsSync, readFileSync, rmSync } from "node:fs";
+import { dirname, join, posix } from "node:path";
 import type { HostEnv } from "../host.js";
 import { HOOK_CLIENTS, type HookClient, type HookEvent } from "../hooks/normalize.js";
 import { isPlainObject, read, write, type Json } from "./json.js";
@@ -43,9 +43,26 @@ export function hookCommand(h: HostEnv, client: HookClient, event: HookEvent, sh
   return shell === "powershell" ? `& ${line}` : line;
 }
 
-const OURS = new RegExp(String.raw`hook\.js"?\s+(?:${HOOK_CLIENTS.join("|")})\s+(?:prompt|edit|stop)\b`);
+const OURS = new RegExp(String.raw`(?:"([^"]*hook\.js)"|(\S*hook\.js))\s+(?:${HOOK_CLIENTS.join("|")})\s+(?:prompt|edit|stop)\b`);
+
+/**
+ * Our command shape, and the hook.js it runs is Bağlam's: its package (dist/../package.json) is
+ * named "baglam". A hook.js that no longer exists is a moved or removed install of ours, to replace.
+ */
+function isOurCommand(command: string): boolean {
+  const m = OURS.exec(command);
+  if (!m) return false;
+  const file = m[1] ?? m[2];
+  if (!existsSync(file)) return true;
+  try {
+    return (JSON.parse(readFileSync(join(dirname(file), "..", "package.json"), "utf8")) as { name?: unknown }).name === "baglam";
+  } catch {
+    return false;
+  }
+}
+
 const isOurs = (handler: unknown) =>
-  isPlainObject(handler) && [handler.command, handler.commandWindows].some((c) => typeof c === "string" && OURS.test(c));
+  isPlainObject(handler) && [handler.command, handler.commandWindows].some((c) => typeof c === "string" && isOurCommand(c));
 
 /**
  * How a tool lays out hooks:

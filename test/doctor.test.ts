@@ -55,6 +55,28 @@ describe("baglam doctor", () => {
     expect(c?.fix).toBe("baglam setup");
   });
 
+  it("an entry added by hand without BAGLAM_AGENT is flagged (it runs as an unverified agent); setup fixes it", async () => {
+    const { host, dbPath, project } = machine();
+    const file = join(host.home, ".cursor", "mcp.json");
+    writeFileSync(file, JSON.stringify({ mcpServers: { baglam: { command: host.nodePath, args: [host.cliPath, "mcp"] } } }));
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    const c = checks.find((x) => x.name === "Cursor: registered");
+    expect(c).toMatchObject({ ok: false, fix: "baglam setup" });
+    expect(c?.detail).toMatch(/without BAGLAM_AGENT/);
+    runSetup(host, { confirm: () => true });
+    const after = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    expect(after.find((x) => x.name === "Cursor: registered")).toMatchObject({ ok: true, detail: "as cursor" });
+  });
+
+  it("Claude Code registered by hand without BAGLAM_AGENT is flagged too", async () => {
+    const { dbPath, project } = machine();
+    const host = testHost({ commands: { claude: (args) => (args[1] === "get" ? { code: 0, stdout: "Command: node\nArgs: C:/baglam/dist/cli.js mcp\n" } : { code: 0 }) } });
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    const c = checks.find((x) => x.name === "Claude Code: registered");
+    expect(c).toMatchObject({ ok: false, fix: "baglam setup" });
+    expect(c?.detail).toMatch(/without BAGLAM_AGENT/);
+  });
+
   it("reports a failed handshake", async () => {
     const { host, dbPath, project } = machine();
     runSetup(host, { confirm: () => true });

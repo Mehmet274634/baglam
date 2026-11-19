@@ -3,6 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { runHook } from "../src/hook.js";
 import { createMarker } from "../src/project.js";
 import { ContextStore } from "../src/store.js";
@@ -90,6 +91,22 @@ describe("runHook", () => {
     const log = readFileSync(join(dbPath, "..", "hook-errors.log"), "utf8");
     expect(log).toMatch(/claude-code prompt/);
   });
+
+  it("a locked database gives up well inside the deadline (SQLite waits block the deadline timer)", () => {
+    const p = project();
+    p.open().close(); // create and migrate the file first
+    const holder = new DatabaseSync(p.dbPath, { timeout: 0 });
+    holder.exec("BEGIN IMMEDIATE");
+    try {
+      const t0 = Date.now();
+      expect(p.run("claude-code", "prompt", { cwd: p.dir, prompt: "x" })).toEqual({ stdout: "", code: 0 });
+      expect(Date.now() - t0).toBeLessThan(2000);
+    } finally {
+      holder.exec("ROLLBACK");
+      holder.close();
+    }
+    expect(readFileSync(join(p.dbPath, "..", "hook-errors.log"), "utf8")).toMatch(/claude-code prompt: .*locked/i);
+  }, 15_000);
 
   it("the compiled hook prints exactly the neutral output", () => {
     const p = project();

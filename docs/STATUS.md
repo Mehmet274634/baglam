@@ -64,12 +64,15 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 1. **Mac test** with the owner's friend: `npm i -g baglam`, `baglam setup`, `baglam init`, a Claude
    Code → Codex/Cursor handoff, `baglam doctor`. Fix whatever the Mac run shows.
 2. **1.0.0 release** after the Mac test: changelog, version bump, staged publish (owner approves).
-3. Deferred minors from reviews:
-   - the hook's SQLite busy wait (short `busy_timeout` vs a hook budget);
-   - `isOurs` could match a third-party `hook.js` with the same file name;
-   - the 12-hour stale-task edge in reminders;
-   - an MCP entry registered by hand without `BAGLAM_AGENT` is shown as an unknown agent.
-4. Custom domain if `vercel.app` stays blocked for Turkish visitors.
+3. Custom domain if `vercel.app` stays blocked for Turkish visitors.
+
+## Done since rc.3 (unreleased, in CHANGELOG)
+
+The four deferred review minors are fixed (2026-11-19): the hook's busy wait is capped at
+`HOOK_BUSY_MS` (700 ms per write; SQLite waits block the deadline timer), `isOurs` checks that an
+existing `hook.js` belongs to the `baglam` package, reminders count from the agent's own checkpoint
+or the task's start (never `updatedAt`, which hooks refresh), and `baglam doctor` flags hand-made
+entries without `BAGLAM_AGENT`.
 
 ## History
 
