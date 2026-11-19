@@ -149,9 +149,9 @@ export const tr: Dict = {
     autoTitle: "Ajan unutsa bile",
     autoDim: "iş kaydedilir.",
     autoCards: [
-      { chip: "İstenen", t: "İsteğin", d: "Gönderdiğin anda kaydedilir; sıradaki ajana “devam et” demen yeter." },
-      { chip: "Dosyalar", t: "Değişen her dosya", d: "Ajanın değiştirdiği her dosya, proje içindeki yoluyla göreve eklenir." },
-      { chip: "Şu an", t: "Son cevap", d: "Sıra bittiğinde işin geldiği nokta; ajan kendisi kaydettiyse bu adım atlanır." },
+      { chip: "İstenen", sample: ["“Stripe webhook işleyicisini ekle”", "“devam et”"], t: "İsteğin", d: "Gönderdiğin anda kaydedilir; sıradaki ajana “devam et” demen yeter." },
+      { chip: "Dosyalar", sample: ["src/payment/webhook.ts", "src/payment/stripe.ts"], t: "Değişen her dosya", d: "Ajanın değiştirdiği her dosya, proje içindeki yoluyla göreve eklenir." },
+      { chip: "Şu an", sample: ["Webhook işleyicisi hazır.", "Sırada: imzayı doğrula."], t: "Son cevap", d: "Sıra bittiğinde işin geldiği nokta; ajan kendisi kaydettiyse bu adım atlanır." },
     ],
     secTitle: "Baştan gizlilik için tasarlandı.",
     secDim: "Hiçbir şey bilgisayarından çıkmaz.",

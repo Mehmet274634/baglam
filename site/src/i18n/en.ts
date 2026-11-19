@@ -147,9 +147,9 @@ export const en = {
     autoTitle: "Even when the agent forgets,",
     autoDim: "the work is saved.",
     autoCards: [
-      { chip: "Asked", t: "Your request", d: "Saved the moment you send it, so “keep going” is enough for the next agent." },
-      { chip: "Files", t: "Every edited file", d: "Each file the agent changes is added to the task, project-relative." },
-      { chip: "Now", t: "The last reply", d: "Where it stands when the turn ends, unless the agent checkpointed itself." },
+      { chip: "Asked", sample: ["“Add the Stripe webhook handler”", "“keep going”"], t: "Your request", d: "Saved the moment you send it, so “keep going” is enough for the next agent." },
+      { chip: "Files", sample: ["src/payment/webhook.ts", "src/payment/stripe.ts"], t: "Every edited file", d: "Each file the agent changes is added to the task, project-relative." },
+      { chip: "Now", sample: ["Webhook handler in place.", "Next: verify the signature."], t: "The last reply", d: "Where it stands when the turn ends, unless the agent checkpointed itself." },
     ],
     secTitle: "Private by design.",
     secDim: "Nothing leaves your computer.",

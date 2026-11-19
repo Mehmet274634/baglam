@@ -161,6 +161,9 @@ h1 {
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    /* Room for the tails of g, y, ş below the box (background-clip:text paints only inside it). */
+    padding-bottom: 0.12em;
+    margin-bottom: calc(0.3rem - 0.12em);
   }
 }
 h2 {

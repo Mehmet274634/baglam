@@ -187,7 +187,7 @@ p code {
 
 /* ---------- Sections ---------- */
 .section {
-  padding-block: clamp(72px, 11vw, 140px);
+  padding-block: clamp(72px, 9.5vw, 124px);
   position: relative;
 }
 .section-tight {

@@ -67,6 +67,17 @@ Antigravity `#8ab4f8`, Gemini `#b49cf0`, VS Code · Copilot `#9fd7ff`, Windsurf 
 hero title larger with a white→grey gradient. `.statement` for big Gamma-style sentences. `.h2`,
 `.h3`, `.lead`. Headlines are two-tone: bright first part, `.dim` second part.
 
+Gradient text (`background-clip: text`) is painted only inside the element's box, so with a tight
+line-height the tails of g, y, p and ç get cut. Give such text bottom padding and take it back with
+a negative margin (home title: `padding-bottom: 0.16em; margin-bottom: -0.11em`; panel `h1`: 0.12em).
+
+Section rhythm: `.section` is `clamp(72px, 9.5vw, 124px)` top and bottom (was up to 140px, which left
+screens looking empty on desktop); phones keep 60px.
+
+Home "automatic saving" cards show real examples in their small windows (`sample` in
+`home.autoCards`, EN and TR): the request as chat bubbles, edited files as mono chips, the last reply
+with a live dot. No placeholder bars.
+
 ## Components (`site/src/components/`)
 
 | Component | Role |
@@ -79,7 +90,8 @@ hero title larger with a white→grey gradient. `.statement` for big Gamma-style
 | `Constellation` | tools wired to Bağlam (home and Connections page) |
 | `PanelMock` | panel screenshot-like mock (inbox, records, settings) |
 | `Brief`, `Terminal` | product UI fragments |
-| `SectionHead`, `Cta`, `Footer` (giant wordmark), `Logo` (two rings with a gradient lens) | structure |
+| `SectionHead`, `Footer` (giant wordmark), `Logo` (two rings with a gradient lens) | structure |
+| `Cta` | closing call to action on every page: a lit rounded stage (indigo/cyan glows, a fine line grid fading from the centre, the logo in a glowing tile) |
 | `illustrations/Art`, `illustrations/Head` | line illustrations for cards |
 
 Page → effect: each view in `site/src/views/` passes an `fx` to `PageHero`.
