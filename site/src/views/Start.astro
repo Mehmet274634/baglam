@@ -18,7 +18,7 @@ const links: Record<string, { href: string; label: string }> = {
 ---
 
 <Base lang={lang} page="get-started" title={p.title} description={p.description}>
-  <PageHero eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} lead={p.lead}>
+  <PageHero fx="rays" eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} lead={p.lead}>
     <ul class="reqs reveal" aria-label={p.requirements}>
       <li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={siNodedotjs.path} fill="currentColor" /></svg>{p.reqs[0]}</li>
       <li>{p.reqs[1]}</li>

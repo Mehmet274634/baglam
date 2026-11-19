@@ -12,7 +12,7 @@ const p = t(lang).tools;
 ---
 
 <Base lang={lang} page="tools" title={p.title} description={p.description}>
-  <PageHero eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} lead={p.lead}>
+  <PageHero fx="orbit" eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} lead={p.lead}>
     <div class="reveal" style="margin-top:28px;width:100%;max-width:560px">
       <Terminal lang={lang} lines={[
           { cmd: "baglam setup" },

@@ -1,0 +1,319 @@
+---
+/**
+ * Light effects behind page openings — one design language (fine lines, travelling light, indigo and
+ * cyan), five moods: rays, orbit, streams, scan, aurora. Decorative, never blocks reading, still with
+ * reduced motion.
+ */
+export type Fx = "rays" | "orbit" | "streams" | "scan" | "aurora";
+interface Props { fx: Fx }
+const { fx } = Astro.props;
+
+const rays = Array.from({ length: 15 }, (_, i) => {
+  const a = (-165 + (i * 150) / 14) * (Math.PI / 180);
+  return { x: 600 + Math.cos(a) * 1000, y: 720 + Math.sin(a) * 1000, d: ((i * 0.41) % 3.2).toFixed(2) };
+});
+const orbits = [
+  { rx: 520, ry: 170, dur: 14, rev: false },
+  { rx: 400, ry: 125, dur: 11, rev: true },
+  { rx: 280, ry: 85, dur: 8, rev: false },
+];
+const streams = Array.from({ length: 9 }, (_, i) => ({
+  y: 120 + i * 58,
+  curve: (i % 2 ? -1 : 1) * (18 + i * 4),
+  d: ((i * 0.53) % 3.6).toFixed(2),
+  dur: (4.2 + (i % 3) * 0.9).toFixed(1),
+}));
+---
+
+<div class:list={["fx", `fx-${fx}`]} aria-hidden="true">
+  {fx === "rays" && (
+    <svg viewBox="0 0 1200 720" preserveAspectRatio="xMidYMax slice">
+      <defs>
+        <linearGradient id="fx-ray" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff" stop-opacity="0" />
+          <stop offset="1" stop-color="#fff" stop-opacity="0.13" />
+        </linearGradient>
+      </defs>
+      {rays.map((r) => (
+        <g>
+          <line x1="600" y1="720" x2={r.x} y2={r.y} stroke="url(#fx-ray)" />
+          <line x1="600" y1="720" x2={r.x} y2={r.y} pathLength="1" class="run" style={`--d:${r.d}s`} />
+        </g>
+      ))}
+    </svg>
+  )}
+
+  {fx === "orbit" && (
+    <svg viewBox="0 0 1200 720" preserveAspectRatio="xMidYMid slice">
+      {orbits.map((o, i) => (
+        <g>
+          <ellipse id={`fx-o${i}`} cx="600" cy="300" rx={o.rx} ry={o.ry} class="ring" />
+          <circle r="3.4" class="spark">
+            <animateMotion dur={`${o.dur}s`} repeatCount="indefinite" keyPoints={o.rev ? "1;0" : "0;1"} keyTimes="0;1" calcMode="linear" path={`M${600 - o.rx} 300 a${o.rx} ${o.ry} 0 1 0 ${o.rx * 2} 0 a${o.rx} ${o.ry} 0 1 0 ${-o.rx * 2} 0`} />
+          </circle>
+          <circle r="2.4" class="spark dim">
+            <animateMotion dur={`${o.dur}s`} begin={`${-o.dur / 2}s`} repeatCount="indefinite" keyPoints={o.rev ? "1;0" : "0;1"} keyTimes="0;1" calcMode="linear" path={`M${600 - o.rx} 300 a${o.rx} ${o.ry} 0 1 0 ${o.rx * 2} 0 a${o.rx} ${o.ry} 0 1 0 ${-o.rx * 2} 0`} />
+          </circle>
+        </g>
+      ))}
+    </svg>
+  )}
+
+  {fx === "streams" && (
+    <svg viewBox="0 0 1200 720" preserveAspectRatio="xMidYMid slice">
+      {streams.map((s) => (
+        <g>
+          <path d={`M-40 ${s.y} C 360 ${s.y + s.curve}, 840 ${s.y - s.curve}, 1240 ${s.y}`} class="lane" />
+          <path d={`M-40 ${s.y} C 360 ${s.y + s.curve}, 840 ${s.y - s.curve}, 1240 ${s.y}`} pathLength="1" class="flow" style={`--d:${s.d}s;--t:${s.dur}s`} />
+        </g>
+      ))}
+    </svg>
+  )}
+
+  {fx === "scan" && (
+    <div class="floor">
+      <div class="grid"></div>
+      <div class="sweep"></div>
+    </div>
+  )}
+
+  {fx === "aurora" && (
+    <div class="aurora">
+      <span class="a1"></span>
+      <span class="a2"></span>
+      <span class="a3"></span>
+    </div>
+  )}
+</div>
+
+<style>
+  .fx {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 760px;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 70%, transparent 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 70%, transparent 100%);
+  }
+  svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* rays */
+  .run {
+    stroke: #c9c6ff;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-dasharray: 0.06 0.94;
+    stroke-dashoffset: 1;
+    animation: ray 4.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    animation-delay: var(--d);
+    filter: drop-shadow(0 0 4px #7c74ff);
+  }
+  @keyframes ray {
+    0% {
+      stroke-dashoffset: 1;
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+    }
+    100% {
+      stroke-dashoffset: 0.3;
+      opacity: 0;
+    }
+  }
+  .fx-rays::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 40px;
+    width: 420px;
+    height: 120px;
+    transform: translateX(-50%);
+    background: radial-gradient(closest-side, rgb(124 116 255 / 45%), transparent);
+    filter: blur(20px);
+  }
+
+  /* orbit */
+  .ring {
+    fill: none;
+    stroke: rgb(255 255 255 / 7%);
+    stroke-dasharray: 2 7;
+  }
+  .spark {
+    fill: #cfcbff;
+    filter: drop-shadow(0 0 6px #7c74ff) drop-shadow(0 0 14px #7c74ff);
+  }
+  .spark.dim {
+    fill: #9be7e3;
+    filter: drop-shadow(0 0 6px #3fd0c9);
+  }
+  .fx-orbit::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 300px;
+    width: 520px;
+    height: 220px;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(closest-side, rgb(124 116 255 / 22%), transparent);
+    filter: blur(10px);
+  }
+
+  /* streams */
+  .lane {
+    fill: none;
+    stroke: rgb(255 255 255 / 5%);
+  }
+  .flow {
+    fill: none;
+    stroke: #a7a2ff;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-dasharray: 0.12 0.88;
+    stroke-dashoffset: 1;
+    animation: flow var(--t) linear infinite;
+    animation-delay: var(--d);
+    filter: drop-shadow(0 0 5px #7c74ff);
+  }
+  .flow:nth-of-type(4n) {
+    stroke: #6fe0da;
+    filter: drop-shadow(0 0 5px #3fd0c9);
+  }
+  @keyframes flow {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: -0.12;
+    }
+  }
+
+  /* scan */
+  .fx-scan {
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 30%, #000 88%, transparent 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, #000 30%, #000 88%, transparent 100%);
+  }
+  .floor {
+    position: absolute;
+    inset: 0;
+    perspective: 700px;
+    overflow: hidden;
+  }
+  .grid {
+    position: absolute;
+    left: -50%;
+    right: -50%;
+    bottom: -12%;
+    height: 95%;
+    transform: rotateX(68deg);
+    transform-origin: bottom;
+    background-image:
+      linear-gradient(rgb(124 116 255 / 34%) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(124 116 255 / 34%) 1px, transparent 1px);
+    background-size: 64px 64px;
+    -webkit-mask-image: linear-gradient(180deg, transparent, #000 60%);
+    mask-image: linear-gradient(180deg, transparent, #000 60%);
+    animation: drift 6s linear infinite;
+  }
+  @keyframes drift {
+    to {
+      background-position: 0 64px, 0 0;
+    }
+  }
+  .sweep {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    top: 40%;
+    background: linear-gradient(90deg, transparent, #6fe0da 30%, #fff 50%, #a7a2ff 70%, transparent);
+    box-shadow: 0 0 22px 4px rgb(63 208 201 / 45%);
+    animation: sweep 5.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  }
+  @keyframes sweep {
+    0% {
+      top: 30%;
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+    }
+    85% {
+      opacity: 1;
+    }
+    100% {
+      top: 95%;
+      opacity: 0;
+    }
+  }
+
+  /* aurora */
+  .aurora {
+    position: absolute;
+    inset: 0;
+    filter: blur(60px) saturate(140%);
+    opacity: 0.85;
+  }
+  .aurora span {
+    position: absolute;
+    border-radius: 50%;
+    mix-blend-mode: screen;
+  }
+  .a1 {
+    width: 560px;
+    height: 300px;
+    left: 18%;
+    top: 90px;
+    background: rgb(124 116 255 / 45%);
+    animation: float1 16s ease-in-out infinite alternate;
+  }
+  .a2 {
+    width: 480px;
+    height: 260px;
+    right: 14%;
+    top: 160px;
+    background: rgb(63 208 201 / 35%);
+    animation: float2 19s ease-in-out infinite alternate;
+  }
+  .a3 {
+    width: 380px;
+    height: 220px;
+    left: 42%;
+    top: 260px;
+    background: rgb(169 143 224 / 32%);
+    animation: float3 13s ease-in-out infinite alternate;
+  }
+  @keyframes float1 {
+    to {
+      transform: translate(140px, 60px) scale(1.15);
+    }
+  }
+  @keyframes float2 {
+    to {
+      transform: translate(-160px, 40px) scale(0.9);
+    }
+  }
+  @keyframes float3 {
+    to {
+      transform: translate(-60px, -70px) scale(1.2);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .run,
+    .flow,
+    .sweep,
+    .spark {
+      display: none;
+    }
+    .grid,
+    .aurora span {
+      animation: none;
+    }
+  }
+</style>

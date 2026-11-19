@@ -16,7 +16,6 @@ interface Props { lang: Lang }
 const { lang } = Astro.props;
 const d = t(lang);
 const h = d.home;
-const ch = (i: number) => `${String(i + 1).padStart(2, "0")} · ${h.chapters[i]}`;
 const flowArt = ["search", "approve", "stack"] as const;
 const secArts = ["local", "shield", "approve", "panel"] as const;
 const faq = d.faq.items.slice(0, 4);
@@ -33,9 +32,6 @@ const faq = d.faq.items.slice(0, 4);
         <a class="btn btn-primary btn-lg" href={href(lang, "get-started")}>{h.primary} <span class="arrow">→</span></a>
         <a class="btn btn-ghost btn-lg" href={href(lang, "how-it-works")}>{h.secondary}</a>
       </div>
-      <div class="install-line mono">
-        <span class="p">$</span> npm i -g baglam <span class="sep">&amp;&amp;</span> baglam setup
-      </div>
     </div>
     <a class="scroll-cue" href="#works" aria-label={d.common.worksWith}><span></span></a>
   </section>
@@ -44,7 +40,6 @@ const faq = d.faq.items.slice(0, 4);
 
   <!-- 01 The problem, and the one memory in the middle -->
   <section class="section wrap problem">
-    <span class="kicker reveal">{ch(0)}</span>
     <p class="statement reveal">{h.statement1} <span class="dim">{h.statement2}</span></p>
     <div class="rise constellation-wrap">
       <Constellation label={h.connectTitle + " " + h.connectDim} />
@@ -56,7 +51,6 @@ const faq = d.faq.items.slice(0, 4);
   <!-- 02 How it works -->
   <section class="section band">
     <div class="wrap">
-      <span class="kicker reveal">{ch(1)}</span>
       <SectionHead title={h.howTitle} dim={h.howDim} />
       <div class="grid-3">
         {d.how.flow.map((f, i) => (
@@ -73,7 +67,6 @@ const faq = d.faq.items.slice(0, 4);
 
   <!-- 03 Handoff -->
   <section class="section wrap">
-    <span class="kicker reveal">{ch(2)}</span>
     <div class="split">
       <div class="reveal copy-col">
         <h2 class="h2 two-tone">{h.handoffTitle} <span class="dim">{h.handoffDim}</span></h2>
@@ -100,7 +93,6 @@ const faq = d.faq.items.slice(0, 4);
   <!-- 04 Automatic saving -->
   <section class="section band">
     <div class="wrap">
-      <span class="kicker reveal">{ch(3)}</span>
       <SectionHead title={h.autoTitle} dim={h.autoDim} />
       <div class="grid-3">
         {h.autoCards.map((c) => (
@@ -120,7 +112,6 @@ const faq = d.faq.items.slice(0, 4);
 
   <!-- 05 The panel -->
   <section class="section wrap">
-    <span class="kicker reveal">{ch(4)}</span>
     <div class="split">
       <div class="reveal copy-col">
         <h2 class="h2 two-tone">{h.tourTitle} <span class="dim">{h.tourDim}</span></h2>
@@ -135,7 +126,6 @@ const faq = d.faq.items.slice(0, 4);
   <!-- 06 Install -->
   <section class="section band">
     <div class="wrap">
-      <span class="kicker reveal">{ch(5)}</span>
       <SectionHead title={h.installTitle} dim={h.installDim} lead={h.installText} />
       <div class="os-row">
         {[
@@ -175,7 +165,6 @@ const faq = d.faq.items.slice(0, 4);
 
   <!-- 07 Privacy -->
   <section class="section wrap">
-    <span class="kicker reveal">{ch(6)}</span>
     <SectionHead title={h.secTitle} dim={h.secDim} />
     <div class="grid-4">
       {h.secCards.map((c, i) => (
@@ -222,7 +211,7 @@ const faq = d.faq.items.slice(0, 4);
     min-height: calc(100svh - 70px);
     display: grid;
     place-items: center;
-    padding: 40px 0 80px;
+    padding: clamp(90px, 12vh, 150px) 0 110px;
     isolation: isolate;
   }
   .hero-inner {
