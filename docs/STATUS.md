@@ -78,6 +78,8 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
    not run there (step 9b checks it). Fixed for 1.0.0 (absolute Node path off Windows); the
    tester installs rc.3 from npm, so a failure in 9b confirms the cause rather than a new bug.
 2. **1.0.0 release** after the Mac test: changelog, version bump, staged publish (owner approves).
+   Before it, CI must be fully green: on 2026-11-19 the macOS jobs for `010e3f7` / `2f62567` never
+   got a runner (GitHub macOS capacity), so macOS · Node 22 has no result for the latest fixes yet.
 3. Custom domain if `vercel.app` stays blocked for Turkish visitors.
 
 ## Done since rc.3 (unreleased, in CHANGELOG)
