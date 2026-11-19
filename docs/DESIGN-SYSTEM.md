@@ -38,7 +38,7 @@ panel (`ui/`). Product logic lives in [STATUS.md](STATUS.md).
 
 ## Tokens
 
-Source of truth: `site/src/styles/tokens.css` (the panel mirrors them in `ui/src/styles.css`).
+Source of truth: `site/src/styles/tokens.css`. The panel keeps its own copy with partly different names in `ui/src/styles.css` (`--bg` for `--canvas`, `--surface-2`, `--radius`, plus record-kind colours `--k-decision` … `--k-warning`); keep the values in step when you change one.
 
 | Token | Value | Use |
 |---|---|---|
