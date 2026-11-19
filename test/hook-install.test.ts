@@ -14,9 +14,9 @@ const put = (f: string, data: unknown) => {
 const cmd = (client: string, event: string) => `"C:/node/node.exe" "C:/baglam/dist/hook.js" ${client} ${event}`;
 
 describe("hookCommand: one form every shell runs", () => {
-  it("uses a bare `node` when PATH finds this same Node, so PowerShell, cmd and bash all run it", () => {
+  it("Windows: uses a bare `node` when PATH finds this same Node, so PowerShell, cmd and bash all run it", () => {
     const where = () => ({ code: 0, stdout: "C:\\Program Files\\nodejs\\node.exe\r\nC:\\other\\node.exe\r\n" });
-    const h = { ...testHost({ commands: { where, which: where } }), nodePath: "C:\\Program Files\\nodejs\\node.exe", cliPath: "C:\\Users\\ev\\BAĞLAM\\dist\\cli.js" };
+    const h = { ...testHost({ commands: { where, which: where } }), platform: "win32" as const, nodePath: "C:\\Program Files\\nodejs\\node.exe", cliPath: "C:\\Users\\ev\\BAĞLAM\\dist\\cli.js" };
     expect(hookCommand(h, "codex", "prompt", "posix")).toBe('node "C:/Users/ev/BAĞLAM/dist/hook.js" codex prompt');
     expect(hookCommand(h, "cursor", "prompt", "powershell")).toBe('node "C:/Users/ev/BAĞLAM/dist/hook.js" cursor prompt');
   });
@@ -26,6 +26,22 @@ describe("hookCommand: one form every shell runs", () => {
     const h = { ...testHost({ commands: { where, which: where } }), nodePath: "C:\\Program Files\\nodejs\\node.exe" };
     expect(hookCommand(h, "codex", "prompt", "posix").startsWith('"C:/Program Files/nodejs/node.exe" ')).toBe(true);
   });
+
+  it.each(["darwin", "linux"] as const)(
+    "%s: always the absolute Node path (apps opened from the Dock or a launcher do not get the shell's PATH)",
+    (platform) => {
+      const which = () => ({ code: 0, stdout: "/Users/me/.nvm/versions/node/v24.1.0/bin/node\n" });
+      const h = {
+        ...testHost({ commands: { which } }),
+        platform,
+        nodePath: "/Users/me/.nvm/versions/node/v24.1.0/bin/node",
+        cliPath: "/Users/me/.npm-global/lib/node_modules/baglam/dist/cli.js",
+      };
+      expect(hookCommand(h, "cursor", "edit", "posix")).toBe(
+        '"/Users/me/.nvm/versions/node/v24.1.0/bin/node" "/Users/me/.npm-global/lib/node_modules/baglam/dist/hook.js" cursor edit',
+      );
+    },
+  );
 });
 
 describe("hookCommand", () => {

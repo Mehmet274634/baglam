@@ -31,14 +31,18 @@ function nodeOnPath(h: HostEnv): boolean {
 }
 
 /**
- * `node "<dist>/hook.js" <client> <event>`. Tools run hooks through different shells (bash, cmd,
- * PowerShell); a bare `node` first is the one form all of them run. Only when PATH finds another
- * Node (or none) the absolute path is used, quoted, with `&` for PowerShell.
+ * `node "<dist>/hook.js" <client> <event>`.
+ * - Windows: tools run hooks through different shells (bash, cmd, PowerShell); a bare `node` first is
+ *   the one form all of them run, so it is used when PATH finds this same Node.
+ * - macOS and Linux: always the absolute Node path. Apps opened from the Dock or a desktop launcher
+ *   (Cursor, VS Code) get the system PATH, not the shell's, so a bare `node` (Homebrew, nvm,
+ *   /usr/local) is often not found there; every POSIX shell runs a quoted absolute path.
+ * The absolute path is quoted, with `&` for PowerShell.
  */
 export function hookCommand(h: HostEnv, client: HookClient, event: HookEvent, shell: Shell): string {
   // posix on forward slashes: the same result for "C:\…\cli.js" and "/usr/…/cli.js" on every OS.
   const args = `"${posix.join(posix.dirname(slash(h.cliPath)), "hook.js")}" ${client} ${event}`;
-  if (nodeOnPath(h)) return `node ${args}`;
+  if (win(h) && nodeOnPath(h)) return `node ${args}`;
   const line = `"${slash(h.nodePath)}" ${args}`;
   return shell === "powershell" ? `& ${line}` : line;
 }
