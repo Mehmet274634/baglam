@@ -1,8 +1,8 @@
 ---
 /**
- * Every tool wired to Bağlam: brand tiles around the mark, joined by lines with light pulses
- * travelling along them (and a few between tools — any agent can continue another's work).
- * Pure SVG + CSS; still and fully visible with reduced motion.
+ * Every tool wired to Bağlam. Data packets with comet tails travel from a tool into the centre and
+ * from the centre out to another tool (any agent can continue another's work); the core turns and
+ * breathes. SVG + SMIL motion along the real paths; hidden with reduced motion.
  */
 import Logo from "./Logo.astro";
 import { siClaude, siCursor, siGithubcopilot, siGooglegemini, siWindsurf } from "simple-icons";
@@ -11,24 +11,21 @@ interface Props { size?: "md" | "lg"; label?: string }
 const { size = "md", label } = Astro.props;
 
 type Node = { name: string; x: number; y: number; path?: string; glyph?: "terminal" | "orbit"; hex: string };
-// Positions in a 1000 x 600 box; the centre is (500, 300).
 const nodes: Node[] = [
-  { name: "Claude Code", x: 150, y: 140, path: siClaude.path, hex: "#D97757" },
+  { name: "Claude Code", x: 150, y: 140, path: siClaude.path, hex: "#E08D6E" },
   { name: "Codex CLI", x: 500, y: 62, glyph: "terminal", hex: "#e6e7e9" },
   { name: "Cursor", x: 850, y: 140, path: siCursor.path, hex: "#e6e7e9" },
   { name: "Antigravity", x: 900, y: 420, glyph: "orbit", hex: "#8ab4f8" },
-  { name: "Gemini CLI", x: 640, y: 540, path: siGooglegemini.path, hex: "#8E75B2" },
+  { name: "Gemini CLI", x: 640, y: 540, path: siGooglegemini.path, hex: "#a98fe0" },
   { name: "VS Code · Copilot", x: 360, y: 540, path: siGithubcopilot.path, hex: "#e6e7e9" },
   { name: "Windsurf", x: 100, y: 420, path: siWindsurf.path, hex: "#3fd0c9" },
 ];
 const C = { x: 500, y: 300 };
-// A gentle curve from a node to the centre.
 const toCenter = (n: Node) => {
   const mx = (n.x + C.x) / 2 + (n.y - C.y) * 0.18;
   const my = (n.y + C.y) / 2 - (n.x - C.x) * 0.18;
   return `M${n.x} ${n.y} Q${mx} ${my} ${C.x} ${C.y}`;
 };
-// Neighbours around the ring, and two across it.
 const pairs: [number, number][] = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 0], [0, 4], [2, 6]];
 const between = (a: Node, b: Node) => {
   const mx = (a.x + b.x) / 2 + (C.x - (a.x + b.x) / 2) * 0.25;
@@ -36,47 +33,103 @@ const between = (a: Node, b: Node) => {
   return `M${a.x} ${a.y} Q${mx} ${my} ${b.x} ${b.y}`;
 };
 const uid = Math.random().toString(36).slice(2, 7);
+const DUR = 2.6; // seconds a packet takes along one wire
+// Each tool sends a packet in, then the centre sends one out to a different tool.
+const trips = nodes.map((_, i) => ({ from: i, to: (i + 3) % nodes.length, at: i * 1.15 }));
+const CYCLE_N = nodes.length * 1.15 + DUR * 2 + 0.6;
+const CYCLE = CYCLE_N.toFixed(2);
+const tail = [0, 0.05, 0.1, 0.15, 0.2];
+// One endless loop per tail dot: still until its moment, along the wire, then still again.
+const leg = (begin: number, out: boolean) => {
+  const s = begin / CYCLE_N;
+  const e = (begin + DUR) / CYCLE_N;
+  const fade = 0.25 / CYCLE_N;
+  const f = (n: number) => n.toFixed(4);
+  return {
+    keyTimes: `0;${f(s)};${f(e)};1`,
+    keyPoints: out ? "1;1;0;0" : "0;0;1;1",
+    opTimes: `0;${f(s)};${f(s + fade)};${f(e - fade)};${f(e)};1`,
+  };
+};
 ---
 
 <div class:list={["constellation", size]} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : "true"}>
   <svg viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet" class="wires">
     <defs>
       <radialGradient id={`halo-${uid}`} cx="50%" cy="50%" r="50%">
-        <stop offset="0" stop-color="#7c74ff" stop-opacity="0.45" />
-        <stop offset="0.5" stop-color="#3fd0c9" stop-opacity="0.08" />
+        <stop offset="0" stop-color="#7c74ff" stop-opacity="0.5" />
+        <stop offset="0.45" stop-color="#3fd0c9" stop-opacity="0.1" />
         <stop offset="1" stop-color="#3fd0c9" stop-opacity="0" />
       </radialGradient>
-      <filter id={`glow-${uid}`} x="-50%" y="-50%" width="200%" height="200%">
-        <feGaussianBlur stdDeviation="3.2" result="b" />
+      <radialGradient id={`dot-${uid}`}>
+        <stop offset="0" stop-color="#ffffff" />
+        <stop offset="0.35" stop-color="#c9c6ff" />
+        <stop offset="1" stop-color="#7c74ff" stop-opacity="0" />
+      </radialGradient>
+      <filter id={`glow-${uid}`} x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="3" result="b" />
         <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
       </filter>
+      {nodes.map((n, i) => <path id={`w-${uid}-${i}`} d={toCenter(n)} />)}
+      {pairs.map(([a, b], i) => <path id={`s-${uid}-${i}`} d={between(nodes[a], nodes[b])} />)}
     </defs>
-    <ellipse cx={C.x} cy={C.y} rx="300" ry="230" fill={`url(#halo-${uid})`} />
-    <ellipse cx={C.x} cy={C.y} rx="420" ry="250" class="orbit-ring" />
-    <ellipse cx={C.x} cy={C.y} rx="250" ry="150" class="orbit-ring inner" />
-    {pairs.map(([a, b], i) => (
-      <g>
-        <path d={between(nodes[a], nodes[b])} class="wire faint" />
-        {i % 3 === 0 && <path d={between(nodes[a], nodes[b])} pathLength="1" class="beam side" style={`--d:${(i * 0.9).toFixed(2)}s`} filter={`url(#glow-${uid})`} />}
-      </g>
-    ))}
+
+    <ellipse cx={C.x} cy={C.y} rx="300" ry="230" fill={`url(#halo-${uid})`} class="halo" />
+    <g class="rings">
+      <ellipse cx={C.x} cy={C.y} rx="440" ry="262" class="orbit-ring" />
+      <ellipse cx={C.x} cy={C.y} rx="250" ry="150" class="orbit-ring inner" />
+    </g>
+
+    {pairs.map((_, i) => <use href={`#s-${uid}-${i}`} class="wire faint" />)}
     {nodes.map((n, i) => (
       <g>
-        <path d={toCenter(n)} class="wire" />
-        <path d={toCenter(n)} pathLength="1" class="beam" style={`--d:${(i * 0.55).toFixed(2)}s;--c:${n.hex}`} filter={`url(#glow-${uid})`} />
+        <use href={`#w-${uid}-${i}`} class="wire" />
+        <use href={`#w-${uid}-${i}`} class="wire glow" style={`--c:${n.hex};--d:${(i * 1.15).toFixed(2)}s;--cycle:${CYCLE}s`} />
       </g>
     ))}
+
+    <g class="packets" filter={`url(#glow-${uid})`}>
+      {trips.map((tr) =>
+        [
+          { id: `w-${uid}-${tr.from}`, begin: tr.at, out: false, color: nodes[tr.from].hex },
+          { id: `w-${uid}-${tr.to}`, begin: tr.at + DUR, out: true, color: "#9be7e3" },
+        ].map((l) =>
+          tail.map((lag, k) => {
+            const t = leg(l.begin + lag, l.out);
+            const a = (1 - k * 0.18).toFixed(2);
+            return (
+              <circle r={k === 0 ? 6 : 4.6 - k * 0.7} fill={k === 0 ? `url(#dot-${uid})` : l.color} opacity="0">
+                <animateMotion dur={`${CYCLE}s`} repeatCount="indefinite" keyPoints={t.keyPoints} keyTimes={t.keyTimes} calcMode="spline" keySplines="0 0 1 1;0.55 0 0.3 1;0 0 1 1">
+                  <mpath href={`#${l.id}`} />
+                </animateMotion>
+                <animate attributeName="opacity" dur={`${CYCLE}s`} repeatCount="indefinite" values={`0;0;${a};${a};0;0`} keyTimes={t.opTimes} />
+              </circle>
+            );
+          }),
+        ),
+      )}
+      {pairs.filter((_, i) => i % 2 === 0).map((_, j) => (
+        <circle r="2.6" fill="#b3aeff" opacity="0">
+          <animateMotion dur="4.8s" begin={`${(j * 1.9 + 0.7).toFixed(2)}s`} repeatCount="indefinite" calcMode="spline" keyPoints="0;1" keyTimes="0;1" keySplines="0.4 0 0.3 1">
+            <mpath href={`#s-${uid}-${j * 2}`} />
+          </animateMotion>
+          <animate attributeName="opacity" dur="4.8s" begin={`${(j * 1.9 + 0.7).toFixed(2)}s`} repeatCount="indefinite" values="0;0.9;0.9;0" keyTimes="0;0.1;0.85;1" />
+        </circle>
+      ))}
+    </g>
   </svg>
 
   <div class="core" style={`left:${C.x / 10}%;top:${(C.y / 600) * 100}%`}>
+    <span class="spin"></span>
     <span class="pulse"></span>
     <span class="pulse two"></span>
-    <Logo size={size === "lg" ? 76 : 60} />
+    <span class="core-in"><Logo size={size === "lg" ? 76 : 62} /></span>
   </div>
 
-  {nodes.map((n) => (
-    <div class="node" style={`left:${n.x / 10}%;top:${(n.y / 600) * 100}%;--brand:${n.hex}`}>
+  {nodes.map((n, i) => (
+    <div class="node" style={`left:${n.x / 10}%;top:${(n.y / 600) * 100}%;--brand:${n.hex};--d:${(i * 1.15).toFixed(2)}s;--cycle:${CYCLE}s`}>
       <span class="tile">
+        <span class="flash" aria-hidden="true"></span>
         {n.path ? (
           <svg viewBox="0 0 24 24"><path d={n.path} fill="currentColor" /></svg>
         ) : n.glyph === "terminal" ? (
@@ -105,52 +158,63 @@ const uid = Math.random().toString(36).slice(2, 7);
     height: 100%;
     overflow: visible;
   }
+  .halo {
+    transform-origin: 500px 300px;
+    animation: breathe 6s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    50% {
+      transform: scale(1.08);
+      opacity: 0.75;
+    }
+  }
+  .rings {
+    transform-origin: 500px 300px;
+    animation: turn 60s linear infinite;
+  }
+  @keyframes turn {
+    to {
+      transform: rotate(360deg);
+    }
+  }
   .orbit-ring {
     fill: none;
-    stroke: rgb(255 255 255 / 5%);
-    stroke-dasharray: 2 7;
+    stroke: rgb(255 255 255 / 6%);
+    stroke-dasharray: 2 8;
   }
   .orbit-ring.inner {
-    stroke: rgb(124 116 255 / 12%);
+    stroke: rgb(124 116 255 / 16%);
+    stroke-dasharray: 1 5;
   }
   .wire {
     fill: none;
-    stroke: rgb(255 255 255 / 10%);
+    stroke: rgb(255 255 255 / 9%);
     stroke-width: 1.2;
   }
   .wire.faint {
     stroke: rgb(255 255 255 / 5%);
     stroke-dasharray: 3 6;
   }
-  .beam {
-    fill: none;
-    stroke: var(--c, #9be7e3);
-    stroke-width: 2.2;
-    stroke-linecap: round;
-    stroke-dasharray: 0.09 0.91;
-    stroke-dashoffset: 1;
-    animation: travel 3.6s cubic-bezier(0.5, 0, 0.3, 1) infinite;
-    animation-delay: var(--d, 0s);
-    opacity: 0.95;
-  }
-  .beam.side {
-    stroke: #a7a2ff;
+  /* A wire lights up in its tool's colour while a packet runs along it. */
+  .wire.glow {
+    stroke: var(--c);
     stroke-width: 1.6;
-    animation-duration: 5.4s;
+    opacity: 0;
+    animation: lit var(--cycle) linear infinite;
+    animation-delay: var(--d);
   }
-  @keyframes travel {
+  @keyframes lit {
     0% {
-      stroke-dashoffset: 1;
       opacity: 0;
     }
-    10% {
-      opacity: 1;
+    4% {
+      opacity: 0.55;
     }
-    85% {
-      opacity: 1;
+    22% {
+      opacity: 0.2;
     }
+    30%,
     100% {
-      stroke-dashoffset: 0.09;
       opacity: 0;
     }
   }
@@ -159,17 +223,39 @@ const uid = Math.random().toString(36).slice(2, 7);
     transform: translate(-50%, -50%);
     display: grid;
     place-items: center;
-    padding: 14px;
-    border-radius: 26px;
-    background: rgb(17 18 20 / 70%);
+  }
+  .core-in {
+    position: relative;
+    display: grid;
+    place-items: center;
+    padding: 15px;
+    border-radius: 28px;
+    background: rgb(17 18 20 / 80%);
     border: 1px solid rgb(255 255 255 / 12%);
-    box-shadow: 0 0 80px rgb(124 116 255 / 35%), inset 0 1px 0 rgb(255 255 255 / 8%);
-    backdrop-filter: blur(6px);
+    box-shadow: 0 0 90px rgb(124 116 255 / 40%), inset 0 1px 0 rgb(255 255 255 / 8%);
+  }
+  /* A turning ring of light around the core. */
+  .spin {
+    position: absolute;
+    inset: -10px;
+    border-radius: 34px;
+    padding: 1.5px;
+    background: conic-gradient(from 0deg, transparent 0 55%, #958fff 70%, #3fd0c9 82%, transparent 92%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: spin 3s linear infinite;
+    filter: drop-shadow(0 0 8px rgb(124 116 255 / 70%));
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
   .pulse {
     position: absolute;
-    inset: -2px;
-    border-radius: 28px;
+    inset: -4px;
+    border-radius: 30px;
     border: 1px solid rgb(124 116 255 / 55%);
     animation: pulse 3.2s ease-out infinite;
   }
@@ -182,7 +268,7 @@ const uid = Math.random().toString(36).slice(2, 7);
       opacity: 0.8;
     }
     to {
-      transform: scale(1.9);
+      transform: scale(2);
       opacity: 0;
     }
   }
@@ -194,20 +280,44 @@ const uid = Math.random().toString(36).slice(2, 7);
     gap: 9px;
   }
   .tile {
-    width: 58px;
-    height: 58px;
+    position: relative;
+    width: 60px;
+    height: 60px;
     display: grid;
     place-items: center;
-    border-radius: 16px;
+    border-radius: 17px;
     color: #e6e7e9;
-    background: linear-gradient(180deg, #17181b, #0e0f11);
+    background: linear-gradient(180deg, #18191c, #0e0f11);
     border: 1px solid rgb(255 255 255 / 11%);
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%), 0 12px 30px -10px rgb(0 0 0 / 90%);
     transition: color 250ms, border-color 250ms, box-shadow 250ms, transform 250ms;
   }
+  /* The tile flashes in its brand colour when it sends its packet. */
+  .flash {
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    box-shadow: 0 0 0 1px var(--brand), 0 0 30px var(--brand);
+    opacity: 0;
+    animation: flash var(--cycle) linear infinite;
+    animation-delay: var(--d);
+  }
+  @keyframes flash {
+    0% {
+      opacity: 0;
+    }
+    2% {
+      opacity: 0.9;
+    }
+    9%,
+    100% {
+      opacity: 0;
+    }
+  }
   .tile svg {
-    width: 26px;
-    height: 26px;
+    position: relative;
+    width: 27px;
+    height: 27px;
   }
   .node:hover .tile {
     color: var(--brand);
@@ -222,38 +332,40 @@ const uid = Math.random().toString(36).slice(2, 7);
     white-space: nowrap;
   }
   .lg .tile {
-    width: 70px;
-    height: 70px;
-    border-radius: 19px;
+    width: 72px;
+    height: 72px;
+    border-radius: 20px;
   }
   .lg .tile svg {
-    width: 30px;
-    height: 30px;
+    width: 31px;
+    height: 31px;
   }
   @media (max-width: 720px) {
-    .tile {
-      width: 40px;
-      height: 40px;
+    .tile,
+    .lg .tile {
+      width: 42px;
+      height: 42px;
       border-radius: 12px;
     }
-    .tile svg {
+    .tile svg,
+    .lg .tile svg {
       width: 19px;
       height: 19px;
-    }
-    .lg .tile {
-      width: 44px;
-      height: 44px;
     }
     .name {
       font-size: 10.5px;
     }
-    .core {
+    .core-in {
       padding: 8px;
       border-radius: 18px;
     }
-    .core :global(svg) {
+    .core-in :global(svg) {
       width: 40px;
       height: 40px;
+    }
+    .spin {
+      inset: -6px;
+      border-radius: 22px;
     }
   }
   @media (max-width: 460px) {
@@ -262,15 +374,16 @@ const uid = Math.random().toString(36).slice(2, 7);
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .beam {
-      animation: none;
-      stroke-dasharray: none;
-      stroke-dashoffset: 0;
-      opacity: 0.35;
-    }
+    .packets,
+    .wire.glow,
+    .flash,
     .pulse {
+      display: none;
+    }
+    .halo,
+    .rings,
+    .spin {
       animation: none;
-      opacity: 0;
     }
   }
 </style>

@@ -10,7 +10,7 @@ const p = t(lang).faq;
 ---
 
 <Base lang={lang} page="faq" title={p.title} description={p.description}>
-  <PageHero eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} />
+  <PageHero fx="streams" eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} />
   <section class="wrap" style="padding-bottom:clamp(72px,11vw,140px)">
     <div class="faq">
       {p.items.map((x, i) => (
