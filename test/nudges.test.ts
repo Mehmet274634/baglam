@@ -137,4 +137,25 @@ describe("reminders and automatic saving", () => {
     clock.set(clock.get() + 60_000);
     expect(text(await c.callTool({ name: "context_search", arguments: { query: "x" } }))).toMatch(/Reminder: your last checkpoint on "Calc" was 6 min ago/);
   });
+
+  it("a request after 12 idle hours starts a new task: edits do not silence the reminder and it says no checkpoint yet", async () => {
+    const { dir, store, clock, connect } = await setup();
+    const c = await connect("claude-code");
+    await c.callTool({ name: "context_checkpoint", arguments: { goal: "Calc" } });
+    const h = store.listHandoffs()[0];
+    const auto = (event: Parameters<typeof store.autoCapture>[0]["event"]) =>
+      store.autoCapture({ project: h.project, branch: h.branch, dir, agent: "claude-code", event });
+    // Overnight, same session: the user's next request starts a new task (only the hook saved it).
+    clock.set(clock.get() + 13 * 3_600_000);
+    auto({ kind: "prompt", text: "Add dark mode" });
+    expect(store.listHandoffs()[0].goal).toBe("Add dark mode");
+    // The agent keeps editing every minute, never checkpointing.
+    for (let i = 0; i < 6; i++) {
+      clock.set(clock.get() + 60_000);
+      auto({ kind: "edit", files: [join(dir, `f${i}.ts`)] });
+    }
+    const r = text(await c.callTool({ name: "context_search", arguments: { query: "x" } }));
+    expect(r).toMatch(/Reminder: you have not checkpointed "Add dark mode" yet \(started 6 min ago\)/);
+    expect(r).toMatch(/context_checkpoint/);
+  });
 });

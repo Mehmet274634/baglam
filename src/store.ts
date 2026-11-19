@@ -200,10 +200,14 @@ function validate(input: {
 export class ContextStore {
   private readonly db: DatabaseSync;
 
-  constructor(path: string, private readonly clock: () => number = Date.now) {
+  constructor(
+    path: string,
+    private readonly clock: () => number = Date.now,
+    opts: { busyTimeoutMs?: number } = {},
+  ) {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     // Busy timeout first: several agents' servers may open (and migrate) the same file at once.
-    this.db = new DatabaseSync(path, { timeout: 5000 });
+    this.db = new DatabaseSync(path, { timeout: opts.busyTimeoutMs ?? 5000 });
     // WAL + synchronous=NORMAL: never corrupts; at worst the last commit is lost on power failure.
     this.db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
     migrate(this.db, path);

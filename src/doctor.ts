@@ -159,7 +159,19 @@ export async function runDoctor(opts: {
       });
       continue;
     }
-    checks.push({ name: `${client.label}: registered`, ok: true, detail: `as ${s.entry?.env?.BAGLAM_AGENT ?? client.id}` });
+    const agentId = s.entry?.env?.BAGLAM_AGENT;
+    if (!agentId) {
+      // Added by hand: the server then runs under the tool's own client name as an unverified agent
+      // (no trust rules or autonomous mode, and it may not change a task the hooks saved).
+      checks.push({
+        name: `${client.label}: registered`,
+        ok: false,
+        detail: "added without BAGLAM_AGENT, so it runs as an unverified agent under the tool's own name",
+        fix: "baglam setup",
+      });
+      continue;
+    }
+    checks.push({ name: `${client.label}: registered`, ok: true, detail: `as ${agentId}` });
     const error = await handshake(s.entry!);
     checks.push({
       name: `${client.label}: connects`,
