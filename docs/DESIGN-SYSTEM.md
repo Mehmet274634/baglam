@@ -139,7 +139,20 @@ radial-gradient glows, no filters, no JavaScript timers, no HUD rings or edge li
 coloured dots for the agents (no brand marks). It keeps moving gently under reduced motion, like the
 site's flows.
 
+## Constellation performance (2026-11-19)
+
+The owner noticed the site's `Constellation` stuttering a little and asked for it to be made
+**slightly** lighter while keeping its impact. What changed, with the look kept:
+- No blur filters inside it any more. The comet heads and orbit sparks carry a radial-gradient halo,
+  and the soft beam glow is two wide translucent strokes. A blur on moving SVG is recomputed every
+  frame, which was the main cost.
+- Comet tails have 4 dots instead of 6, spread over the same length (56 moving dots instead of 84).
+- 36 twinkling stars instead of 46. The outer spinning ring around the core has no drop-shadow.
+- It runs only while on screen: an `IntersectionObserver` pauses the CSS animations (`.paused`) and
+  SMIL (`pauseAnimations()`) when it scrolls away.
+Keep it this way: new glows should use gradients, not filters.
+
 ## Open ideas (not started)
 
-- The site's `Constellation` stutters a little (the owner noticed); it could be made lighter.
+- Nothing open right now.
 - A custom domain for the site (see STATUS.md).

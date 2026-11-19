@@ -53,7 +53,8 @@ const STEP = 1.1;
 const trips = nodes.map((_, i) => ({ from: i, to: (i + 3) % nodes.length, at: i * STEP }));
 const CYCLE_N = nodes.length * STEP + DUR * 2 + 0.4;
 const CYCLE = CYCLE_N.toFixed(2);
-const tail = [0, 0.035, 0.07, 0.105, 0.14, 0.175];
+// Comet tail: four dots (was six) spread over the same length, so the comet looks the same.
+const tail = [0, 0.055, 0.11, 0.165];
 const leg = (begin: number, out: boolean) => {
   const s = begin / CYCLE_N;
   const e = (begin + DUR) / CYCLE_N;
@@ -69,7 +70,7 @@ const leg = (begin: number, out: boolean) => {
 // Stardust: fixed pseudo-random points so every build looks the same.
 let seed = 11;
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-const stars = Array.from({ length: 46 }, () => ({ x: rnd() * 1000, y: rnd() * 600, r: 0.6 + rnd() * 1.3, d: (rnd() * 5).toFixed(2), t: (2.5 + rnd() * 3).toFixed(2) }));
+const stars = Array.from({ length: 36 }, () => ({ x: rnd() * 1000, y: rnd() * 600, r: 0.6 + rnd() * 1.3, d: (rnd() * 5).toFixed(2), t: (2.5 + rnd() * 3).toFixed(2) }));
 const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 0 1 0 ${rx * 2} 0 a${rx} ${ry} 0 1 0 ${-rx * 2} 0`;
 ---
 
@@ -86,13 +87,18 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
         <stop offset="0.4" stop-color="#e4e2ff" />
         <stop offset="1" stop-color="#7c74ff" stop-opacity="0" />
       </radialGradient>
-      <filter id={`glow-${uid}`} x="-60%" y="-60%" width="220%" height="220%">
-        <feGaussianBlur stdDeviation="3.2" result="b" />
-        <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-      </filter>
-      <filter id={`soft-${uid}`} x="-20%" y="-20%" width="140%" height="140%">
-        <feGaussianBlur stdDeviation="5" />
-      </filter>
+      <!-- No blur filters: the whole SVG repaints every frame, so a blur would be recomputed each
+           time. Glows are radial-gradient halos and wide translucent strokes instead. -->
+      <radialGradient id={`aura-${uid}`}>
+        <stop offset="0" stop-color="#b3aeff" stop-opacity="0.7" />
+        <stop offset="0.5" stop-color="#7c74ff" stop-opacity="0.22" />
+        <stop offset="1" stop-color="#7c74ff" stop-opacity="0" />
+      </radialGradient>
+      <radialGradient id={`aura-c-${uid}`}>
+        <stop offset="0" stop-color="#9be7e3" stop-opacity="0.65" />
+        <stop offset="0.5" stop-color="#3fd0c9" stop-opacity="0.2" />
+        <stop offset="1" stop-color="#3fd0c9" stop-opacity="0" />
+      </radialGradient>
       {nodes.map((n, i) => (
         <linearGradient id={`g-${uid}-${i}`} gradientUnits="userSpaceOnUse" x1={n.x} y1={n.y} x2={C.x} y2={C.y}>
           <stop offset="0" stop-color={n.hex} />
@@ -133,28 +139,35 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
       <use href={`#o1-${uid}`} class="orbit-ring" />
       <use href={`#o2-${uid}`} class="orbit-ring inner" />
     </g>
-    <g class="sparks" filter={`url(#glow-${uid})`}>
-      <circle r="3" fill="#cfcbff">
+    <g class="sparks">
+      <g>
+        <circle r="10" fill={`url(#aura-${uid})`} />
+        <circle r="3" fill="#cfcbff" />
         <animateMotion dur="18s" repeatCount="indefinite"><mpath href={`#o1-${uid}`} /></animateMotion>
-      </circle>
-      <circle r="2.4" fill="#7fe8e2">
+      </g>
+      <g>
+        <circle r="9" fill={`url(#aura-c-${uid})`} />
+        <circle r="2.4" fill="#7fe8e2" />
         <animateMotion dur="18s" begin="-9s" repeatCount="indefinite"><mpath href={`#o1-${uid}`} /></animateMotion>
-      </circle>
-      <circle r="2.6" fill="#b3aeff">
+      </g>
+      <g>
+        <circle r="9" fill={`url(#aura-${uid})`} />
+        <circle r="2.6" fill="#b3aeff" />
         <animateMotion dur="11s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href={`#o2-${uid}`} /></animateMotion>
-      </circle>
+      </g>
     </g>
 
     {pairs.map((_, i) => <use href={`#s-${uid}-${i}`} class="wire faint" />)}
 
     {nodes.map((_, i) => (
       <g>
-        <use href={`#w-${uid}-${i}`} class="beam-soft" stroke={`url(#g-${uid}-${i})`} filter={`url(#soft-${uid})`} />
+        <use href={`#w-${uid}-${i}`} class="beam-soft" stroke={`url(#g-${uid}-${i})`} />
+        <use href={`#w-${uid}-${i}`} class="beam-soft inner" stroke={`url(#g-${uid}-${i})`} />
         <use href={`#w-${uid}-${i}`} class="beam-core" stroke={`url(#g-${uid}-${i})`} />
         <use href={`#w-${uid}-${i}`} class="beam-bits" stroke={`url(#g-${uid}-${i})`} style={`--d:${(-i * 0.41).toFixed(2)}s`} />
         <use href={`#r-${uid}-${i}`} class="lane-out" />
         <use href={`#r-${uid}-${i}`} class="lane-bits" style={`--d:${(-i * 0.53).toFixed(2)}s`} />
-        <use href={`#w-${uid}-${i}`} class="beam-lit" stroke={`url(#g-${uid}-${i})`} style={`--d:${(i * STEP).toFixed(2)}s;--cycle:${CYCLE}s`} filter={`url(#glow-${uid})`} />
+        <use href={`#w-${uid}-${i}`} class="beam-lit" stroke={`url(#g-${uid}-${i})`} style={`--d:${(i * STEP).toFixed(2)}s;--cycle:${CYCLE}s`} />
       </g>
     ))}
 
@@ -185,21 +198,33 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
       )}
     </g>
 
-    <g class="packets" filter={`url(#glow-${uid})`}>
+    <g class="packets">
       {trips.map((tr) =>
         [
-          { id: `w-${uid}-${tr.from}`, begin: tr.at, out: false, color: nodes[tr.from].hex },
-          { id: `r-${uid}-${tr.to}`, begin: tr.at + DUR, out: false, color: "#9be7e3" },
+          { id: `w-${uid}-${tr.from}`, begin: tr.at, out: false, color: nodes[tr.from].hex, aura: `aura-${uid}` },
+          { id: `r-${uid}-${tr.to}`, begin: tr.at + DUR, out: false, color: "#9be7e3", aura: `aura-c-${uid}` },
         ].map((l) =>
           tail.map((lag, k) => {
             const t = leg(l.begin + lag, l.out);
-            const a = Math.max(0.12, 1 - k * 0.12).toFixed(2);
-            return (
-              <circle r={k === 0 ? 6.5 : Math.max(1.2, 5 - k * 0.55)} fill={k === 0 ? `url(#dot-${uid})` : l.color} opacity="0">
-                <animateMotion dur={`${CYCLE}s`} repeatCount="indefinite" keyPoints={t.keyPoints} keyTimes={t.keyTimes} calcMode="spline" keySplines="0 0 1 1;0.55 0 0.3 1;0 0 1 1">
-                  <mpath href={`#${l.id}`} />
-                </animateMotion>
-                <animate attributeName="opacity" dur={`${CYCLE}s`} repeatCount="indefinite" values={`0;0;${a};${a};0;0`} keyTimes={t.opTimes} />
+            const a = Math.max(0.2, 1 - k * 0.2).toFixed(2);
+            const motion = (
+              <animateMotion dur={`${CYCLE}s`} repeatCount="indefinite" keyPoints={t.keyPoints} keyTimes={t.keyTimes} calcMode="spline" keySplines="0 0 1 1;0.55 0 0.3 1;0 0 1 1">
+                <mpath href={`#${l.id}`} />
+              </animateMotion>
+            );
+            const fade = <animate attributeName="opacity" dur={`${CYCLE}s`} repeatCount="indefinite" values={`0;0;${a};${a};0;0`} keyTimes={t.opTimes} />;
+            // The head carries its own halo (in place of the old blur filter); the tail is plain dots.
+            return k === 0 ? (
+              <g opacity="0">
+                <circle r="16" fill={`url(#${l.aura})`} />
+                <circle r="6.5" fill={`url(#dot-${uid})`} />
+                {motion}
+                {fade}
+              </g>
+            ) : (
+              <circle r={Math.max(1.6, 5 - k * 0.9)} fill={l.color} opacity="0">
+                {motion}
+                {fade}
               </circle>
             );
           }),
@@ -242,6 +267,23 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
     </div>
   ))}
 </div>
+
+<script>
+  // Run the animation only while it is on screen: CSS animations and SMIL both pause off screen.
+  for (const el of document.querySelectorAll<HTMLElement>(".constellation")) {
+    const svg = el.querySelector<SVGSVGElement>("svg.wires");
+    if (!svg || !("IntersectionObserver" in window)) continue;
+    new IntersectionObserver(
+      (entries) => {
+        const e = entries[entries.length - 1];
+        el.classList.toggle("paused", !e.isIntersecting);
+        if (e.isIntersecting) svg.unpauseAnimations();
+        else svg.pauseAnimations();
+      },
+      { rootMargin: "120px" },
+    ).observe(el);
+  }
+</script>
 
 <style>
   .constellation {
@@ -312,10 +354,16 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
     initial-value: 0deg;
   }
   /* Inbound lane: a soft glow, a bright core and data bits of varied length running to the centre. */
+  /* Two wide translucent strokes stand in for the old blurred glow. */
   .beam-soft {
     fill: none;
-    stroke-width: 10;
-    opacity: 0.3;
+    stroke-width: 14;
+    stroke-linecap: round;
+    opacity: 0.07;
+  }
+  .beam-soft.inner {
+    stroke-width: 6;
+    opacity: 0.14;
   }
   .beam-core {
     fill: none;
@@ -382,7 +430,8 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
   /* The whole beam flares while a packet runs along it. */
   .beam-lit {
     fill: none;
-    stroke-width: 3;
+    stroke-width: 3.6;
+    stroke-linecap: round;
     opacity: 0;
     animation: lit var(--cycle) linear infinite;
     animation-delay: var(--d);
@@ -437,6 +486,13 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
     opacity: 0.6;
     animation-duration: 5.5s;
     animation-direction: reverse;
+    filter: none;
+  }
+  /* Off screen everything stops (the script below pauses SMIL too); nothing changes on screen. */
+  .constellation.paused *,
+  .constellation.paused *::before,
+  .constellation.paused *::after {
+    animation-play-state: paused !important;
   }
   @keyframes spin {
     to {
