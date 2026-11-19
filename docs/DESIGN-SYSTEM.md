@@ -38,7 +38,11 @@ panel (`ui/`). Product logic lives in [STATUS.md](STATUS.md).
 
 ## Tokens
 
-Source of truth: `site/src/styles/tokens.css`. The panel keeps its own copy with partly different names in `ui/src/styles.css` (`--bg` for `--canvas`, `--surface-2`, `--radius`, plus record-kind colours `--k-decision` … `--k-warning`); keep the values in step when you change one.
+Source of truth: `site/src/styles/tokens.css`. The panel keeps its own copy in `ui/src/styles.css`
+with the **same names and values** (it cannot import the site's file), plus panel-only tokens marked
+in the file (`--primary-*`, `--card-bg`, `--edge-light`, `--page-glow`, record-kind colours
+`--k-decision` … `--k-warning` and their lighter chip text tones `--kt-*`). Keep the two in step when
+you change one.
 
 | Token | Value | Use |
 |---|---|---|
@@ -109,7 +113,26 @@ disable the entry animations in the inspected page before a screenshot.
 bundled in `ui/src/fonts/` with their OFL licences. Logo SVG in `ui/src/app.tsx`, favicon data URI in
 `ui/index.html`. Screens: Inbox, Records, Projects, Settings.
 
+Brought in line with the site (2026-11-19):
+- Cards and Settings panels use the site's card surface (top highlight, deep shadow). On hover, and on
+  the keyboard-selected card, the site's indigo→cyan light runs round the edge (`::after`, the
+  `--ring-angle` property). The card does not lift on hover; it is a work list, not a showcase.
+  The kind stripe on the left (`::before`) glows softly in its kind colour.
+- Page titles use the site's white→grey headline gradient (dark only). A soft indigo light sits at the
+  top of every screen (`--page-glow`).
+- Buttons are the site's pills: ghost by default, white primary that lifts 1px on hover. Inputs and
+  selects share one field style, with a custom chevron on selects. Segmented controls are pills.
+- Chips use the lighter kind tones from the site's `PanelMock`. Toasts are dark pills with a status dot.
+- On narrow windows (≤760px) the rail is a frosted top bar; `grid-template-rows: auto 1fr` keeps it
+  from stretching on short screens.
+- Light mode keeps working (the panel follows the system); the glow and gradient titles are dark only.
+- Reduced motion: no transitions; the edge light rests at a fixed angle.
+
+To look at the panel without touching real data, point `BAGLAM_DB` at a throwaway file, seed it with
+`ContextStore` from `dist/store.js`, then `node dist/cli.js ui --port 4799 --no-open`.
+
 ## Open ideas (not started)
 
-- Bring the constellation-style data flow into the panel's empty states.
+- Bring the constellation-style data flow into the panel's empty states (today they have a quiet
+  indigo glow and a glowing mark).
 - A custom domain for the site (see STATUS.md).
