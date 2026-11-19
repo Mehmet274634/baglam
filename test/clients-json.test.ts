@@ -38,6 +38,25 @@ describe("JSON client adapters", () => {
     expect(readJson(file).mcpServers.baglam.env).toEqual({ BAGLAM_AGENT: "antigravity" });
   });
 
+  it("Antigravity 2 (settings moved to ~/.gemini/config): registers in config/mcp_config.json, the file it reads", () => {
+    const host = testHost();
+    const old = join(host.home, ".gemini", "antigravity", "mcp_config.json");
+    const now = join(host.home, ".gemini", "config", "mcp_config.json");
+    write(old, JSON.stringify({ mcpServers: {} }));
+    write(now, JSON.stringify({ mcpServers: { other: { command: "x" } } }));
+    expect(antigravity.status(host).registered).toBe(false);
+    expect(antigravity.install(host)).toMatchObject({ action: "updated", file: now });
+    expect(readJson(now).mcpServers).toEqual({ other: { command: "x" }, baglam: serverEntry(host, "antigravity") });
+    expect(antigravity.status(host).registered).toBe(true);
+  });
+
+  it("Antigravity 2 with only the .migrated marker gets a new config/mcp_config.json", () => {
+    const host = testHost();
+    write(join(host.home, ".gemini", "config", ".migrated"), "");
+    expect(antigravity.detect(host)).toBe(true);
+    expect(antigravity.install(host)).toMatchObject({ action: "added", file: join(host.home, ".gemini", "config", "mcp_config.json") });
+  });
+
   it("is idempotent", () => {
     const host = testHost();
     const file = join(host.home, ".cursor", "mcp.json");

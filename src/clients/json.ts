@@ -107,11 +107,22 @@ export const cursor = jsonClient({
   detectPath: (h) => join(h.home, ".cursor"),
 });
 
+/**
+ * Antigravity 2 moved its settings to ~/.gemini/config (it leaves a `.migrated` marker and its own
+ * mcp_config.json there) and reads MCP servers only from that file; older versions read
+ * ~/.gemini/antigravity/mcp_config.json.
+ */
+const antigravityV2 = (h: HostEnv) =>
+  existsSync(join(h.home, ".gemini", "config", "mcp_config.json")) || existsSync(join(h.home, ".gemini", "config", ".migrated"));
+
 export const antigravity = jsonClient({
   id: "antigravity",
   label: "Antigravity",
-  configPath: (h) => join(h.home, ".gemini", "antigravity", "mcp_config.json"),
-  detectPath: (h) => join(h.home, ".gemini", "antigravity"),
+  configPath: (h) =>
+    antigravityV2(h)
+      ? join(h.home, ".gemini", "config", "mcp_config.json")
+      : join(h.home, ".gemini", "antigravity", "mcp_config.json"),
+  detectPath: (h) => (antigravityV2(h) ? join(h.home, ".gemini", "config") : join(h.home, ".gemini", "antigravity")),
 });
 
 export const geminiCli = jsonClient({
