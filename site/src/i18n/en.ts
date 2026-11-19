@@ -76,6 +76,12 @@ export const en = {
     on: "On",
     off: "Off",
     tools: "Connected tools",
+    toast: "Approved · every agent can see it now",
+    keyHint: "approve",
+    live: "Live · 3 agents working",
+    termAsk: "codex \"keep going\"",
+    termBrief: "→ context_brief: Continue from here",
+    termSaved: "✓ picked up at: attach the PDF",
   },
   brief: {
     chip: "Continue from here",

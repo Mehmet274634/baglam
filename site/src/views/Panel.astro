@@ -3,6 +3,7 @@ import Base from "../layouts/Base.astro";
 import PageHero from "../components/PageHero.astro";
 import SectionHead from "../components/SectionHead.astro";
 import PanelMock from "../components/PanelMock.astro";
+import PanelStage3D from "../components/PanelStage3D.astro";
 import Terminal from "../components/Terminal.astro";
 import Cta from "../components/Cta.astro";
 import { t, type Lang } from "../i18n";
@@ -25,7 +26,7 @@ const parts = [
   </PageHero>
 
   <section class="wrap" style="padding-bottom:clamp(56px,8vw,100px)">
-    <div class="stage reveal"><PanelMock lang={lang} view="inbox" /></div>
+    <div class="reveal p3d-hero"><PanelStage3D lang={lang} size="lg" /></div>
   </section>
 
   {parts.map((part, i) => (
@@ -59,6 +60,10 @@ const parts = [
 </Base>
 
 <style>
+  .p3d-hero {
+    max-width: 1040px;
+    margin: 0 auto;
+  }
   .split {
     display: grid;
     grid-template-columns: 1fr 1.35fr;

@@ -89,6 +89,7 @@ with a live dot. No placeholder bars.
 | `Marquee` | "Works with" strip |
 | `Constellation` | tools wired to Bağlam (home and Connections page) |
 | `PanelMock` | panel screenshot-like mock (inbox, records, settings) |
+| `PanelStage3D` | the panel in 3D (home panel section; Panel page opening, `size="lg"`): the window tilted in space, lifted layers at their own depth (a codex terminal picking the task up, the `A` approve key, an "Approved" toast, a live badge), a plate behind and a glow below. Turns a few degrees towards the pointer |
 | `Brief`, `Terminal` | product UI fragments |
 | `SectionHead`, `Footer` (giant wordmark), `Logo` (two rings with a gradient lens) | structure |
 | `Cta` | closing call to action on every page: a lit rounded stage (indigo/cyan glows, a fine line grid fading from the centre, the logo in a glowing tile) |
@@ -150,6 +151,23 @@ along cyan lanes. Kept cheap on purpose: one 280×84 SVG, four packets on SMIL `
 radial-gradient glows, no filters, no JavaScript timers, no HUD rings or edge lights. Generic
 coloured dots for the agents (no brand marks). It keeps moving gently under reduced motion, like the
 site's flows.
+
+## 3D depth (owner's choice, 2026-11-19)
+
+The owner asked for 3D depth and picked the panel showcase as the place for it (`PanelStage3D`).
+Rules for 3D on the site:
+- CSS 3D transforms only (`perspective`, `preserve-3d`, `translateZ`); no WebGL library, nothing
+  loaded from other hosts.
+- The pointer tilt runs only on fine pointers, eased with rAF and stopped once settled; on touch
+  screens and with reduced motion the scene is still. The layers drift slowly in depth (stopped with
+  reduced motion).
+- No clipping on desktop: layers lean out of their box on purpose and `body { overflow-x: clip }`
+  keeps the page from widening. On phones (≤640px) the frame clips them, otherwise the page grows
+  sideways (checked: 22 pages, 375px).
+- Keep the three smaller panel mocks lower on the Panel page flat, so 3D stays special.
+- Other places offered to the owner but not chosen yet: a still perspective grid floor under the
+  home opening rays, a 3D fanned card stack in the handoff section, layered 3D art in the
+  "how it works" cards.
 
 ## Constellation performance (2026-11-19)
 

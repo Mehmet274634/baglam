@@ -78,6 +78,12 @@ export const tr: Dict = {
     on: "Açık",
     off: "Kapalı",
     tools: "Bağlı araçlar",
+    toast: "Onaylandı · artık her ajan görüyor",
+    keyHint: "onayla",
+    live: "Canlı · 3 ajan çalışıyor",
+    termAsk: "codex \"devam et\"",
+    termBrief: "→ context_brief: Buradan devam et",
+    termSaved: "✓ kaldığı yerden: PDF ekini ekle",
   },
   brief: {
     chip: "Buradan devam et",

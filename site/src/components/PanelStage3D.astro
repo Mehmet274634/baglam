@@ -1,0 +1,340 @@
+---
+/**
+ * The panel in 3D: the panel window floats tilted in space, with UI pieces lifted off it on
+ * separate depth layers (a "Continue from here" card, the approve key, a toast, a live badge),
+ * a glowing floor below and a faint plate behind. Moving the pointer turns the scene a little.
+ * Pure CSS 3D transforms (no library, nothing loaded from elsewhere); the pointer script runs only on
+ * fine pointers and only while the pointer moves. Reduced motion: a still, tilted scene.
+ */
+import PanelMock from "./PanelMock.astro";
+import { t, type Lang } from "../i18n";
+
+interface Props { lang: Lang; size?: "md" | "lg" }
+const { lang, size = "md" } = Astro.props;
+const m = t(lang).mock;
+---
+
+<div class:list={["p3d", size]} data-p3d aria-hidden="true">
+  <div class="p3d-scene">
+    <span class="p3d-floor"></span>
+    <span class="p3d-plate"></span>
+
+    <div class="p3d-window"><PanelMock lang={lang} view="inbox" /></div>
+
+    <!-- Another agent picking the task up: the handoff, lifted out of the panel. -->
+    <div class="p3d-layer p3d-brief">
+      <div class="p3d-row"><span class="p3d-dots"><i></i><i></i><i></i></span><span class="p3d-meta">codex</span></div>
+      <div class="p3d-term">
+        <div><span class="pr">$</span> {m.termAsk}</div>
+        <div class="ac">{m.termBrief}</div>
+        <div class="ok">{m.termSaved}</div>
+      </div>
+    </div>
+
+    <div class="p3d-layer p3d-key">
+      <span class="cap">A</span><span class="cap-label">{m.keyHint}</span>
+    </div>
+
+    <div class="p3d-layer p3d-toast"><i></i>{m.toast}</div>
+
+    <div class="p3d-layer p3d-live"><i></i>{m.live}</div>
+  </div>
+</div>
+
+<script>
+  // Turn the scene gently towards the pointer. Eased with rAF and stopped once it settles, so it costs
+  // nothing while the pointer is still. Skipped on touch screens and with reduced motion.
+  const fine = matchMedia("(pointer: fine)").matches;
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (fine && !still) {
+    for (const el of document.querySelectorAll<HTMLElement>("[data-p3d]")) {
+      const host = el.closest("section") ?? el;
+      let tx = 0, ty = 0, x = 0, y = 0, raf = 0;
+      const step = () => {
+        x += (tx - x) * 0.08;
+        y += (ty - y) * 0.08;
+        el.style.setProperty("--px", x.toFixed(4));
+        el.style.setProperty("--py", y.toFixed(4));
+        raf = Math.abs(tx - x) + Math.abs(ty - y) > 0.001 ? requestAnimationFrame(step) : 0;
+      };
+      const kick = () => { if (!raf) raf = requestAnimationFrame(step); };
+      host.addEventListener("pointermove", (e) => {
+        const r = el.getBoundingClientRect();
+        tx = Math.max(-1, Math.min(1, ((e as PointerEvent).clientX - (r.left + r.width / 2)) / (r.width / 2)));
+        ty = Math.max(-1, Math.min(1, ((e as PointerEvent).clientY - (r.top + r.height / 2)) / (r.height / 2)));
+        kick();
+      });
+      host.addEventListener("pointerleave", () => { tx = 0; ty = 0; kick(); });
+    }
+  }
+</script>
+
+<style>
+  .p3d {
+    --px: 0;
+    --py: 0;
+    position: relative;
+    perspective: 1800px;
+    perspective-origin: 50% 40%;
+    padding: 36px 28px 56px;
+    /* No clipping here: the layers lean out of the box on purpose. The page itself clips sideways
+       overflow (body { overflow-x: clip }), so they never widen the page. */
+  }
+  .p3d-scene {
+    position: relative;
+    transform-style: preserve-3d;
+    transform: rotateX(calc(9deg - var(--py) * 4deg)) rotateY(calc(-15deg + var(--px) * 7deg)) rotateZ(1.5deg);
+    transition: transform 900ms var(--ease);
+  }
+  .p3d-window {
+    position: relative;
+    transform: translateZ(0);
+    transform-style: preserve-3d;
+  }
+  .p3d-window :global(.window) {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 8%),
+      0 0 0 1px rgb(0 0 0 / 40%),
+      0 50px 120px -40px rgb(0 0 0 / 90%),
+      0 30px 90px -50px rgb(124 116 255 / 55%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: #0e0f11;
+  }
+  /* A glow on the "floor" under the window and a faint plate behind it give the scene its depth. */
+  .p3d-floor {
+    position: absolute;
+    left: 6%;
+    right: 6%;
+    bottom: -70px;
+    height: 140px;
+    transform: translateZ(-120px) rotateX(90deg);
+    background: radial-gradient(50% 50% at 50% 50%, rgb(124 116 255 / 45%), rgb(63 208 201 / 12%) 45%, transparent 72%);
+    pointer-events: none;
+  }
+  .p3d-plate {
+    position: absolute;
+    inset: -26px -30px 30px 34px;
+    transform: translateZ(-90px);
+    border-radius: 22px;
+    border: 1px solid rgb(255 255 255 / 7%);
+    background:
+      linear-gradient(rgb(255 255 255 / 3.5%) 1px, transparent 1px) 0 0 / 28px 28px,
+      linear-gradient(90deg, rgb(255 255 255 / 3.5%) 1px, transparent 1px) 0 0 / 28px 28px,
+      linear-gradient(160deg, rgb(124 116 255 / 10%), rgb(15 16 17 / 60%) 55%);
+    -webkit-mask-image: linear-gradient(160deg, #000 30%, transparent 95%);
+    mask-image: linear-gradient(160deg, #000 30%, transparent 95%);
+    pointer-events: none;
+  }
+
+  /* Lifted pieces: each sits at its own depth in front of the window. */
+  .p3d-layer {
+    position: absolute;
+    border-radius: 14px;
+    border: 1px solid rgb(255 255 255 / 13%);
+    background: linear-gradient(180deg, rgb(28 29 34 / 96%), rgb(16 17 20 / 96%));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%), 0 24px 50px -18px rgb(0 0 0 / 85%), 0 0 40px -12px rgb(124 116 255 / 40%);
+    color: var(--text);
+    font-size: 12.5px;
+    white-space: nowrap;
+    animation: hover-float 7s ease-in-out infinite alternate;
+  }
+  .p3d-brief {
+    top: 6%;
+    right: -4%;
+    width: min(330px, 62%);
+    padding: 14px 16px;
+    display: grid;
+    gap: 9px;
+    white-space: normal;
+    --z: 120px;
+    transform: translateZ(var(--z));
+    border-color: rgb(124 116 255 / 40%);
+  }
+  .p3d-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+  }
+  .p3d-dots {
+    display: flex;
+    gap: 5px;
+  }
+  .p3d-dots i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 14%);
+  }
+  .p3d-meta {
+    color: var(--muted);
+    font: 11px/1 var(--mono);
+  }
+  .p3d-term {
+    display: grid;
+    gap: 6px;
+    font: 12px/1.45 var(--mono);
+    color: #e6e7e9;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .p3d-term > div {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .p3d-term .pr {
+    color: #5c6069;
+  }
+  .p3d-term .ac {
+    color: var(--accent-hover);
+  }
+  .p3d-term .ok {
+    color: var(--ok);
+  }
+  .p3d-key {
+    left: 30%;
+    bottom: 13%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px 8px 8px;
+    --z: 90px;
+    transform: translateZ(var(--z));
+    animation-delay: -2s;
+  }
+  .cap {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    font: 600 14px/1 var(--mono);
+    color: #fff;
+    background: linear-gradient(180deg, #2a2b31, #17181c);
+    border: 1px solid rgb(255 255 255 / 18%);
+    box-shadow: inset 0 -3px 0 rgb(0 0 0 / 45%), inset 0 1px 0 rgb(255 255 255 / 14%), 0 0 18px rgb(124 116 255 / 45%);
+  }
+  .cap-label {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .p3d-toast {
+    left: -2%;
+    bottom: -4%;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 11px 16px;
+    border-radius: 999px;
+    --z: 160px;
+    transform: translateZ(var(--z));
+    animation-delay: -4s;
+    border-color: rgb(76 197 138 / 35%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%), 0 24px 50px -18px rgb(0 0 0 / 85%), 0 0 40px -14px rgb(76 197 138 / 55%);
+  }
+  .p3d-toast i,
+  .p3d-live i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--ok);
+    box-shadow: 0 0 10px var(--ok);
+  }
+  .p3d-live {
+    top: -5%;
+    left: 8%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    color: #c9cbd0;
+    --z: 70px;
+    transform: translateZ(var(--z));
+    animation-delay: -1s;
+  }
+  .p3d-live i {
+    background: var(--cyan);
+    box-shadow: 0 0 10px var(--cyan);
+  }
+  /* A slow drift in depth only, so the layers feel alive without moving across the page. */
+  @keyframes hover-float {
+    from {
+      transform: translateZ(var(--z)) translateY(-4px);
+    }
+    to {
+      transform: translateZ(calc(var(--z) + 14px)) translateY(4px);
+    }
+  }
+
+  .lg .p3d-brief {
+    width: min(360px, 44%);
+    right: -3%;
+  }
+  .lg .p3d-scene {
+    transform: rotateX(calc(12deg - var(--py) * 4deg)) rotateY(calc(var(--px) * 8deg));
+  }
+
+  @media (max-width: 960px) {
+    .p3d-scene,
+    .lg .p3d-scene {
+      transform: rotateX(8deg) rotateY(-8deg);
+    }
+    .p3d-brief {
+      right: -2%;
+    }
+  }
+  @media (max-width: 640px) {
+    .p3d {
+      perspective: 1200px;
+      padding: 30px 12px 46px;
+      margin-inline: -4px;
+      /* On a phone the leaning layers would widen the page; keep them inside this frame. */
+      overflow: clip;
+      overflow-clip-margin: 4px;
+    }
+    .p3d-scene,
+    .lg .p3d-scene {
+      transform: rotateX(7deg) rotateY(-6deg);
+    }
+    .p3d-brief,
+    .lg .p3d-brief {
+      top: auto;
+      bottom: 26%;
+      right: 0;
+      width: 86%;
+      padding: 11px 12px;
+      --z: 70px;
+    }
+    /* On a narrow screen the lines wrap instead of being cut short. */
+    .p3d-term {
+      font-size: 11px;
+      white-space: normal;
+    }
+    .p3d-term > div {
+      overflow: visible;
+    }
+    .p3d-key,
+    .p3d-live {
+      display: none;
+    }
+    .p3d-toast {
+      left: 5%;
+      bottom: -3%;
+      font-size: 11.5px;
+      padding: 9px 13px;
+      --z: 90px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .p3d-layer {
+      animation: none;
+    }
+    .p3d-scene {
+      transition: none;
+    }
+  }
+</style>
