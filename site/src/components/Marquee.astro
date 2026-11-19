@@ -1,8 +1,8 @@
 ---
 /**
- * "Works with" strip that scrolls right to left. Brand marks come from Simple Icons (CC0), inlined at
- * build time; tools without a freely licensed mark get a neutral glyph instead of an imitation.
- * Trademarks belong to their owners; shown only to say Bağlam works with these tools.
+ * "Works with" strip: two rows gliding in opposite directions. Brand marks come from Simple Icons
+ * (CC0), inlined at build time; tools without a freely licensed mark get a neutral glyph instead of
+ * an imitation. Trademarks belong to their owners; shown only to say Bağlam works with these tools.
  */
 import { siClaude, siCursor, siGithubcopilot, siGooglegemini, siWindsurf } from "simple-icons";
 import { t, type Lang } from "../i18n";
@@ -10,57 +10,67 @@ import { t, type Lang } from "../i18n";
 interface Props { lang: Lang }
 const d = t(Astro.props.lang).common;
 
-type Item = { name: string; path?: string; glyph?: "terminal" | "orbit" | "brackets" };
+type Item = { name: string; path?: string; glyph?: "terminal" | "orbit" | "brackets"; hex: string };
 const items: Item[] = [
-  { name: "Claude Code", path: siClaude.path },
-  { name: "Codex CLI", glyph: "terminal" },
-  { name: "Cursor", path: siCursor.path },
-  { name: "Antigravity", glyph: "orbit" },
-  { name: "Gemini CLI", path: siGooglegemini.path },
-  { name: "VS Code · Copilot", path: siGithubcopilot.path },
-  { name: "Windsurf", path: siWindsurf.path },
-  { name: d.anyMcp, glyph: "brackets" },
+  { name: "Claude Code", path: siClaude.path, hex: "#D97757" },
+  { name: "Codex CLI", glyph: "terminal", hex: "#f7f8f8" },
+  { name: "Cursor", path: siCursor.path, hex: "#f7f8f8" },
+  { name: "Antigravity", glyph: "orbit", hex: "#8ab4f8" },
+  { name: "Gemini CLI", path: siGooglegemini.path, hex: "#a98fe0" },
+  { name: "VS Code · Copilot", path: siGithubcopilot.path, hex: "#f7f8f8" },
+  { name: "Windsurf", path: siWindsurf.path, hex: "#3fd0c9" },
+  { name: d.anyMcp, glyph: "brackets", hex: "#958fff" },
 ];
-// Two copies so the loop is seamless (the second is hidden from screen readers).
-const rounds = [false, true];
+const rows = [items, [...items.slice(4), ...items.slice(0, 4)]];
 ---
 
 <section class="marquee-sec" aria-label={d.worksWith}>
   <p class="lbl">{d.worksWith}</p>
-  <div class="marquee">
-    <div class="track">
-      {rounds.map((hidden) => (
-        <ul class="row" aria-hidden={hidden ? "true" : undefined}>
-          {items.map((it) => (
-            <li class="item">
-              <span class="logo" aria-hidden="true">
-                {it.path ? (
-                  <svg viewBox="0 0 24 24" width="22" height="22"><path d={it.path} fill="currentColor" /></svg>
-                ) : it.glyph === "terminal" ? (
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="3.5" /><path d="m7 9 3 3-3 3M12.5 15H17" /></svg>
-                ) : it.glyph === "orbit" ? (
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-30 12 12)" /><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none" /></svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4H6a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h2M16 4h2a2 2 0 0 1 2 2v4l2 2-2 2v4a2 2 0 0 1-2 2h-2" /></svg>
-                )}
-              </span>
-              <span class="name">{it.name}</span>
-            </li>
-          ))}
-        </ul>
-      ))}
+  {rows.map((row, r) => (
+    <div class:list={["marquee", { back: r === 1 }]} aria-hidden={r === 1 ? "true" : undefined}>
+      <div class="track">
+        {[false, true].map((dup) => (
+          <ul class="row" aria-hidden={dup ? "true" : undefined}>
+            {row.map((it) => (
+              <li class="item" style={`--brand:${it.hex}`}>
+                <span class="logo" aria-hidden="true">
+                  {it.path ? (
+                    <svg viewBox="0 0 24 24" width="22" height="22"><path d={it.path} fill="currentColor" /></svg>
+                  ) : it.glyph === "terminal" ? (
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="3.5" /><path d="m7 9 3 3-3 3M12.5 15H17" /></svg>
+                  ) : it.glyph === "orbit" ? (
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-30 12 12)" /><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none" /></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4H6a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h2M16 4h2a2 2 0 0 1 2 2v4l2 2-2 2v4a2 2 0 0 1-2 2h-2" /></svg>
+                  )}
+                </span>
+                <span class="name">{it.name}</span>
+              </li>
+            ))}
+          </ul>
+        ))}
+      </div>
     </div>
-  </div>
+  ))}
 </section>
 
 <style>
   .marquee-sec {
-    padding: clamp(40px, 6vw, 72px) 0;
+    padding: clamp(36px, 6vw, 72px) 0;
     display: grid;
-    gap: 22px;
+    gap: 16px;
+    position: relative;
+  }
+  .marquee-sec::before {
+    content: "";
+    position: absolute;
+    inset: 20% 10%;
+    z-index: -1;
+    background: radial-gradient(50% 60% at 50% 50%, rgb(124 116 255 / 10%), transparent 70%);
+    pointer-events: none;
   }
   .lbl {
-    margin: 0;
+    margin: 0 0 8px;
     text-align: center;
     font: 500 11.5px/1 var(--mono);
     letter-spacing: 0.16em;
@@ -69,13 +79,18 @@ const rounds = [false, true];
   }
   .marquee {
     overflow: hidden;
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
-    mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+    padding: 6px 0;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
   }
   .track {
     display: flex;
     width: max-content;
-    animation: scroll 38s linear infinite;
+    animation: scroll 46s linear infinite;
+  }
+  .back .track {
+    animation-direction: reverse;
+    animation-duration: 54s;
   }
   .marquee:hover .track {
     animation-play-state: paused;
@@ -88,35 +103,43 @@ const rounds = [false, true];
     list-style: none;
   }
   .item {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 12px;
-    padding: 14px 22px 14px 16px;
-    border-radius: 14px;
+    padding: 12px 22px 12px 12px;
+    border-radius: 16px;
     border: 1px solid rgb(255 255 255 / 7%);
-    background: linear-gradient(180deg, rgb(255 255 255 / 3.5%), rgb(255 255 255 / 1%));
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
-    color: #c9ccd3;
+    background: linear-gradient(180deg, rgb(255 255 255 / 4%), rgb(255 255 255 / 1%));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
+    color: #b7bbc4;
     white-space: nowrap;
-    transition: color 200ms, border-color 200ms;
+    transition: color 300ms, border-color 300ms, box-shadow 300ms, transform 300ms var(--ease);
   }
   .item:hover {
+    color: var(--brand);
+    border-color: color-mix(in srgb, var(--brand) 45%, transparent);
+    box-shadow: 0 0 34px -6px color-mix(in srgb, var(--brand) 55%, transparent), inset 0 1px 0 rgb(255 255 255 / 8%);
+    transform: translateY(-2px);
+  }
+  .item:hover .name {
     color: #fff;
-    border-color: rgb(255 255 255 / 16%);
   }
   .logo {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     display: grid;
     place-items: center;
-    border-radius: 10px;
-    background: rgb(255 255 255 / 5%);
-    border: 1px solid rgb(255 255 255 / 7%);
+    border-radius: 11px;
+    background: radial-gradient(70% 70% at 30% 20%, rgb(255 255 255 / 10%), rgb(255 255 255 / 3%));
+    border: 1px solid rgb(255 255 255 / 8%);
   }
   .name {
     font-size: 15.5px;
     font-weight: 540;
     letter-spacing: -0.01em;
+    color: #c9ccd3;
+    transition: color 300ms;
   }
   @keyframes scroll {
     to {
@@ -124,6 +147,9 @@ const rounds = [false, true];
     }
   }
   @media (prefers-reduced-motion: reduce) {
+    .back {
+      display: none;
+    }
     .track {
       animation: none;
       width: auto;

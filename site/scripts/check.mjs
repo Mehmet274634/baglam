@@ -35,7 +35,8 @@ for (const f of html) {
     if (/^(mailto:|#|data:)/.test(value)) continue;
     if (/^https?:\/\//.test(value) || value.startsWith("//")) {
       // Plain links to the source repository are fine; nothing may be loaded from another host.
-      const repoLink = attr === "href" && value.startsWith("https://github.com/Mehmet274634/baglam") && new RegExp(`<a [^>]*href="${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`).test(s);
+      const allowed = ["https://github.com/Mehmet274634/baglam", "https://nodejs.org", "https://brew.sh", "https://github.com/nvm-sh/nvm"];
+      const repoLink = attr === "href" && allowed.some((a) => value.startsWith(a)) && new RegExp(`<a [^>]*href="${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`).test(s);
       if (!repoLink) problems.push(`${url}: loads or links to another host: ${attr}="${value}"`);
       continue;
     }

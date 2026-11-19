@@ -5,125 +5,102 @@ import Marquee from "../components/Marquee.astro";
 import SectionHead from "../components/SectionHead.astro";
 import Terminal from "../components/Terminal.astro";
 import PanelMock from "../components/PanelMock.astro";
+import Constellation from "../components/Constellation.astro";
+import HeroBeams from "../components/HeroBeams.astro";
 import Cta from "../components/Cta.astro";
 import Art from "../components/illustrations/Art.astro";
+import { siApple, siLinux } from "simple-icons";
 import { href, t, type Lang } from "../i18n";
 
 interface Props { lang: Lang }
 const { lang } = Astro.props;
 const d = t(lang);
 const h = d.home;
-const arts = ["stack", "handoff", "spark", "approve", "shield", "local"] as const;
-const widths = ["wide", "wide", "", "", "", ""];
+const ch = (i: number) => `${String(i + 1).padStart(2, "0")} · ${h.chapters[i]}`;
+const flowArt = ["search", "approve", "stack"] as const;
 const secArts = ["local", "shield", "approve", "panel"] as const;
 const faq = d.faq.items.slice(0, 4);
 ---
 
 <Base lang={lang} page="" title={h.title} description={h.description}>
-  <section class="hero wrap">
-    <div class="glow" aria-hidden="true"></div>
-    <div class="grid-bg" aria-hidden="true"></div>
-    <h1 class="display">{h.h1}</h1>
-    <p class="lead two-tone hero-lead">{h.lead1} <span class="dim">{h.lead2}</span></p>
-    <div class="actions">
-      <a class="btn btn-primary" href={href(lang, "get-started")}>{h.primary} <span class="arrow">→</span></a>
-      <a class="btn btn-ghost" href={href(lang, "how-it-works")}>{h.secondary}</a>
-    </div>
-    <div class="install-line mono">
-      <span class="p">$</span> npm i -g baglam <span class="sep">&amp;&amp;</span> baglam setup
-    </div>
-    <div class="stage hero-stage reveal">
-      <div class="hero-grid">
-        <Brief lang={lang} asked />
-        <Terminal
-          lang={lang}
-          title="codex"
-          lines={[
-            { cmd: lang === "en" ? "codex \"keep going\"" : "codex \"devam et\"" },
-            { out: lang === "en" ? "→ context_brief: Continue from here" : "→ context_brief: Buradan devam et", kind: "ac" },
-            { out: lang === "en" ? "  Next 1) Verify the signature" : "  Sırada 1) İmzayı doğrula" },
-            { out: lang === "en" ? "✓ checkpoint saved · next: idempotency" : "✓ kaydedildi · sırada: tekrar engeli", kind: "ok" },
-          ]}
-        />
+  <!-- Opening: full screen, centred, rays of light behind -->
+  <section class="hero">
+    <HeroBeams />
+    <div class="wrap hero-inner">
+      <h1 class="display hero-title">{h.h1}</h1>
+      <p class="lead two-tone hero-lead">{h.lead1} <span class="dim">{h.lead2}</span></p>
+      <div class="actions">
+        <a class="btn btn-primary btn-lg" href={href(lang, "get-started")}>{h.primary} <span class="arrow">→</span></a>
+        <a class="btn btn-ghost btn-lg" href={href(lang, "how-it-works")}>{h.secondary}</a>
+      </div>
+      <div class="install-line mono">
+        <span class="p">$</span> npm i -g baglam <span class="sep">&amp;&amp;</span> baglam setup
       </div>
     </div>
+    <a class="scroll-cue" href="#works" aria-label={d.common.worksWith}><span></span></a>
   </section>
 
-  <Marquee lang={lang} />
+  <div id="works"><Marquee lang={lang} /></div>
 
-  <section class="section wrap" style="padding-top:clamp(40px,6vw,80px)">
+  <!-- 01 The problem, and the one memory in the middle -->
+  <section class="section wrap problem">
+    <span class="kicker reveal">{ch(0)}</span>
     <p class="statement reveal">{h.statement1} <span class="dim">{h.statement2}</span></p>
-  </section>
-
-  <section class="section wrap" style="padding-top:0">
-    <SectionHead title={h.bentoTitle} dim={h.bentoDim} />
-    <div class="bento">
-      {h.cards.map((c, i) => (
-        <article class:list={["card", "reveal", widths[i]]}>
-          <div class="art"><Art name={arts[i]} /></div>
-          <h3 class="h3">{c.t}</h3>
-          <p>{c.d}</p>
-        </article>
-      ))}
+    <div class="rise constellation-wrap">
+      <Constellation label={h.connectTitle + " " + h.connectDim} />
     </div>
+    <h2 class="h2 two-tone center-t reveal">{h.connectTitle} <span class="dim">{h.connectDim}</span></h2>
+    <a class="btn btn-ghost reveal" href={href(lang, "ecosystem")}>{d.nav.ecosystem} <span class="arrow">→</span></a>
   </section>
 
+  <!-- 02 How it works -->
   <section class="section band">
     <div class="wrap">
-      <div class="split">
-        <div class="reveal copy-col">
-          <span class="kicker">{d.nav.panel}</span>
-          <h2 class="h2 two-tone">{h.tourTitle} <span class="dim">{h.tourDim}</span></h2>
-          <p class="lead">{h.tourText}</p>
-          <ul class="ticks">{h.tourPoints.map((x) => <li>{x}</li>)}</ul>
-          <a class="btn btn-ghost" style="width:fit-content" href={href(lang, "panel")}>{d.nav.panel} <span class="arrow">→</span></a>
-        </div>
-        <div class="reveal tilt"><PanelMock lang={lang} view="inbox" /></div>
+      <span class="kicker reveal">{ch(1)}</span>
+      <SectionHead title={h.howTitle} dim={h.howDim} />
+      <div class="grid-3">
+        {d.how.flow.map((f, i) => (
+          <article class="card reveal">
+            <div class="art"><Art name={flowArt[i]} /></div>
+            <span class="step-no mono">0{i + 1}</span>
+            <h3 class="h3">{f.t}</h3>
+            <p>{f.d}</p>
+          </article>
+        ))}
       </div>
     </div>
   </section>
 
+  <!-- 03 Handoff -->
   <section class="section wrap">
-    <div class="split reverse">
-      <div class="reveal">
-        <Terminal
-          lang={lang}
-          lines={[
-            { cmd: "baglam setup" },
-            { out: "Found: Claude Code, Codex CLI, Antigravity, Gemini CLI, Cursor, VS Code" },
-            { out: "✓ Claude Code auto-save  updated   ~/.claude/settings.json", kind: "ok" },
-            { out: "✓ Cursor                 added     ~/.cursor/mcp.json", kind: "ok" },
-            { out: "✓ Cursor auto-save       added     ~/.cursor/hooks.json", kind: "ok" },
-            { cmd: "baglam init" },
-            { out: "✓ AGENTS.md    added", kind: "ok" },
-            { cmd: "baglam doctor" },
-            { out: "Everything looks good.", kind: "ac" },
-          ]}
-        />
-      </div>
-      <div class="reveal copy-col">
-        <span class="kicker">{d.nav.start}</span>
-        <h2 class="h2 two-tone">{h.setupTitle} <span class="dim">{h.setupDim}</span></h2>
-        <p class="lead">{h.setupText}</p>
-        <a class="btn btn-ghost" style="width:fit-content" href={href(lang, "get-started")}>{d.nav.docs} <span class="arrow">→</span></a>
-      </div>
-    </div>
-  </section>
-
-  <section class="section wrap" style="padding-top:0">
+    <span class="kicker reveal">{ch(2)}</span>
     <div class="split">
       <div class="reveal copy-col">
-        <span class="kicker">{d.nav.handoff}</span>
         <h2 class="h2 two-tone">{h.handoffTitle} <span class="dim">{h.handoffDim}</span></h2>
         <p class="lead">{h.handoffText}</p>
         <a class="btn btn-ghost" style="width:fit-content" href={href(lang, "handoff")}>{h.handoffLink} <span class="arrow">→</span></a>
       </div>
-      <div class="stage reveal"><Brief lang={lang} /></div>
+      <div class="stage rise">
+        <div class="stack">
+          <Brief lang={lang} asked />
+          <Terminal
+            lang={lang}
+            title="codex"
+            lines={[
+              { cmd: lang === "en" ? "codex \"keep going\"" : "codex \"devam et\"" },
+              { out: lang === "en" ? "→ context_brief: Continue from here" : "→ context_brief: Buradan devam et", kind: "ac" },
+              { out: lang === "en" ? "✓ checkpoint saved · next: idempotency" : "✓ kaydedildi · sırada: tekrar engeli", kind: "ok" },
+            ]}
+          />
+        </div>
+      </div>
     </div>
   </section>
 
+  <!-- 04 Automatic saving -->
   <section class="section band">
     <div class="wrap">
+      <span class="kicker reveal">{ch(3)}</span>
       <SectionHead title={h.autoTitle} dim={h.autoDim} />
       <div class="grid-3">
         {h.autoCards.map((c) => (
@@ -141,7 +118,64 @@ const faq = d.faq.items.slice(0, 4);
     </div>
   </section>
 
+  <!-- 05 The panel -->
   <section class="section wrap">
+    <span class="kicker reveal">{ch(4)}</span>
+    <div class="split">
+      <div class="reveal copy-col">
+        <h2 class="h2 two-tone">{h.tourTitle} <span class="dim">{h.tourDim}</span></h2>
+        <p class="lead">{h.tourText}</p>
+        <ul class="ticks">{h.tourPoints.map((x) => <li>{x}</li>)}</ul>
+        <a class="btn btn-ghost" style="width:fit-content" href={href(lang, "panel")}>{d.nav.panel} <span class="arrow">→</span></a>
+      </div>
+      <div class="tilt rise"><PanelMock lang={lang} view="inbox" /></div>
+    </div>
+  </section>
+
+  <!-- 06 Install -->
+  <section class="section band">
+    <div class="wrap">
+      <span class="kicker reveal">{ch(5)}</span>
+      <SectionHead title={h.installTitle} dim={h.installDim} lead={h.installText} />
+      <div class="os-row">
+        {[
+          { n: "macOS", path: siApple.path },
+          { n: "Windows" },
+          { n: "Linux", path: siLinux.path },
+        ].map((o) => (
+          <a class="card reveal os-mini" href={href(lang, "get-started")}>
+            <span class="os-ic" aria-hidden="true">
+              {o.path ? (
+                <svg viewBox="0 0 24 24"><path d={o.path} fill="currentColor" /></svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="2.5" /><path d="M2.5 8.5h19" /><circle cx="5.5" cy="6.25" r=".6" fill="currentColor" /><circle cx="7.5" cy="6.25" r=".6" fill="currentColor" /></svg>
+              )}
+            </span>
+            <span class="os-n">{o.n}</span>
+            <span class="arrow muted">→</span>
+          </a>
+        ))}
+      </div>
+      <div class="reveal" style="margin-top:22px">
+        <Terminal
+          lang={lang}
+          lines={[
+            { cmd: "npm i -g baglam" },
+            { cmd: "baglam setup" },
+            { out: "Found: Claude Code, Codex CLI, Antigravity, Gemini CLI, Cursor, VS Code" },
+            { out: "✓ Cursor auto-save       added     ~/.cursor/hooks.json", kind: "ok" },
+            { cmd: "baglam init" },
+            { cmd: "baglam doctor" },
+            { out: "Everything looks good.", kind: "ac" },
+          ]}
+        />
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 Privacy -->
+  <section class="section wrap">
+    <span class="kicker reveal">{ch(6)}</span>
     <SectionHead title={h.secTitle} dim={h.secDim} />
     <div class="grid-4">
       {h.secCards.map((c, i) => (
@@ -152,10 +186,6 @@ const faq = d.faq.items.slice(0, 4);
         </article>
       ))}
     </div>
-  </section>
-
-  <section class="section wrap" style="padding-top:0">
-    <SectionHead title={h.statsTitle} />
     <div class="stats">
       {h.stats.map((s) => (
         <div class="stat reveal">
@@ -167,23 +197,7 @@ const faq = d.faq.items.slice(0, 4);
   </section>
 
   <section class="section band">
-    <div class="wrap">
-      <SectionHead title={h.stepsTitle} dim={h.stepsDim} />
-      <div class="steps">
-        {h.steps.map((s) => (
-          <article class="card step reveal">
-            <span class="n"></span>
-            <h3 class="h3">{s.t}</h3>
-            <p>{s.d}</p>
-            <pre><code>{s.c}</code></pre>
-          </article>
-        ))}
-      </div>
-    </div>
-  </section>
-
-  <section class="section wrap">
-    <div class="split faq-split">
+    <div class="wrap split faq-split">
       <div class="reveal copy-col">
         <h2 class="h2">{h.faqTitle}</h2>
         <a class="btn btn-ghost" style="width:fit-content" href={href(lang, "faq")}>{h.faqLink} <span class="arrow">→</span></a>
@@ -205,42 +219,48 @@ const faq = d.faq.items.slice(0, 4);
 <style>
   .hero {
     position: relative;
+    min-height: calc(100svh - 70px);
+    display: grid;
+    place-items: center;
+    padding: 40px 0 80px;
+    isolation: isolate;
+  }
+  .hero-inner {
     display: grid;
     justify-items: center;
     text-align: center;
-    gap: 24px;
-    padding-top: clamp(110px, 15vw, 180px);
+    gap: 26px;
   }
-  .grid-bg {
-    position: absolute;
-    inset: 0 0 auto;
-    height: 640px;
-    z-index: -1;
-    pointer-events: none;
-    background-image:
-      linear-gradient(rgb(255 255 255 / 3.5%) 1px, transparent 1px),
-      linear-gradient(90deg, rgb(255 255 255 / 3.5%) 1px, transparent 1px);
-    background-size: 56px 56px;
-    -webkit-mask-image: radial-gradient(60% 70% at 50% 20%, #000, transparent 75%);
-    mask-image: radial-gradient(60% 70% at 50% 20%, #000, transparent 75%);
+  .hero-inner > * {
+    min-width: 0;
   }
-  .hero .display {
-    max-width: 14ch;
-    background: linear-gradient(180deg, #ffffff 30%, #b8bcc6);
+  .hero-title {
+    max-width: 13ch;
+    font-size: clamp(2.8rem, 7.4vw, 6rem);
+    line-height: 0.98;
+    letter-spacing: -0.045em;
+    background: linear-gradient(180deg, #ffffff 35%, #a9aebb);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    padding-bottom: 0.04em;
+    padding-bottom: 0.05em;
+    animation: enter 1.1s var(--ease) both;
   }
   .hero-lead {
-    max-width: 44rem;
+    max-width: 42rem;
+    animation: enter 1.1s 120ms var(--ease) both;
   }
   .actions {
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
     justify-content: center;
-    margin-top: 4px;
+    animation: enter 1.1s 220ms var(--ease) both;
+  }
+  .btn-lg {
+    height: 46px;
+    padding: 0 22px;
+    font-size: 15.5px;
   }
   .install-line {
     font-size: 13.5px;
@@ -248,34 +268,93 @@ const faq = d.faq.items.slice(0, 4);
     padding: 9px 16px;
     border-radius: 999px;
     border: 1px solid var(--border);
-    background: rgb(255 255 255 / 2%);
+    background: rgb(8 9 10 / 60%);
+    backdrop-filter: blur(6px);
+    animation: enter 1.1s 320ms var(--ease) both;
   }
   .install-line .p,
   .install-line .sep {
     color: var(--faint);
   }
-  .hero-stage {
-    width: 100%;
-    margin-top: clamp(32px, 5vw, 56px);
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+      filter: blur(8px);
+    }
   }
-  .hero-grid {
+  .scroll-cue {
+    position: absolute;
+    bottom: 26px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 26px;
+    height: 42px;
+    border-radius: 14px;
+    border: 1px solid var(--border-strong);
     display: grid;
-    grid-template-columns: 1.35fr 1fr;
-    gap: 18px;
-    align-items: end;
+    justify-items: center;
+    padding-top: 8px;
   }
-  .hero-grid > *,
-  .hero > * {
-    min-width: 0;
+  .scroll-cue span {
+    width: 3px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--text);
+    animation: cue 1.8s ease-in-out infinite;
+  }
+  @keyframes cue {
+    0% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    70% {
+      transform: translateY(12px);
+      opacity: 0;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  .kicker {
+    display: inline-block;
+    font: 500 12px/1 var(--mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-hover);
+    margin-bottom: 22px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid rgb(124 116 255 / 30%);
+    background: rgb(124 116 255 / 8%);
+  }
+  .problem {
+    display: grid;
+    justify-items: center;
+    text-align: center;
+    gap: 28px;
+  }
+  .problem .statement {
+    max-width: 58rem;
+  }
+  .constellation-wrap {
+    width: 100%;
+    margin: 20px 0 6px;
+  }
+  .center-t {
+    max-width: 24ch;
+  }
+  .step-no {
+    display: block;
+    color: var(--accent-hover);
+    font-size: 13px;
+    margin-bottom: 8px;
   }
   .split {
     display: grid;
     grid-template-columns: 1fr 1.25fr;
     gap: clamp(32px, 6vw, 80px);
     align-items: center;
-  }
-  .split.reverse {
-    grid-template-columns: 1.25fr 1fr;
   }
   .split > * {
     min-width: 0;
@@ -289,11 +368,9 @@ const faq = d.faq.items.slice(0, 4);
     gap: 20px;
     align-content: center;
   }
-  .kicker {
-    font: 500 12px/1 var(--mono);
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--accent-hover);
+  .stack {
+    display: grid;
+    gap: 14px;
   }
   .ticks {
     margin: 0;
@@ -312,9 +389,9 @@ const faq = d.faq.items.slice(0, 4);
     perspective: 1600px;
   }
   .tilt :global(.window) {
-    transform: rotateY(-6deg) rotateX(3deg);
+    transform: rotateY(-7deg) rotateX(3deg);
     transform-origin: left center;
-    transition: transform 600ms var(--ease);
+    transition: transform 700ms var(--ease);
   }
   .tilt:hover :global(.window) {
     transform: none;
@@ -336,7 +413,7 @@ const faq = d.faq.items.slice(0, 4);
     border-radius: 12px;
     border: 1px solid var(--border);
     background:
-      radial-gradient(80% 100% at 0% 0%, rgb(124 116 255 / 14%), transparent 60%),
+      radial-gradient(80% 100% at 0% 0%, rgb(124 116 255 / 16%), transparent 60%),
       rgb(255 255 255 / 2%);
     padding: 18px;
     display: grid;
@@ -355,17 +432,50 @@ const faq = d.faq.items.slice(0, 4);
   .mini-line {
     height: 8px;
     border-radius: 4px;
-    background: rgb(255 255 255 / 10%);
+    background: linear-gradient(90deg, rgb(255 255 255 / 14%), rgb(255 255 255 / 4%));
     width: 86%;
   }
   .mini-line.short {
     width: 54%;
   }
+  .os-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .os-row > * {
+    min-width: 0;
+  }
+  .os-mini {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 22px;
+  }
+  .os-ic {
+    width: 48px;
+    height: 48px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    background: radial-gradient(70% 70% at 30% 20%, rgb(255 255 255 / 10%), rgb(255 255 255 / 3%));
+    border: 1px solid rgb(255 255 255 / 9%);
+  }
+  .os-ic svg {
+    width: 24px;
+    height: 24px;
+  }
+  .os-n {
+    font-size: 17px;
+    font-weight: 600;
+    flex: 1;
+  }
   .stats {
+    margin-top: 14px;
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     border: 1px solid var(--border);
-    border-radius: var(--r-card);
+    border-radius: 18px;
     overflow: hidden;
   }
   .stat {
@@ -387,9 +497,7 @@ const faq = d.faq.items.slice(0, 4);
     color: transparent;
   }
   @media (max-width: 960px) {
-    .hero-grid,
     .split,
-    .split.reverse,
     .faq-split {
       grid-template-columns: 1fr;
     }
@@ -406,6 +514,9 @@ const faq = d.faq.items.slice(0, 4);
     .tilt :global(.window) {
       transform: none;
     }
+    .os-row {
+      grid-template-columns: 1fr;
+    }
   }
   @media (max-width: 560px) {
     .grid-4,
@@ -418,6 +529,20 @@ const faq = d.faq.items.slice(0, 4);
     }
     .install-line {
       font-size: 12px;
+    }
+    .scroll-cue {
+      display: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-title,
+    .hero-lead,
+    .actions,
+    .install-line {
+      animation: none;
+    }
+    .scroll-cue span {
+      animation: none;
     }
   }
 </style>
