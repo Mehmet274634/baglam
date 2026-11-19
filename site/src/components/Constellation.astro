@@ -1,0 +1,276 @@
+---
+/**
+ * Every tool wired to Bağlam: brand tiles around the mark, joined by lines with light pulses
+ * travelling along them (and a few between tools — any agent can continue another's work).
+ * Pure SVG + CSS; still and fully visible with reduced motion.
+ */
+import Logo from "./Logo.astro";
+import { siClaude, siCursor, siGithubcopilot, siGooglegemini, siWindsurf } from "simple-icons";
+
+interface Props { size?: "md" | "lg"; label?: string }
+const { size = "md", label } = Astro.props;
+
+type Node = { name: string; x: number; y: number; path?: string; glyph?: "terminal" | "orbit"; hex: string };
+// Positions in a 1000 x 600 box; the centre is (500, 300).
+const nodes: Node[] = [
+  { name: "Claude Code", x: 150, y: 140, path: siClaude.path, hex: "#D97757" },
+  { name: "Codex CLI", x: 500, y: 62, glyph: "terminal", hex: "#e6e7e9" },
+  { name: "Cursor", x: 850, y: 140, path: siCursor.path, hex: "#e6e7e9" },
+  { name: "Antigravity", x: 900, y: 420, glyph: "orbit", hex: "#8ab4f8" },
+  { name: "Gemini CLI", x: 640, y: 540, path: siGooglegemini.path, hex: "#8E75B2" },
+  { name: "VS Code · Copilot", x: 360, y: 540, path: siGithubcopilot.path, hex: "#e6e7e9" },
+  { name: "Windsurf", x: 100, y: 420, path: siWindsurf.path, hex: "#3fd0c9" },
+];
+const C = { x: 500, y: 300 };
+// A gentle curve from a node to the centre.
+const toCenter = (n: Node) => {
+  const mx = (n.x + C.x) / 2 + (n.y - C.y) * 0.18;
+  const my = (n.y + C.y) / 2 - (n.x - C.x) * 0.18;
+  return `M${n.x} ${n.y} Q${mx} ${my} ${C.x} ${C.y}`;
+};
+// Neighbours around the ring, and two across it.
+const pairs: [number, number][] = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 0], [0, 4], [2, 6]];
+const between = (a: Node, b: Node) => {
+  const mx = (a.x + b.x) / 2 + (C.x - (a.x + b.x) / 2) * 0.25;
+  const my = (a.y + b.y) / 2 + (C.y - (a.y + b.y) / 2) * 0.25;
+  return `M${a.x} ${a.y} Q${mx} ${my} ${b.x} ${b.y}`;
+};
+const uid = Math.random().toString(36).slice(2, 7);
+---
+
+<div class:list={["constellation", size]} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : "true"}>
+  <svg viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet" class="wires">
+    <defs>
+      <radialGradient id={`halo-${uid}`} cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="#7c74ff" stop-opacity="0.45" />
+        <stop offset="0.5" stop-color="#3fd0c9" stop-opacity="0.08" />
+        <stop offset="1" stop-color="#3fd0c9" stop-opacity="0" />
+      </radialGradient>
+      <filter id={`glow-${uid}`} x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="3.2" result="b" />
+        <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+      </filter>
+    </defs>
+    <ellipse cx={C.x} cy={C.y} rx="300" ry="230" fill={`url(#halo-${uid})`} />
+    <ellipse cx={C.x} cy={C.y} rx="420" ry="250" class="orbit-ring" />
+    <ellipse cx={C.x} cy={C.y} rx="250" ry="150" class="orbit-ring inner" />
+    {pairs.map(([a, b], i) => (
+      <g>
+        <path d={between(nodes[a], nodes[b])} class="wire faint" />
+        {i % 3 === 0 && <path d={between(nodes[a], nodes[b])} pathLength="1" class="beam side" style={`--d:${(i * 0.9).toFixed(2)}s`} filter={`url(#glow-${uid})`} />}
+      </g>
+    ))}
+    {nodes.map((n, i) => (
+      <g>
+        <path d={toCenter(n)} class="wire" />
+        <path d={toCenter(n)} pathLength="1" class="beam" style={`--d:${(i * 0.55).toFixed(2)}s;--c:${n.hex}`} filter={`url(#glow-${uid})`} />
+      </g>
+    ))}
+  </svg>
+
+  <div class="core" style={`left:${C.x / 10}%;top:${(C.y / 600) * 100}%`}>
+    <span class="pulse"></span>
+    <span class="pulse two"></span>
+    <Logo size={size === "lg" ? 76 : 60} />
+  </div>
+
+  {nodes.map((n) => (
+    <div class="node" style={`left:${n.x / 10}%;top:${(n.y / 600) * 100}%;--brand:${n.hex}`}>
+      <span class="tile">
+        {n.path ? (
+          <svg viewBox="0 0 24 24"><path d={n.path} fill="currentColor" /></svg>
+        ) : n.glyph === "terminal" ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="3.5" /><path d="m7 9 3 3-3 3M12.5 15H17" /></svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-30 12 12)" /><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none" /></svg>
+        )}
+      </span>
+      <span class="name">{n.name}</span>
+    </div>
+  ))}
+</div>
+
+<style>
+  .constellation {
+    position: relative;
+    width: 100%;
+    max-width: 1080px;
+    margin: 0 auto;
+    aspect-ratio: 1000 / 600;
+  }
+  .wires {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .orbit-ring {
+    fill: none;
+    stroke: rgb(255 255 255 / 5%);
+    stroke-dasharray: 2 7;
+  }
+  .orbit-ring.inner {
+    stroke: rgb(124 116 255 / 12%);
+  }
+  .wire {
+    fill: none;
+    stroke: rgb(255 255 255 / 10%);
+    stroke-width: 1.2;
+  }
+  .wire.faint {
+    stroke: rgb(255 255 255 / 5%);
+    stroke-dasharray: 3 6;
+  }
+  .beam {
+    fill: none;
+    stroke: var(--c, #9be7e3);
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-dasharray: 0.09 0.91;
+    stroke-dashoffset: 1;
+    animation: travel 3.6s cubic-bezier(0.5, 0, 0.3, 1) infinite;
+    animation-delay: var(--d, 0s);
+    opacity: 0.95;
+  }
+  .beam.side {
+    stroke: #a7a2ff;
+    stroke-width: 1.6;
+    animation-duration: 5.4s;
+  }
+  @keyframes travel {
+    0% {
+      stroke-dashoffset: 1;
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    85% {
+      opacity: 1;
+    }
+    100% {
+      stroke-dashoffset: 0.09;
+      opacity: 0;
+    }
+  }
+  .core {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    display: grid;
+    place-items: center;
+    padding: 14px;
+    border-radius: 26px;
+    background: rgb(17 18 20 / 70%);
+    border: 1px solid rgb(255 255 255 / 12%);
+    box-shadow: 0 0 80px rgb(124 116 255 / 35%), inset 0 1px 0 rgb(255 255 255 / 8%);
+    backdrop-filter: blur(6px);
+  }
+  .pulse {
+    position: absolute;
+    inset: -2px;
+    border-radius: 28px;
+    border: 1px solid rgb(124 116 255 / 55%);
+    animation: pulse 3.2s ease-out infinite;
+  }
+  .pulse.two {
+    animation-delay: 1.6s;
+  }
+  @keyframes pulse {
+    from {
+      transform: scale(1);
+      opacity: 0.8;
+    }
+    to {
+      transform: scale(1.9);
+      opacity: 0;
+    }
+  }
+  .node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    display: grid;
+    justify-items: center;
+    gap: 9px;
+  }
+  .tile {
+    width: 58px;
+    height: 58px;
+    display: grid;
+    place-items: center;
+    border-radius: 16px;
+    color: #e6e7e9;
+    background: linear-gradient(180deg, #17181b, #0e0f11);
+    border: 1px solid rgb(255 255 255 / 11%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%), 0 12px 30px -10px rgb(0 0 0 / 90%);
+    transition: color 250ms, border-color 250ms, box-shadow 250ms, transform 250ms;
+  }
+  .tile svg {
+    width: 26px;
+    height: 26px;
+  }
+  .node:hover .tile {
+    color: var(--brand);
+    border-color: color-mix(in srgb, var(--brand) 55%, transparent);
+    box-shadow: 0 0 34px color-mix(in srgb, var(--brand) 45%, transparent), inset 0 1px 0 rgb(255 255 255 / 8%);
+    transform: translateY(-3px);
+  }
+  .name {
+    font-size: 13px;
+    font-weight: 540;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .lg .tile {
+    width: 70px;
+    height: 70px;
+    border-radius: 19px;
+  }
+  .lg .tile svg {
+    width: 30px;
+    height: 30px;
+  }
+  @media (max-width: 720px) {
+    .tile {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+    }
+    .tile svg {
+      width: 19px;
+      height: 19px;
+    }
+    .lg .tile {
+      width: 44px;
+      height: 44px;
+    }
+    .name {
+      font-size: 10.5px;
+    }
+    .core {
+      padding: 8px;
+      border-radius: 18px;
+    }
+    .core :global(svg) {
+      width: 40px;
+      height: 40px;
+    }
+  }
+  @media (max-width: 460px) {
+    .name {
+      display: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .beam {
+      animation: none;
+      stroke-dasharray: none;
+      stroke-dashoffset: 0;
+      opacity: 0.35;
+    }
+    .pulse {
+      animation: none;
+      opacity: 0;
+    }
+  }
+</style>

@@ -236,32 +236,65 @@ p code {
 }
 
 /* ---------- Cards ---------- */
+@property --ring {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
 .card {
   position: relative;
-  background: linear-gradient(180deg, var(--raised), var(--surface));
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgb(255 255 255 / 4.5%), transparent 60%),
+    linear-gradient(180deg, #131417, #0d0e10);
   border: 1px solid var(--border);
-  border-radius: var(--r-card);
-  box-shadow: var(--highlight);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%), 0 24px 60px -36px rgb(0 0 0 / 90%);
   padding: 28px;
   overflow: hidden;
   isolation: isolate;
-  transition: border-color 200ms var(--ease), transform 200ms var(--ease);
+  transition: border-color 250ms var(--ease), transform 350ms var(--ease), box-shadow 350ms var(--ease);
 }
+/* A light that runs around the edge on hover. */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--ring), transparent 0 62%, rgb(149 143 255 / 95%) 74%, rgb(63 208 201 / 95%) 84%, transparent 94%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 350ms var(--ease);
+  animation: ring 3.6s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+/* Spotlight that follows the pointer. */
 .card::after {
   content: "";
   position: absolute;
   inset: -1px;
   z-index: -1;
   border-radius: inherit;
-  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), rgb(124 116 255 / 10%), transparent 60%);
+  background: radial-gradient(460px circle at var(--mx, 50%) var(--my, 0%), rgb(124 116 255 / 13%), transparent 60%);
   opacity: 0;
-  transition: opacity 240ms var(--ease);
+  transition: opacity 300ms var(--ease);
 }
 .card:hover {
-  border-color: var(--border-strong);
+  border-color: rgb(255 255 255 / 4%);
+  transform: translateY(-4px);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 9%), 0 40px 80px -40px rgb(124 116 255 / 35%);
 }
+.card:hover::before,
 .card:hover::after {
   opacity: 1;
+}
+@keyframes ring {
+  to {
+    --ring: 360deg;
+  }
 }
 .card .art {
   height: 190px;
@@ -740,12 +773,38 @@ p code {
 /* ---------- Motion ---------- */
 .reveal {
   opacity: 0;
-  transform: translateY(14px);
-  transition: opacity 700ms var(--ease), transform 700ms var(--ease);
+  transform: translateY(26px) scale(0.985);
+  filter: blur(6px);
+  transition: opacity 900ms var(--ease), transform 900ms var(--ease), filter 900ms var(--ease);
 }
 .reveal.in {
   opacity: 1;
   transform: none;
+  filter: none;
+}
+/* Cards in a row arrive one after another. */
+:is(.bento, .grid-3, .grid-4, .steps, .stats, .os-grid) > .reveal:nth-child(2) { transition-delay: 90ms; }
+:is(.bento, .grid-3, .grid-4, .steps, .stats, .os-grid) > .reveal:nth-child(3) { transition-delay: 180ms; }
+:is(.bento, .grid-3, .grid-4, .steps, .stats, .os-grid) > .reveal:nth-child(4) { transition-delay: 270ms; }
+:is(.bento, .grid-3, .grid-4, .steps, .stats, .os-grid) > .reveal:nth-child(5) { transition-delay: 360ms; }
+:is(.bento, .grid-3, .grid-4, .steps, .stats, .os-grid) > .reveal:nth-child(6) { transition-delay: 450ms; }
+/* Big visuals rise and settle as they scroll through the view, where the browser supports it. */
+@supports (animation-timeline: view()) {
+  .rise {
+    animation: rise linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 45%;
+  }
+  @keyframes rise {
+    from {
+      transform: translateY(70px) scale(0.94);
+      opacity: 0.25;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
 }
 .no-js .reveal {
   opacity: 1;
@@ -758,11 +817,22 @@ p code {
   .reveal {
     opacity: 1;
     transform: none;
+    filter: none;
     transition: none;
   }
   .card,
   .btn,
   .btn .arrow {
     transition: none;
+  }
+  .card:hover {
+    transform: none;
+  }
+  .card::before {
+    animation: none;
+    --ring: 200deg;
+  }
+  .rise {
+    animation: none !important;
   }
 }

@@ -2,7 +2,7 @@ export type Lang = "en" | "tr";
 export const LANGS: Lang[] = ["en", "tr"];
 
 /** Every page of the site, in nav order. "" is the home page. */
-export const PAGES = ["", "how-it-works", "handoff", "automatic-saving", "panel", "security", "tools", "get-started", "pricing", "faq"] as const;
+export const PAGES = ["", "how-it-works", "handoff", "automatic-saving", "panel", "ecosystem", "security", "tools", "get-started", "pricing", "faq"] as const;
 export type Page = (typeof PAGES)[number];
 
 /** URL of a page in a language: English at the root, Turkish under /tr/. */

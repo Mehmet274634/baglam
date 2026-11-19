@@ -3,54 +3,111 @@ import Base from "../layouts/Base.astro";
 import PageHero from "../components/PageHero.astro";
 import SectionHead from "../components/SectionHead.astro";
 import Cta from "../components/Cta.astro";
+import { siApple, siLinux, siNodedotjs } from "simple-icons";
 import { t, type Lang } from "../i18n";
 
 interface Props { lang: Lang }
 const { lang } = Astro.props;
 const d = t(lang);
-const p = d.start;
+const p = d.install;
+const links: Record<string, { href: string; label: string }> = {
+  macos: { href: "https://brew.sh", label: "brew.sh" },
+  windows: { href: "https://nodejs.org", label: "nodejs.org" },
+  linux: { href: "https://github.com/nvm-sh/nvm#installing-and-updating", label: "nvm" },
+};
 ---
 
 <Base lang={lang} page="get-started" title={p.title} description={p.description}>
-  <PageHero eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} lead={p.lead} />
+  <PageHero eyebrow={p.eyebrow} title={p.h1} dim={p.h1dim} lead={p.lead}>
+    <ul class="reqs reveal" aria-label={p.requirements}>
+      <li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={siNodedotjs.path} fill="currentColor" /></svg>{p.reqs[0]}</li>
+      <li>{p.reqs[1]}</li>
+      <li>{p.reqs[2]}</li>
+    </ul>
+  </PageHero>
 
-  <section class="wrap" style="padding-bottom:clamp(72px,11vw,140px)">
-    <ol class="install">
-      {p.steps.map((s, i) => (
-        <li class="card reveal">
-          <span class="num mono">{String(i + 1).padStart(2, "0")}</span>
-          <div class="body">
-            <h2 class="h3">{s.t}</h2>
-            <p>{s.d}</p>
+  <section class="wrap os-sec">
+    <div class="tabs" role="radiogroup" aria-label={p.choose}>
+      {p.os.map((os, i) => <input type="radio" name="os" id={`os-${os.id}`} class="os-radio" checked={i === 0} />)}
+      <div class="os-grid">
+        {p.os.map((os) => (
+          <label for={`os-${os.id}`} class:list={["os-card", "reveal", `os-${os.id}`]}>
+            <span class="os-icon" aria-hidden="true">
+              {os.id === "macos" && <svg viewBox="0 0 24 24"><path d={siApple.path} fill="currentColor" /></svg>}
+              {os.id === "linux" && <svg viewBox="0 0 24 24"><path d={siLinux.path} fill="currentColor" /></svg>}
+              {os.id === "windows" && (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="2.5" /><path d="M2.5 8.5h19" /><circle cx="5.5" cy="6.25" r=".6" fill="currentColor" /><circle cx="7.5" cy="6.25" r=".6" fill="currentColor" /></svg>
+              )}
+            </span>
+            <span class="os-name">{os.name}</span>
+            <span class="os-note">{os.note}</span>
+          </label>
+        ))}
+      </div>
+
+      {p.os.map((os) => (
+        <div class:list={["os-panel", `panel-${os.id}`]}>
+          <ol class="os-steps">
+            {os.steps.map((s, i) => (
+              <li class="card">
+                <span class="num mono">{String(i + 1).padStart(2, "0")}</span>
+                <div class="body">
+                  <h3 class="h3">{s.t}</h3>
+                  <p>{s.d}</p>
+                </div>
+                <div class="terminal cmd">
+                  <div class="terminal-bar">
+                    <span>{os.id === "windows" ? "PowerShell" : "Terminal"}</span>
+                    <button class="copy" type="button" data-copy={s.c} data-done={d.common.copied} hidden>{d.common.copy}</button>
+                  </div>
+                  <pre><span class="p">{os.id === "windows" ? "PS> " : "$ "}</span>{s.c}</pre>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <div class="tip">
+            <span>{os.tip} <a href={links[os.id].href} rel="noopener">{links[os.id].label} ↗</a></span>
+            {"tipCmd" in os && os.tipCmd && <code class="tipcmd">{os.tipCmd}</code>}
           </div>
-          <div class="terminal cmd">
-            <div class="terminal-bar">
-              <span>Terminal</span>
-              <button class="copy" type="button" data-copy={s.c} data-done={d.common.copied} hidden>{d.common.copy}</button>
-            </div>
-            <pre>{s.c.split("\n").map((l) => <><span class="p">$ </span>{l}{"\n"}</>)}</pre>
-          </div>
-        </li>
+        </div>
       ))}
-    </ol>
+    </div>
   </section>
 
   <section class="section band">
-    <div class="wrap grid-2">
-      <div class="reveal">
-        <SectionHead title={p.tryTitle} />
-        <ol class="try">{p.try.map((x) => <li>{x}</li>)}</ol>
+    <div class="wrap">
+      <SectionHead title={p.thenTitle} />
+      <div class="then">
+        {p.then.map((s, i) => (
+          <article class="card reveal">
+            <span class="num mono">{String(i + 4).padStart(2, "0")}</span>
+            <h3 class="h3">{s.t}</h3>
+            <p>{s.d}</p>
+            <pre class="mini-term"><span class="p">$ </span>{s.c}</pre>
+          </article>
+        ))}
       </div>
+      <p class="note reveal">{p.codexNote}</p>
+    </div>
+  </section>
+
+  <section class="section wrap">
+    <div class="split">
       <div class="reveal">
-        <h2 class="h3" style="margin-bottom:16px">{p.cmdsTitle}</h2>
+        <h2 class="h2" style="margin-bottom:18px">{d.start.cmdsTitle}</h2>
         <div class="rows">
-          {p.cmds.map((c) => (
+          {d.start.cmds.map((c) => (
             <div class="row cmd-row">
               <code style="font-size:13.5px">{c.c}</code>
               <p>{c.d}</p>
             </div>
           ))}
         </div>
+      </div>
+      <div class="card reveal">
+        <h3 class="h3">{p.removeTitle}</h3>
+        <p>{p.removeText}</p>
+        <pre class="mini-term">{p.removeCmd.split("\n").map((l) => <><span class="p">$ </span>{l}{"\n"}</>)}</pre>
       </div>
     </div>
   </section>
@@ -59,21 +116,132 @@ const p = d.start;
 </Base>
 
 <style>
-  .install {
+  .reqs {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+  .reqs li {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    color: var(--muted);
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgb(255 255 255 / 2%);
+  }
+  .reqs svg {
+    color: #5fa04e;
+  }
+  .os-sec {
+    padding-bottom: clamp(64px, 9vw, 120px);
+  }
+  .os-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .os-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .os-card {
+    position: relative;
+    cursor: pointer;
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    padding: 26px 18px 22px;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgb(255 255 255 / 4%), transparent 60%),
+      linear-gradient(180deg, #131417, #0d0e10);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+    transition: border-color 250ms, box-shadow 250ms, transform 250ms var(--ease);
+    text-align: center;
+  }
+  .os-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--border-strong);
+  }
+  .os-icon {
+    width: 64px;
+    height: 64px;
+    display: grid;
+    place-items: center;
+    border-radius: 18px;
+    background: radial-gradient(70% 70% at 30% 20%, rgb(255 255 255 / 10%), rgb(255 255 255 / 3%));
+    border: 1px solid rgb(255 255 255 / 9%);
+    color: #e6e7e9;
+  }
+  .os-icon svg {
+    width: 30px;
+    height: 30px;
+  }
+  .os-name {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+  .os-note {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .os-panel {
+    display: none;
+  }
+  #os-macos:checked ~ .os-grid .os-macos,
+  #os-windows:checked ~ .os-grid .os-windows,
+  #os-linux:checked ~ .os-grid .os-linux {
+    border-color: rgb(124 116 255 / 60%);
+    box-shadow: 0 0 0 1px rgb(124 116 255 / 40%), 0 24px 60px -30px rgb(124 116 255 / 55%), inset 0 1px 0 rgb(255 255 255 / 8%);
+  }
+  #os-macos:checked ~ .panel-macos,
+  #os-windows:checked ~ .panel-windows,
+  #os-linux:checked ~ .panel-linux {
+    display: grid;
+    gap: 14px;
+    animation: fade 400ms var(--ease);
+  }
+  #os-macos:focus-visible ~ .os-grid .os-macos,
+  #os-windows:focus-visible ~ .os-grid .os-windows,
+  #os-linux:focus-visible ~ .os-grid .os-linux {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  .os-steps {
     list-style: none;
     margin: 0;
     padding: 0;
     display: grid;
     gap: 12px;
   }
-  .install li {
+  .os-steps li {
     display: grid;
-    grid-template-columns: 48px 1fr minmax(260px, 380px);
+    grid-template-columns: 44px 1fr minmax(260px, 420px);
     gap: 22px;
     align-items: center;
   }
+  .os-steps li > * {
+    min-width: 0;
+  }
   .num {
-    color: var(--accent);
+    color: var(--accent-hover);
     font-size: 14px;
   }
   .body p {
@@ -82,26 +250,105 @@ const p = d.start;
   .cmd pre {
     padding: 12px 16px;
   }
+  .tip {
+    display: grid;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--muted);
+    padding: 14px 18px;
+    border-radius: 14px;
+    border: 1px dashed var(--border-strong);
+  }
+  .tip a {
+    color: var(--accent-hover);
+  }
+  .tipcmd {
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #0b0c0d;
+    border: 1px solid var(--border);
+    color: #e6e7e9;
+  }
+  .then {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .then > * {
+    min-width: 0;
+  }
+  .then .num {
+    display: block;
+    margin-bottom: 16px;
+  }
+  .mini-term {
+    margin: 16px 0 0;
+    font: 13px/1.6 var(--mono);
+    background: #0b0c0d;
+    color: #e6e7e9;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    overflow-x: auto;
+  }
+  .mini-term .p {
+    color: #5c6069;
+  }
+  .note {
+    margin: 22px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .split {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: clamp(28px, 5vw, 64px);
+    align-items: start;
+  }
+  .split > * {
+    min-width: 0;
+  }
   .cmd-row {
     grid-template-columns: minmax(0, 1.1fr) 1fr;
   }
-  @media (max-width: 640px) {
-    .cmd-row {
+  @media (max-width: 960px) {
+    .then {
+      grid-template-columns: 1fr 1fr;
+    }
+    .split {
       grid-template-columns: 1fr;
     }
-  }
-  .try {
-    margin: 0;
-    padding-left: 20px;
-    display: grid;
-    gap: 12px;
-    color: var(--muted);
-    font-size: 17px;
-  }
-  @media (max-width: 860px) {
-    .install li {
+    .os-steps li {
       grid-template-columns: 1fr;
       gap: 12px;
+    }
+  }
+  @media (max-width: 640px) {
+    .os-grid {
+      gap: 8px;
+    }
+    .os-card {
+      padding: 16px 8px 14px;
+    }
+    .os-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+    }
+    .os-icon svg {
+      width: 22px;
+      height: 22px;
+    }
+    .os-note {
+      display: none;
+    }
+    .then,
+    .cmd-row {
+      grid-template-columns: 1fr;
     }
   }
 </style>
