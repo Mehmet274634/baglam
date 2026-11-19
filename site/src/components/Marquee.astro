@@ -141,6 +141,31 @@ const row = [...items, ...items];
       transform: translateX(-50%);
     }
   }
+  @media (max-width: 640px) {
+    .marquee-sec {
+      padding: 28px 0;
+    }
+    .item {
+      gap: 10px;
+      padding: 9px 16px 9px 9px;
+      border-radius: 13px;
+    }
+    .logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+    }
+    .logo svg {
+      width: 18px;
+      height: 18px;
+    }
+    .name {
+      font-size: 14px;
+    }
+    .track {
+      animation-duration: 55s;
+    }
+  }
   /* Reduced motion: the row keeps gliding, only slower. */
   @media (prefers-reduced-motion: reduce) {
     .track {

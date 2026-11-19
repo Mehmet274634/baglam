@@ -836,3 +836,20 @@ p code {
     animation: none !important;
   }
 }
+
+/* ---------- Phones: tighter rhythm so each screen carries more content ---------- */
+@media (max-width: 640px) {
+  .section {
+    padding-block: 60px;
+  }
+  .section-tight {
+    padding-block: 44px;
+  }
+  .section-head {
+    margin-bottom: 28px;
+    gap: 14px;
+  }
+  .statement {
+    font-size: 1.5rem;
+  }
+}

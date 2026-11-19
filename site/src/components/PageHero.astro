@@ -36,6 +36,14 @@ const { title, dim, lead, fx = "rays" } = Astro.props;
     backdrop-filter: blur(6px);
     animation: enter 1s var(--ease) both;
   }
+  /* Phones: the title sits just under the navigation bar. */
+  @media (max-width: 640px) {
+    .page-hero {
+      padding-top: 40px !important;
+      padding-bottom: 40px !important;
+      gap: 18px;
+    }
+  }
   @keyframes enter {
     from {
       opacity: 0;
