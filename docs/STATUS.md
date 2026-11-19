@@ -62,7 +62,10 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 ## Next steps (in order)
 
 1. **Mac test** with the owner's friend: `npm i -g baglam`, `baglam setup`, `baglam init`, a Claude
-   Code → Codex/Cursor handoff, `baglam doctor`. Fix whatever the Mac run shows.
+   Code → Codex/Cursor handoff, `baglam doctor`. Fix whatever the Mac run shows. Turkish step-by-step
+   list for the tester: [mac-test-checklist.tr.md](mac-test-checklist.tr.md). Watch for: apps opened
+   from the Dock (Cursor, VS Code) get launchd's PATH, so a hook command starting with a bare `node`
+   may not run there (step 9b checks it).
 2. **1.0.0 release** after the Mac test: changelog, version bump, staged publish (owner approves).
 3. Custom domain if `vercel.app` stays blocked for Turkish visitors.
 
