@@ -289,7 +289,7 @@ export const HOOK_INSTALLERS: Record<HookClient, HookInstaller> = {
       // Antigravity gives no final reply text, so there is no stop hook.
       return {
         PreInvocation: [handler("prompt")],
-        PostToolUse: [{ matcher: "write_to_file|replace_file_content|multi_replace_file_content", hooks: [handler("edit")] }],
+        PostToolUse: [{ matcher: "write_file|edit_file|create_file|write_to_file|replace_file_content|multi_replace_file_content", hooks: [handler("edit")] }],
       };
     },
   }),

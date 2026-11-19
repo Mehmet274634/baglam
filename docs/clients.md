@@ -17,7 +17,7 @@ Below, `NODE` and `CLI` stand for those two paths.
 |---|---|---|---|
 | Claude Code | `claude-code` | `~/.claude.json` | `claude mcp add baglam -s user -e BAGLAM_AGENT=claude-code -- NODE CLI mcp` |
 | Codex CLI | `codex` | `~/.codex/config.toml` | fenced TOML block (below) |
-| Antigravity | `antigravity` | `~/.gemini/antigravity/mcp_config.json` | `mcpServers.baglam` |
+| Antigravity | `antigravity` | `~/.gemini/config/mcp_config.json` (Antigravity 2); older versions `~/.gemini/antigravity/mcp_config.json` | `mcpServers.baglam` |
 | Gemini CLI | `gemini-cli` | `~/.gemini/settings.json` | `mcpServers.baglam` |
 | Cursor | `cursor` | `~/.cursor/mcp.json` | `mcpServers.baglam` |
 | Windsurf | `windsurf` | `~/.codeium/windsurf/mcp_config.json` | `mcpServers.baglam` |
@@ -84,7 +84,7 @@ After upgrading Bağlam, run `baglam init` again in each project to refresh this
 | Codex CLI | `~/.codex/hooks.json` | UserPromptSubmit, PostToolUse (apply_patch), Stop; trust them once with `/hooks` |
 | Gemini CLI | `~/.gemini/settings.json` | BeforeAgent, AfterTool (write_file/replace), AfterAgent |
 | Cursor | `~/.cursor/hooks.json` | beforeSubmitPrompt, afterFileEdit, afterAgentResponse |
-| Antigravity | `~/.gemini/config/hooks.json` (entry `baglam`) | PreInvocation, PostToolUse (file tools) |
+| Antigravity | `~/.gemini/config/hooks.json` (entry `baglam`) | PreInvocation, PostToolUse (file tools: `write_file`, `edit_file`, `create_file` with `Path`; older `write_to_file`, `replace_file_content` with `TargetFile`) |
 | VS Code | `~/.copilot/hooks/baglam.json` | userPromptSubmitted, postToolUse, agentStop |
 
 A hook never blocks or changes the tool: it always exits 0, prints only an empty or neutral reply, and does nothing in folders without `.baglam/project.json`. Problems are written to `~/.baglam/hook-errors.log`. Turn saving off per project with `baglam capture off`, or everywhere with `BAGLAM_AUTO_CAPTURE=0`.

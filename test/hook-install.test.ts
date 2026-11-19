@@ -102,7 +102,10 @@ describe("what each tool's hook file looks like", () => {
     const s = read(join(h.home, ".gemini", "config", "hooks.json"));
     expect(Object.keys(s)).toEqual(["baglam"]);
     expect(s.baglam.PreInvocation[0].command).toBe(cmd("antigravity", "prompt"));
-    expect(s.baglam.PostToolUse[0].matcher).toBe("write_to_file|replace_file_content|multi_replace_file_content");
+    // Antigravity 2 names (write_file, edit_file, create_file) and the older ones.
+    expect(s.baglam.PostToolUse[0].matcher).toBe(
+      "write_file|edit_file|create_file|write_to_file|replace_file_content|multi_replace_file_content",
+    );
   });
 
   it("VS Code: ~/.copilot/hooks/baglam.json", () => {

@@ -9,6 +9,7 @@ All notable changes to Bağlam. The format follows [Keep a Changelog](https://ke
 - `baglam setup` and `--undo` no longer take another tool's `hook.js` called with the same arguments for Bağlam's own: an existing `hook.js` counts as ours only when its package is `baglam`.
 - When a request after 12 idle hours starts a new task in the same session, file edits no longer silence the checkpoint reminder, and the reminder says the task has not been checkpointed yet.
 - On macOS and Linux, automatic-saving hooks now always start Node by its full path, so apps opened from the Dock or a desktop launcher (Cursor, VS Code), which do not get the terminal's PATH, still save. Re-run `baglam setup` after upgrading (`baglam doctor` says so).
+- **Antigravity 2:** `baglam setup` now registers Bağlam in `~/.gemini/config/mcp_config.json`, the only MCP file the current Antigravity reads (its agents never saw Bağlam's tools before, while `baglam doctor` said it was connected), and automatic saving records the files its agents create and edit (`write_file`, `edit_file`). Re-run `baglam setup` after upgrading.
 - `baglam doctor` flags a tool where Bağlam was added by hand without `BAGLAM_AGENT` (it runs as an unverified agent under the tool's own name) and points to `baglam setup`.
 
 ## [1.0.0-rc.3] - 2026-11-18

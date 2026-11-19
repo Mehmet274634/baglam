@@ -84,6 +84,16 @@ describe("antigravity", () => {
     expect(e.event).toEqual({ kind: "edit", files: [at("app.js")] });
     expect(normalize("antigravity", "edit", { toolCall: { name: "run_command", args: { CommandLine: "ls" } }, workspacePaths: [DIR] }).event).toBeUndefined();
   });
+
+  it("Antigravity 2 (recorded payloads): write_file and edit_file give Path", () => {
+    const base = { hookEventName: "PostToolUse", cwd: DIR, workspacePaths: [DIR], error: "" };
+    const write = { ...base, toolCall: { name: "write_file", args: { Path: at("data.js"), Content: "x", Overwrite: "true" } } };
+    const edit = { ...base, toolCall: { name: "edit_file", args: { Path: at("index.html"), Target: "a", Replacement: "b" } } };
+    expect(normalize("antigravity", "edit", write).event).toEqual({ kind: "edit", files: [at("data.js")] });
+    expect(normalize("antigravity", "edit", edit).event).toEqual({ kind: "edit", files: [at("index.html")] });
+    const read = { ...base, toolCall: { name: "read_file", args: { Path: at("app.js") } } };
+    expect(normalize("antigravity", "edit", read).event).toBeUndefined();
+  });
 });
 
 describe("vscode", () => {

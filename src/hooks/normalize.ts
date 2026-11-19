@@ -19,7 +19,8 @@ const asPath = (p: string) => (/^\/[a-zA-Z]:[\\/]/.test(p) ? p.slice(1) : p);
 const FILE_TOOLS: Partial<Record<HookClient, RegExp>> = {
   "claude-code": /^(Write|Edit|MultiEdit|NotebookEdit)$/,
   "gemini-cli": /^(write_file|replace)$/,
-  antigravity: /^(write_to_file|replace_file_content|multi_replace_file_content)$/,
+  // Antigravity 2: write_file, edit_file, create_file (args.Path); older versions: TargetFile.
+  antigravity: /^(write_file|edit_file|create_file|write_to_file|replace_file_content|multi_replace_file_content)$/,
 };
 
 /** Paths named in a Codex apply_patch body. */
@@ -95,7 +96,10 @@ export function normalize(client: HookClient, event: HookEvent, input: unknown):
       found = files([str(i.file_path)]);
     } else if (client === "antigravity") {
       const call = obj(i.toolCall);
-      if (call && FILE_TOOLS.antigravity!.test(String(call.name))) found = files([str(obj(call.args)?.TargetFile)]);
+      if (call && FILE_TOOLS.antigravity!.test(String(call.name))) {
+        const args = obj(call.args);
+        found = files([str(args?.TargetFile) ?? str(args?.Path)]);
+      }
     } else if (client === "codex") {
       const command = str(obj(i.tool_input)?.command);
       if (i.tool_name === "apply_patch" && command) found = files(patchFiles(command));
