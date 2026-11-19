@@ -1,6 +1,6 @@
 ---
 /**
- * "Works with" strip: two rows gliding in opposite directions. Brand marks come from Simple Icons
+ * "Works with" strip: one row gliding from right to left, endlessly. Brand marks come from Simple Icons
  * (CC0), inlined at build time; tools without a freely licensed mark get a neutral glyph instead of
  * an imitation. Trademarks belong to their owners; shown only to say Bağlam works with these tools.
  */
@@ -21,18 +21,18 @@ const items: Item[] = [
   { name: "Windsurf", path: siWindsurf.path, hex: "#3fd0c9" },
   { name: d.anyMcp, glyph: "brackets", hex: "#958fff" },
 ];
-const rows = [items, [...items.slice(4), ...items.slice(0, 4)]];
+// Each half of the track holds the list twice so it is wider than any screen.
+const row = [...items, ...items];
 ---
 
 <section class="marquee-sec" aria-label={d.worksWith}>
   <p class="lbl">{d.worksWith}</p>
-  {rows.map((row, r) => (
-    <div class:list={["marquee", { back: r === 1 }]} aria-hidden={r === 1 ? "true" : undefined}>
+  <div class="marquee">
       <div class="track">
         {[false, true].map((dup) => (
           <ul class="row" aria-hidden={dup ? "true" : undefined}>
-            {row.map((it) => (
-              <li class="item" style={`--brand:${it.hex}`}>
+            {row.map((it, i) => (
+              <li class="item" style={`--brand:${it.hex}`} aria-hidden={i >= items.length ? "true" : undefined}>
                 <span class="logo" aria-hidden="true">
                   {it.path ? (
                     <svg viewBox="0 0 24 24" width="22" height="22"><path d={it.path} fill="currentColor" /></svg>
@@ -50,8 +50,7 @@ const rows = [items, [...items.slice(4), ...items.slice(0, 4)]];
           </ul>
         ))}
       </div>
-    </div>
-  ))}
+  </div>
 </section>
 
 <style>
@@ -86,11 +85,7 @@ const rows = [items, [...items.slice(4), ...items.slice(0, 4)]];
   .track {
     display: flex;
     width: max-content;
-    animation: scroll 46s linear infinite;
-  }
-  .back .track {
-    animation-direction: reverse;
-    animation-duration: 54s;
+    animation: scroll 70s linear infinite;
   }
   .marquee:hover .track {
     animation-play-state: paused;
@@ -146,23 +141,10 @@ const rows = [items, [...items.slice(4), ...items.slice(0, 4)]];
       transform: translateX(-50%);
     }
   }
+  /* Reduced motion: the row keeps gliding, only slower. */
   @media (prefers-reduced-motion: reduce) {
-    .back {
-      display: none;
-    }
     .track {
-      animation: none;
-      width: auto;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    .row {
-      flex-wrap: wrap;
-      justify-content: center;
-      row-gap: 12px;
-    }
-    .row[aria-hidden="true"] {
-      display: none;
+      animation-duration: 120s;
     }
   }
 </style>

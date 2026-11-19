@@ -1,10 +1,11 @@
 ---
 /**
- * Every tool wired to Bağlam. Luminous beams in each tool's colour carry a constant stream of light
- * towards the core; data packets with long comet tails travel from a tool into the core and out to
- * another tool (any agent can continue another's work); the core flares when a packet arrives,
- * turns and breathes; sparks circle on the orbits; stardust twinkles. With reduced motion the gentle
- * stream and packets stay, flashing and scaling stop.
+ * Every tool wired to Bağlam by a two-lane cable: on the inbound lane a constant stream of data
+ * (glowing particles and running bits in the tool's colour) flows into the core, on the outbound lane
+ * the shared memory flows back out in cyan. On top, comet packets travel from one tool through the
+ * core to another (any agent can continue another's work); the core flares on arrival, HUD rings
+ * turn around it, light runs around every tile's edge. With reduced motion the flow keeps running,
+ * flashing and scaling stop.
  */
 import Logo from "./Logo.astro";
 import { siClaude, siCursor, siGithubcopilot, siGooglegemini, siWindsurf } from "simple-icons";
@@ -28,6 +29,16 @@ const toCenter = (n: Node) => {
   const my = (n.y + C.y) / 2 - (n.x - C.x) * 0.18;
   return `M${n.x} ${n.y} Q${mx} ${my} ${C.x} ${C.y}`;
 };
+const fromCenter = (n: Node) => {
+  const mx = (n.x + C.x) / 2 - (n.y - C.y) * 0.07;
+  const my = (n.y + C.y) / 2 + (n.x - C.x) * 0.07;
+  return `M${C.x} ${C.y} Q${mx} ${my} ${n.x} ${n.y}`;
+};
+// Continuous data stream: particles per lane, staggered so the flow never stops.
+const IN_N = 5;
+const OUT_N = 3;
+const inDur = (i: number) => 2.4 + (i % 3) * 0.35;
+const outDur = (i: number) => 3.1 + (i % 2) * 0.4;
 const pairs: [number, number][] = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 0], [0, 4], [2, 6]];
 const between = (a: Node, b: Node) => {
   const mx = (a.x + b.x) / 2 + (C.x - (a.x + b.x) / 2) * 0.25;
@@ -42,7 +53,7 @@ const STEP = 1.1;
 const trips = nodes.map((_, i) => ({ from: i, to: (i + 3) % nodes.length, at: i * STEP }));
 const CYCLE_N = nodes.length * STEP + DUR * 2 + 0.4;
 const CYCLE = CYCLE_N.toFixed(2);
-const tail = [0, 0.03, 0.06, 0.09, 0.12, 0.15, 0.18, 0.21];
+const tail = [0, 0.035, 0.07, 0.105, 0.14, 0.175];
 const leg = (begin: number, out: boolean) => {
   const s = begin / CYCLE_N;
   const e = (begin + DUR) / CYCLE_N;
@@ -89,7 +100,20 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
           <stop offset="1" stop-color="#ffffff" />
         </linearGradient>
       ))}
+      {nodes.map((n, i) => (
+        <radialGradient id={`p-${uid}-${i}`}>
+          <stop offset="0" stop-color="#ffffff" />
+          <stop offset="0.3" stop-color={n.hex} />
+          <stop offset="1" stop-color={n.hex} stop-opacity="0" />
+        </radialGradient>
+      ))}
+      <radialGradient id={`pc-${uid}`}>
+        <stop offset="0" stop-color="#ffffff" />
+        <stop offset="0.3" stop-color="#7fe8e2" />
+        <stop offset="1" stop-color="#3fd0c9" stop-opacity="0" />
+      </radialGradient>
       {nodes.map((n, i) => <path id={`w-${uid}-${i}`} d={toCenter(n)} />)}
+      {nodes.map((n, i) => <path id={`r-${uid}-${i}`} d={fromCenter(n)} />)}
       {pairs.map(([a, b], i) => <path id={`s-${uid}-${i}`} d={between(nodes[a], nodes[b])} />)}
       <path id={`o1-${uid}`} d={orbitPath(440, 262)} />
       <path id={`o2-${uid}`} d={orbitPath(250, 150)} />
@@ -100,6 +124,11 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
     </g>
 
     <ellipse cx={C.x} cy={C.y} rx="310" ry="235" fill={`url(#halo-${uid})`} class="halo" />
+    <g class="hud">
+      <circle cx={C.x} cy={C.y} r="84" class="hud-a" />
+      <circle cx={C.x} cy={C.y} r="102" class="hud-b" />
+      <circle cx={C.x} cy={C.y} r="122" class="hud-c" />
+    </g>
     <g class="rings">
       <use href={`#o1-${uid}`} class="orbit-ring" />
       <use href={`#o2-${uid}`} class="orbit-ring inner" />
@@ -122,16 +151,45 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
       <g>
         <use href={`#w-${uid}-${i}`} class="beam-soft" stroke={`url(#g-${uid}-${i})`} filter={`url(#soft-${uid})`} />
         <use href={`#w-${uid}-${i}`} class="beam-core" stroke={`url(#g-${uid}-${i})`} />
-        <use href={`#w-${uid}-${i}`} class="beam-flow" stroke={`url(#g-${uid}-${i})`} style={`--d:${(-i * 0.37).toFixed(2)}s`} />
+        <use href={`#w-${uid}-${i}`} class="beam-bits" stroke={`url(#g-${uid}-${i})`} style={`--d:${(-i * 0.41).toFixed(2)}s`} />
+        <use href={`#r-${uid}-${i}`} class="lane-out" />
+        <use href={`#r-${uid}-${i}`} class="lane-bits" style={`--d:${(-i * 0.53).toFixed(2)}s`} />
         <use href={`#w-${uid}-${i}`} class="beam-lit" stroke={`url(#g-${uid}-${i})`} style={`--d:${(i * STEP).toFixed(2)}s;--cycle:${CYCLE}s`} filter={`url(#glow-${uid})`} />
       </g>
     ))}
+
+    <g class="stream">
+      {nodes.map((_, i) =>
+        Array.from({ length: IN_N }, (_, k) => {
+          const dur = inDur(i);
+          const b = (-(k * dur) / IN_N - i * 0.29).toFixed(2);
+          return (
+            <circle r={k % 2 ? 3.2 : 4.4} fill={`url(#p-${uid}-${i})`}>
+              <animateMotion dur={`${dur}s`} begin={`${b}s`} repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.5 0 0.9 0.6"><mpath href={`#w-${uid}-${i}`} /></animateMotion>
+              <animate attributeName="opacity" dur={`${dur}s`} begin={`${b}s`} repeatCount="indefinite" values="0;1;1;0" keyTimes="0;0.12;0.86;1" />
+            </circle>
+          );
+        }),
+      )}
+      {nodes.map((_, i) =>
+        Array.from({ length: OUT_N }, (_, k) => {
+          const dur = outDur(i);
+          const b = (-(k * dur) / OUT_N - i * 0.47).toFixed(2);
+          return (
+            <circle r="3.4" fill={`url(#pc-${uid})`}>
+              <animateMotion dur={`${dur}s`} begin={`${b}s`} repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.2 0.4 0.5 1"><mpath href={`#r-${uid}-${i}`} /></animateMotion>
+              <animate attributeName="opacity" dur={`${dur}s`} begin={`${b}s`} repeatCount="indefinite" values="0;0.95;0.95;0" keyTimes="0;0.1;0.8;1" />
+            </circle>
+          );
+        }),
+      )}
+    </g>
 
     <g class="packets" filter={`url(#glow-${uid})`}>
       {trips.map((tr) =>
         [
           { id: `w-${uid}-${tr.from}`, begin: tr.at, out: false, color: nodes[tr.from].hex },
-          { id: `w-${uid}-${tr.to}`, begin: tr.at + DUR, out: true, color: "#9be7e3" },
+          { id: `r-${uid}-${tr.to}`, begin: tr.at + DUR, out: false, color: "#9be7e3" },
         ].map((l) =>
           tail.map((lag, k) => {
             const t = leg(l.begin + lag, l.out);
@@ -170,6 +228,7 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
   {nodes.map((n, i) => (
     <div class="node" style={`left:${n.x / 10}%;top:${(n.y / 600) * 100}%;--brand:${n.hex};--d:${(i * STEP).toFixed(2)}s;--cycle:${CYCLE}s;--bob:${(-i * 0.7).toFixed(1)}s`}>
       <span class="tile">
+        <span class="edge" aria-hidden="true"></span>
         <span class="flash" aria-hidden="true"></span>
         {n.path ? (
           <svg viewBox="0 0 24 24"><path d={n.path} fill="currentColor" /></svg>
@@ -247,30 +306,78 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
     stroke-width: 1;
     stroke-dasharray: 3 6;
   }
-  /* Beams: a soft glow, a bright core, a stream of light running to the centre. */
+  @property --sweep {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+  }
+  /* Inbound lane: a soft glow, a bright core and data bits of varied length running to the centre. */
   .beam-soft {
     fill: none;
-    stroke-width: 7;
-    opacity: 0.22;
+    stroke-width: 10;
+    opacity: 0.3;
   }
   .beam-core {
     fill: none;
-    stroke-width: 1.5;
-    opacity: 0.55;
+    stroke-width: 1.6;
+    opacity: 0.85;
   }
-  .beam-flow {
+  .beam-bits {
     fill: none;
-    stroke-width: 2.2;
+    stroke-width: 2.6;
     stroke-linecap: round;
-    stroke-dasharray: 2 22;
-    opacity: 0.9;
-    animation: stream 1.6s linear infinite;
+    stroke-dasharray: 1 7 7 6 2 11 4 6;
+    animation: bits 1.4s linear infinite;
     animation-delay: var(--d);
   }
-  @keyframes stream {
+  @keyframes bits {
     to {
-      stroke-dashoffset: -24;
+      stroke-dashoffset: -44;
     }
+  }
+  /* Outbound lane: the shared memory flowing back out to every tool. */
+  .lane-out {
+    fill: none;
+    stroke: rgb(63 208 201 / 26%);
+    stroke-width: 1;
+  }
+  .lane-bits {
+    fill: none;
+    stroke: #7fe8e2;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-dasharray: 1 13 3 17;
+    opacity: 0.75;
+    animation: bits-out 2.2s linear infinite;
+    animation-delay: var(--d);
+  }
+  @keyframes bits-out {
+    to {
+      stroke-dashoffset: -34;
+    }
+  }
+  /* HUD rings turning around the core. */
+  .hud circle {
+    fill: none;
+    transform-origin: 500px 300px;
+  }
+  .hud-a {
+    stroke: rgb(255 255 255 / 22%);
+    stroke-width: 1;
+    stroke-dasharray: 1 6;
+    animation: turn 40s linear infinite;
+  }
+  .hud-b {
+    stroke: rgb(149 143 255 / 45%);
+    stroke-width: 1.4;
+    stroke-dasharray: 46 18 6 18;
+    animation: turn 26s linear infinite reverse;
+  }
+  .hud-c {
+    stroke: rgb(63 208 201 / 22%);
+    stroke-width: 1;
+    stroke-dasharray: 2 4 2 30;
+    animation: turn 60s linear infinite;
   }
   /* The whole beam flares while a packet runs along it. */
   .beam-lit {
@@ -316,7 +423,7 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
     inset: -12px;
     border-radius: 38px;
     padding: 2px;
-    background: conic-gradient(from 0deg, transparent 0 50%, #958fff 66%, #ffffff 74%, #3fd0c9 82%, transparent 92%);
+    background: conic-gradient(from var(--sweep), transparent 0 50%, #958fff 66%, #ffffff 74%, #3fd0c9 82%, transparent 92%);
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -333,8 +440,21 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
   }
   @keyframes spin {
     to {
-      transform: rotate(360deg);
+      --sweep: 360deg;
     }
+  }
+  /* Light running around each tile's edge, in the tool's colour. */
+  .edge {
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(from var(--sweep), transparent 0 62%, var(--brand) 82%, #fff 88%, transparent 96%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: spin 4.5s linear infinite;
+    animation-delay: var(--bob);
   }
   .pulse {
     position: absolute;
@@ -405,7 +525,7 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
       radial-gradient(80% 80% at 30% 15%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 70%),
       linear-gradient(180deg, #1a1b1f, #0e0f11);
     border: 1px solid color-mix(in srgb, var(--brand) 28%, rgb(255 255 255 / 10%));
-    box-shadow: 0 0 26px -6px color-mix(in srgb, var(--brand) 45%, transparent), inset 0 1px 0 rgb(255 255 255 / 9%), 0 14px 30px -12px rgb(0 0 0 / 90%);
+    box-shadow: 0 0 34px -4px color-mix(in srgb, var(--brand) 50%, transparent), 0 0 0 6px color-mix(in srgb, var(--brand) 6%, transparent), inset 0 1px 0 rgb(255 255 255 / 9%), 0 14px 30px -12px rgb(0 0 0 / 90%);
     transition: color 250ms, border-color 250ms, box-shadow 250ms, transform 250ms;
   }
   .flash {
@@ -507,8 +627,11 @@ const orbitPath = (rx: number, ry: number) => `M${C.x - rx} ${C.y} a${rx} ${ry} 
     .stars circle {
       animation: none;
     }
-    .beam-flow {
-      animation-duration: 3.2s;
+    .beam-bits {
+      animation-duration: 2.4s;
+    }
+    .lane-bits {
+      animation-duration: 3.6s;
     }
     .spin {
       animation-duration: 8s;

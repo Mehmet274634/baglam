@@ -37,7 +37,6 @@ const streams = Array.from({ length: 9 }, (_, i) => ({
       {rays.map((r) => (
         <g>
           <line x1="600" y1="720" x2={r.x} y2={r.y} stroke="url(#fx-ray)" />
-          <line x1="600" y1="720" x2={r.x} y2={r.y} pathLength="1" class="run" style={`--d:${r.d}s`} />
         </g>
       ))}
     </svg>
@@ -102,30 +101,7 @@ const streams = Array.from({ length: 9 }, (_, i) => ({
     height: 100%;
   }
 
-  /* rays */
-  .run {
-    stroke: #c9c6ff;
-    stroke-width: 1.5;
-    stroke-linecap: round;
-    stroke-dasharray: 0.06 0.94;
-    stroke-dashoffset: 1;
-    animation: ray 4.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-    animation-delay: var(--d);
-    filter: drop-shadow(0 0 4px #7c74ff);
-  }
-  @keyframes ray {
-    0% {
-      stroke-dashoffset: 1;
-      opacity: 0;
-    }
-    15% {
-      opacity: 1;
-    }
-    100% {
-      stroke-dashoffset: 0.3;
-      opacity: 0;
-    }
-  }
+  /* rays: still lines */
   .fx-rays::after {
     content: "";
     position: absolute;
@@ -305,7 +281,6 @@ const streams = Array.from({ length: 9 }, (_, i) => ({
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .run,
     .flow,
     .sweep,
     .spark {
