@@ -131,8 +131,15 @@ Brought in line with the site (2026-11-19):
 To look at the panel without touching real data, point `BAGLAM_DB` at a throwaway file, seed it with
 `ContextStore` from `dist/store.js`, then `node dist/cli.js ui --port 4799 --no-open`.
 
+Empty states (Inbox, Records, Projects) show `FlowMark` (`ui/src/components/FlowMark.tsx`): a
+**light** take on the site's constellation, at the owner's request because the site's version stutters
+a little. Two agents send to the Bağlam core along indigo lanes, the core shares with two agents
+along cyan lanes. Kept cheap on purpose: one 280×84 SVG, four packets on SMIL `animateMotion`,
+radial-gradient glows, no filters, no JavaScript timers, no HUD rings or edge lights. Generic
+coloured dots for the agents (no brand marks). It keeps moving gently under reduced motion, like the
+site's flows.
+
 ## Open ideas (not started)
 
-- Bring the constellation-style data flow into the panel's empty states (today they have a quiet
-  indigo glow and a glowing mark).
+- The site's `Constellation` stutters a little (the owner noticed); it could be made lighter.
 - A custom domain for the site (see STATUS.md).

@@ -677,19 +677,38 @@ textarea {
 .small-empty {
   padding: 2rem 1rem;
 }
-.empty-mark {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  margin: 0 auto 0.9rem;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  color: var(--accent-hover);
-  font-size: 1.3rem;
-  font-weight: 700;
-  box-shadow: var(--accent-glow);
+/* FlowMark: a light take on the website's connections visual (components/FlowMark.tsx). */
+.flow-mark {
+  display: block;
+  width: min(280px, 100%);
+  height: auto;
+  margin: 0 auto 1rem;
+}
+.small-empty .flow-mark {
+  width: min(220px, 100%);
+  margin-bottom: 0.6rem;
+}
+.flow-lane {
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+.flow-lane-in {
+  stroke: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.flow-lane-out {
+  stroke: color-mix(in srgb, var(--cyan) 38%, transparent);
+}
+.flow-node {
+  fill: var(--raised);
+  stroke: var(--border-strong);
+}
+.flow-core {
+  fill: var(--raised);
+  stroke: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.flow-ring {
+  stroke: var(--text);
+  stroke-width: 1.3;
 }
 
 .history {

@@ -6,6 +6,7 @@ import { useI18n } from "../i18n";
 import { useToast } from "../toast";
 import { EntryCard } from "../components/EntryCard";
 import { EditForm } from "../components/EditForm";
+import { FlowMark } from "../components/FlowMark";
 
 type Mode = { kind: "idle" } | { kind: "edit"; secrets?: SecretFinding[] } | { kind: "reject" };
 
@@ -145,7 +146,7 @@ export function Inbox(props: { api: Api; project: string | undefined; refresh: n
 
       {items.length === 0 ? (
         <div class="empty">
-          <div class="empty-mark" aria-hidden="true">✓</div>
+          <FlowMark />
           <h2>{t("inbox.empty.title")}</h2>
           <p class="muted">{t("inbox.empty.body")}</p>
         </div>

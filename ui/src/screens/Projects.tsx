@@ -3,6 +3,7 @@ import type { Api } from "../api";
 import type { ProjectRow } from "../types";
 import { relativeTime, useI18n } from "../i18n";
 import { useToast } from "../toast";
+import { FlowMark } from "../components/FlowMark";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -48,6 +49,7 @@ export function Projects(props: { api: Api; refresh: number; onChanged: () => vo
         <p class="muted">{t("loading")}</p>
       ) : rows.length === 0 ? (
         <div class="empty small-empty">
+          <FlowMark />
           <p class="muted">{t("projects.empty")}</p>
         </div>
       ) : (

@@ -6,6 +6,7 @@ import { relativeTime, useI18n } from "../i18n";
 import { useToast } from "../toast";
 import { EntryCard } from "../components/EntryCard";
 import { EditForm } from "../components/EditForm";
+import { FlowMark } from "../components/FlowMark";
 
 const PAGE = 30;
 const STATUS_FILTERS = ["active", "proposed", "rejected", "superseded", "retired"] as const;
@@ -107,6 +108,7 @@ export function Records(props: { api: Api; project: string | undefined; refresh:
         <p class="muted">{t("loading")}</p>
       ) : items.length === 0 ? (
         <div class="empty small-empty">
+          <FlowMark />
           <p class="muted">{t("records.empty")}</p>
         </div>
       ) : (
