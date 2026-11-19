@@ -61,6 +61,25 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 
 ## Next steps (in order)
 
+0. **Fix what the real three-agent test found** (2026-11-19, Windows, project `Desktop\tip-kartlari`,
+   Antigravity → Codex → Cursor (stopped mid-edit, then a fresh chat) → Antigravity; the app works and
+   every handoff resumed the right task). Already fixed and on local `main` (not pushed): Antigravity 2
+   reads MCP only from `~/.gemini/config/mcp_config.json`, and its file tools are `write_file` /
+   `edit_file` with `Path`. Still open:
+   - **Codex tool approvals are deleted by `baglam setup`.** Codex writes
+     `[mcp_servers.baglam.tools.<tool>] approval_mode = "approve"` inside our `# baglam:start/end`
+     block; rewriting the block drops it, so Codex asks again on every call. Keep those subtables.
+     (Setup was not run in full on the owner's machine because of this.)
+   - **The task loses the detail of the user's request.** Only the first line of each request is kept
+     and the agent's own "next" was vague, so Codex built a different part 2 than the plan said.
+     Keep the task's first request in full (capped), show it in the brief, and ask agents for specific
+     next steps.
+   - **A repeated request from another tool is dropped.** The duplicate check (`requests.at(-1) ===
+     line`, meant for tools that fire twice) also swallowed Cursor's "devam et" after Codex's. Only
+     treat it as a duplicate for the same tool within a short time.
+   - **Cursor also runs Claude Code's hooks** (`~/.claude/settings.json`), so its prompts and edits
+     were saved as `claude-code`. Detect Cursor's payload (for example `cursor_version` /
+     `workspace_roots`) in the claude-code hook, or ignore the duplicate.
 1. **Mac test** with the owner's friend: `npm i -g baglam`, `baglam setup`, `baglam init`, a Claude
    Code → Codex/Cursor handoff, `baglam doctor`. Fix whatever the Mac run shows. Turkish step-by-step
    list for the tester: [mac-test-checklist.tr.md](mac-test-checklist.tr.md). Watch for: apps opened
