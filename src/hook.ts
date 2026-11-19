@@ -47,6 +47,13 @@ function logError(dbPath: string, what: string, err: unknown): void {
   }
 }
 
+/** Cursor's hook payloads carry these; Claude Code's never do. */
+function fromCursor(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
+  const p = payload as Record<string, unknown>;
+  return typeof p.cursor_version === "string" || Array.isArray(p.workspace_roots);
+}
+
 export function runHook(argv: string[], io: HookIo): { stdout: string; code: 0 } {
   const [c, e] = argv;
   const client = (HOOK_CLIENTS as readonly string[]).includes(c) ? (c as HookClient) : undefined;
@@ -61,6 +68,9 @@ export function runHook(argv: string[], io: HookIo): { stdout: string; code: 0 }
     } catch {
       payload = {};
     }
+    // Cursor also runs Claude Code's hooks (~/.claude/settings.json), with its own payload shape.
+    // Cursor's own hook saves the same event under the right name, so this copy is skipped.
+    if (client === "claude-code" && fromCursor(payload)) return { stdout, code: 0 };
     const n = normalize(client, event, payload);
     const project = resolveDirectory(n.cwd ?? io.cwd ?? process.cwd());
     // Hooks fire in every folder; only projects set up with `baglam init` are touched.

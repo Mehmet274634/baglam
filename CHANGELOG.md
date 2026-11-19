@@ -10,6 +10,10 @@ All notable changes to Bağlam. The format follows [Keep a Changelog](https://ke
 - When a request after 12 idle hours starts a new task in the same session, file edits no longer silence the checkpoint reminder, and the reminder says the task has not been checkpointed yet.
 - On macOS and Linux, automatic-saving hooks now always start Node by its full path, so apps opened from the Dock or a desktop launcher (Cursor, VS Code), which do not get the terminal's PATH, still save. Re-run `baglam setup` after upgrading (`baglam doctor` says so).
 - **Antigravity 2:** `baglam setup` now registers Bağlam in `~/.gemini/config/mcp_config.json`, the only MCP file the current Antigravity reads (its agents never saw Bağlam's tools before, while `baglam doctor` said it was connected), and automatic saving records the files its agents create and edit (`write_file`, `edit_file`). Re-run `baglam setup` after upgrading.
+- `baglam setup` keeps the tool approvals Codex saves inside Bağlam's block when you pick "Always allow", so Codex no longer asks again after an upgrade.
+- The request that starts a task is kept in full (up to 2,000 characters, secrets hidden) and the brief shows it, so a plan in it reaches the next agent even when the notes it left are vague.
+- The same words sent again after a minute (for example "devam et" first in Codex, then in Cursor) count as a new request; only a repeat within a minute is treated as one message sent twice.
+- Cursor also runs Claude Code's hooks; those copies are now ignored, so Cursor's work is no longer saved under Claude Code's name.
 - `baglam doctor` flags a tool where Bağlam was added by hand without `BAGLAM_AGENT` (it runs as an unverified agent under the tool's own name) and points to `baglam setup`.
 
 ## [1.0.0-rc.3] - 2026-11-18

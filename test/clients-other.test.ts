@@ -43,6 +43,25 @@ describe("Codex adapter", () => {
     expect(text.replace(/\r\n/g, "")).not.toContain("\n");
   });
 
+  it("keeps the tool approvals Codex writes inside our block (\"always allow\")", () => {
+    const host = testHost();
+    const approvals =
+      '\n[mcp_servers.baglam.tools.context_checkpoint]\napproval_mode = "approve"\n\n[mcp_servers.baglam.tools.context_propose]\napproval_mode = "approve"\n';
+    const current =
+      `# baglam:start\n[mcp_servers.baglam]\ncommand = ${JSON.stringify(host.nodePath)}\nargs = [${JSON.stringify(host.cliPath)}, "mcp"]\n` +
+      `env = { BAGLAM_AGENT = "codex" }\n${approvals}# baglam:end\n`;
+    const file = codexFile(host.home, current);
+    // Same install: nothing to change.
+    expect(codex.install(host).action).toBe("unchanged");
+    // A new install path rewrites our lines but keeps the approvals.
+    expect(codex.install({ ...host, cliPath: "D:/new/dist/cli.js" }).action).toBe("updated");
+    const text = readFileSync(file, "utf8");
+    expect(text).toContain('args = ["D:/new/dist/cli.js", "mcp"]');
+    expect(text).toContain(approvals.trim());
+    expect(text.trimEnd().endsWith("# baglam:end")).toBe(true);
+    expect(codex.status({ ...host, cliPath: "D:/new/dist/cli.js" })).toMatchObject({ registered: true, entry: { env: { BAGLAM_AGENT: "codex" } } });
+  });
+
   it("codex refuses an unfenced baglam table", () => {
     const host = testHost();
     const original = '[mcp_servers.baglam]\ncommand = "mine"\n';

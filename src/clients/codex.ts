@@ -12,7 +12,11 @@ const configPath = (h: HostEnv) => join(h.home, ".codex", "config.toml");
 /** JSON string escaping is valid TOML basic-string escaping. */
 const tomlString = (s: string) => JSON.stringify(s);
 
-function block(h: HostEnv, eol: string): string {
+/**
+ * Our block. `kept` is what Codex itself wrote inside it, such as the tool approvals saved when the
+ * user picks "Always allow" ([mcp_servers.baglam.tools.<tool>] approval_mode = "approve").
+ */
+function block(h: HostEnv, eol: string, kept = ""): string {
   const e = serverEntry(h, ID);
   return [
     START,
@@ -20,8 +24,18 @@ function block(h: HostEnv, eol: string): string {
     `command = ${tomlString(e.command)}`,
     `args = [${e.args.map(tomlString).join(", ")}]`,
     `env = { BAGLAM_AGENT = ${tomlString(e.env.BAGLAM_AGENT)} }`,
+    ...(kept ? ["", kept] : []),
     END,
   ].join(eol) + eol;
+}
+
+const SUB_TABLE = /^[ \t]*\[\s*mcp_servers\s*\.\s*baglam\s*\./m;
+
+/** The sub-tables of mcp_servers.baglam that Codex added inside our block (trimmed), or "". */
+function keptPart(text: string, found: { start: number; end: number }): string {
+  const body = text.slice(found.start, text.lastIndexOf(END, found.end));
+  const m = SUB_TABLE.exec(body);
+  return m ? body.slice(m.index).trim() : "";
 }
 
 /** Location of our fenced block, including its trailing newline. */
@@ -82,8 +96,8 @@ export const codex: ClientAdapter = {
   install(h: HostEnv, opts: WriteOptions = {}): Change {
     const file = configPath(h);
     const { exists, text, eol } = load(file);
-    const want = block(h, eol);
     const found = findBlock(text);
+    const want = block(h, eol, found ? keptPart(text, found) : "");
     const outside = found ? text.slice(0, found.start) + text.slice(found.end) : text;
     let next: string;
     if (definesBaglamElsewhere(outside)) {

@@ -70,6 +70,16 @@ describe("auto-capture: requests", () => {
     expect(live()!.requests).toEqual(["ikinci.txt oluştur"]);
   });
 
+  it("the same words later are a new request, from any tool (Codex 'devam et', then Cursor 'devam et')", () => {
+    const { cap, live, clock } = setup();
+    cap("codex", { kind: "prompt", text: "Tıp Kartları" });
+    cap("codex", { kind: "prompt", text: "devam et" });
+    clock.tick(10 * 60_000);
+    cap("cursor", { kind: "prompt", text: "devam et" });
+    expect(live()!.requests).toEqual(["Tıp Kartları", "devam et", "devam et"]);
+    expect(live()!.agent).toBe("cursor");
+  });
+
   it("requests keep the last 5, each at most 300 chars", () => {
     const { cap, live } = setup();
     for (let i = 1; i <= 7; i++) cap("claude-code", { kind: "prompt", text: `r${i} ` + "x".repeat(400) });
@@ -103,6 +113,30 @@ describe("the agent's own checkpoint right after a captured request", () => {
     expect(h.taskId).toBe(auto.taskId);
     expect(h.goal).toBe("Create notlar.txt");
     expect(h.requests).toEqual(["notlar.txt oluştur"]);
+  });
+
+  it("the full request that starts a task is kept (the plan in it reaches the next agent), and survives the agent's checkpoints", () => {
+    const { store, cap, live } = setup();
+    const plan = "Tıp Kartları yapıyoruz.\n\nPlan üç parça:\n1. İskelet\n2. Çalışma modu: bildim / bilemedim, Farmakoloji ve Patoloji\n3. Arama";
+    cap("antigravity", { kind: "prompt", text: `  ${plan}  ` });
+    expect(live()!.goal).toBe("Tıp Kartları yapıyoruz.");
+    expect(live()!.request).toBe(plan);
+    store.checkpoint({ project: "p", branch: "main", agent: "antigravity", agentVerified: true, goal: "Tıp Kartları", next: ["2. parça"] });
+    cap("codex", { kind: "prompt", text: "devam et" });
+    expect(live()!.request).toBe(plan);
+    expect(live()!.requests).toEqual(["Tıp Kartları yapıyoruz.", "devam et"]);
+  });
+
+  it("a one-line request is not stored twice; a long one is capped; a secret in it is hidden", () => {
+    const { cap, live, clock } = setup();
+    cap("codex", { kind: "prompt", text: "Fix the login bug" });
+    expect(live()!.request).toBeNull();
+    clock.tick(12 * 3_600_000 + 1);
+    cap("codex", { kind: "prompt", text: `Big plan\n${"x".repeat(5000)}` });
+    expect(live()!.request).toHaveLength(2000);
+    clock.tick(12 * 3_600_000 + 1);
+    cap("codex", { kind: "prompt", text: `Deploy it\nkey ${AWS}` });
+    expect(live()!.request).toBe("(hidden: looked like a secret)");
   });
 
   it("a real new task keeps the request that started it", () => {

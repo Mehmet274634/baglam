@@ -102,6 +102,17 @@ describe("automatic saving in the brief", () => {
     expect(after).not.toMatch(/Saved automatically/);
     expect(after).toMatch(/Asked: devam et/);
   });
+
+  it("shows the full request that started the task, its lines kept", async () => {
+    const { ContextStore } = await import("../src/store.js");
+    const { formatHandoff } = await import("../src/format.js");
+    const s = new ContextStore(":memory:");
+    const plan = "Build Tıp Kartları.\nPart 2: study mode, Farmakoloji and Patoloji.\nPart 3: search.";
+    s.autoCapture({ project: "p", branch: "main", dir: "/tmp/p", agent: "antigravity", event: { kind: "prompt", text: plan } });
+    s.checkpoint({ project: "p", branch: "main", agent: "antigravity", agentVerified: true, goal: "Tıp Kartları", next: ["Part 2"] });
+    const text = formatHandoff({ live: s.getHandoff("p", "main")!, git: null, otherBranches: [] }, 6000);
+    expect(text).toContain(`The user's request that started this task:\n${plan}`);
+  });
 });
 
 describe("no repeated request line", () => {

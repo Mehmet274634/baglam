@@ -12,6 +12,7 @@ export const HIDDEN = "(hidden: looked like a secret)";
 /** A request on a task nobody touched for this long starts a new task instead of joining it. */
 export const STALE_TASK_MS = 12 * 3_600_000;
 const REPLY_PREFIX = "Last reply: ";
+const DUPLICATE_MS = 60_000;
 
 const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
 /** Scan a bit past the cut, so a secret the size limit would split is still seen whole; then cut. */
@@ -35,9 +36,15 @@ export function planAutoEvent(
     if (!first) return null;
     const line = keep(first, LIMITS.goal);
     const stale = live && ctx.now - live.updatedAt > STALE_TASK_MS;
-    if (!live || stale) return { goal: line, requests: [line], newTask: stale ? true : undefined, isRequest: true };
-    // Some tools fire the prompt hook twice for one message.
-    if (live.requests.at(-1) === line) return null;
+    if (!live || stale) {
+      // The whole request too: a plan in it must reach the next agent even when the notes are vague.
+      const full = String(event.text ?? "").trim();
+      const request = full !== first ? keep(full, LIMITS.request) : undefined;
+      return { goal: line, requests: [line], request, newTask: stale ? true : undefined, isRequest: true };
+    }
+    // Some tools fire the prompt hook twice for one message (and Cursor also runs Claude Code's hooks):
+    // the same words again within a minute are that one message; later they are a new request.
+    if (live.requests.at(-1) === line && live.requestAt !== null && ctx.now - live.requestAt < DUPLICATE_MS) return null;
     return { requests: [...live.requests, line].slice(-LIMITS.requests), isRequest: true };
   }
 

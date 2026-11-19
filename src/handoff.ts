@@ -26,6 +26,8 @@ export interface Handoff {
   agentVerified: boolean;
   /** The user's latest requests, saved by tool hooks (newest last). */
   requests: string[];
+  /** The full request that started this task (automatic saving only; null when it was one line). */
+  request: string | null;
   /** Last checkpoint the agent made itself; null when only the tool's hooks saved this task. */
   agentAt: number | null;
   /** Last automatic save from a tool hook. */
@@ -56,6 +58,8 @@ export interface CheckpointInput {
   newTask?: boolean;
   /** Replaces the request list (automatic saving only). */
   requests?: string[];
+  /** The full text of the request that starts this task (automatic saving only). */
+  request?: string;
   /** "auto" for a tool hook; anything else is the agent's own checkpoint. */
   origin?: "agent" | "auto";
   /** Marks this save as a new user request (automatic saving only). */
@@ -72,6 +76,7 @@ export const LIMITS = {
   blockers: 1000,
   notes: 2000,
   requests: 5,
+  request: 2000,
   history: 50,
   coalesceMs: 60_000,
 } as const;
@@ -115,6 +120,7 @@ export function validateCheckpoint(i: CheckpointInput): CheckpointInput {
     next: list(i.next, LIMITS.next),
     files: list(i.files, LIMITS.files),
     requests: i.requests === undefined ? undefined : list(i.requests, Number.MAX_SAFE_INTEGER)!.slice(-LIMITS.requests),
+    request: text(i.request, LIMITS.request) || undefined,
   };
 }
 
@@ -122,7 +128,7 @@ type Row = Record<string, SQLInputValue>;
 
 function fromRow(r: Row): Handoff {
   const d = JSON.parse(r.data as string) as Pick<Handoff, "goal" | "status" | "done" | "now" | "next" | "files" | "blockers" | "notes"> &
-    Partial<Pick<Handoff, "agentVerified" | "requests" | "agentAt" | "autoAt" | "requestAt">>;
+    Partial<Pick<Handoff, "agentVerified" | "requests" | "request" | "agentAt" | "autoAt" | "requestAt">>;
   const updatedAt = Number(r.updated_at ?? r.at);
   return {
     project: r.project as string,
@@ -132,6 +138,7 @@ function fromRow(r: Row): Handoff {
     ...d,
     agentVerified: d.agentVerified === true,
     requests: Array.isArray(d.requests) ? d.requests : [],
+    request: typeof d.request === "string" ? d.request : null,
     // Saved before automatic saving existed: every save then came from the agent.
     agentAt: d.agentAt === undefined ? updatedAt : d.agentAt,
     autoAt: d.autoAt ?? null,
@@ -146,7 +153,7 @@ function fromRow(r: Row): Handoff {
 const payload = (h: Handoff) =>
   JSON.stringify({
     goal: h.goal, status: h.status, done: h.done, now: h.now, next: h.next, files: h.files, blockers: h.blockers, notes: h.notes,
-    agentVerified: h.agentVerified, requests: h.requests, agentAt: h.agentAt, autoAt: h.autoAt, requestAt: h.requestAt,
+    agentVerified: h.agentVerified, requests: h.requests, request: h.request, agentAt: h.agentAt, autoAt: h.autoAt, requestAt: h.requestAt,
   });
 
 /** Storage for handoffs; used through ContextStore. */
@@ -188,7 +195,10 @@ export class HandoffRepo {
       Array.isArray(v) ? v.slice(0, count).map((x) => asText(x, LIMITS.item)) : [];
     const findings = scanEntryFields({
       title: asText(raw.goal, LIMITS.goal),
-      body: [asText(raw.now, LIMITS.now), asText(raw.blockers, LIMITS.blockers), asText(raw.notes, LIMITS.notes)].join("\n"),
+      body: [
+        asText(raw.now, LIMITS.now), asText(raw.blockers, LIMITS.blockers), asText(raw.notes, LIMITS.notes),
+        asText(raw.request, LIMITS.request),
+      ].join("\n"),
       tags: [
         ...asList(raw.done, LIMITS.done), ...asList(raw.doneAdd, LIMITS.done),
         ...asList(raw.next, LIMITS.next), ...asList(raw.files, LIMITS.files), ...asList(raw.requests, LIMITS.requests + 1),
@@ -252,7 +262,7 @@ export class HandoffRepo {
           project: i.project, branch: i.branch, dir: i.dir ?? existing?.dir ?? null,
           taskId: `t${randomBytes(6).toString("hex")}`, goal: i.goal!, status: "in_progress",
           done: [], now: null, next: [], files: [], blockers: null, notes: null,
-          requests: carried, agentAt: null, autoAt: null, requestAt: carried.length ? existing!.requestAt : null,
+          requests: carried, request: null, agentAt: null, autoAt: null, requestAt: carried.length ? existing!.requestAt : null,
           agent: i.agent, agentVerified: false, createdAt: now, updatedAt: now, expiresAt: 0,
         }
       : existing!;
@@ -270,6 +280,7 @@ export class HandoffRepo {
       blockers: i.blockers ?? base.blockers,
       notes: i.notes ?? base.notes,
       requests: i.requests ?? base.requests,
+      request: i.request ?? base.request,
       agentAt: i.origin === "auto" ? base.agentAt : now,
       autoAt: i.origin === "auto" ? now : base.autoAt,
       requestAt: i.isRequest ? now : base.requestAt,

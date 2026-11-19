@@ -52,6 +52,21 @@ describe("runHook", () => {
     s.close();
   });
 
+  it("Cursor running Claude Code's hooks (a Cursor-shaped payload) is ignored; Cursor's own hook saves it", () => {
+    const p = project({ git: true });
+    const fromCursor = { prompt: "devam et", workspace_roots: [p.dir], cursor_version: "2.4.0", conversation_id: "c1", hook_event_name: "beforeSubmitPrompt" };
+    expect(p.run("claude-code", "prompt", fromCursor)).toEqual({ stdout: "", code: 0 });
+    p.run("claude-code", "edit", { tool_name: "Write", tool_input: { file_path: join(p.dir, "a.js") }, workspace_roots: [p.dir], cursor_version: "2.4.0" });
+    const s = p.open();
+    expect(s.getHandoff(p.key, "main")).toBeUndefined();
+    expect(Object.keys(s.hookSeen())).toEqual([]);
+    s.close();
+    p.run("cursor", "prompt", fromCursor);
+    const s2 = p.open();
+    expect(s2.getHandoff(p.key, "main")?.agent).toBe("cursor");
+    s2.close();
+  });
+
   it("no marker: exits without opening the database", () => {
     const dir = mkdtempSync(join(tmpdir(), "baglam-nomark-"));
     const dbPath = join(tmpdir(), `baglam-never-${Date.now()}`, "b.db");
