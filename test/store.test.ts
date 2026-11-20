@@ -210,4 +210,34 @@ describe("search finds words with suffixes (Turkish and English)", () => {
     expect(titles("imza doğrula")).toEqual(["Webhook imzasını her zaman doğrula"]);
     expect(titles("imza kuruş")).toEqual([]);
   });
+
+  it("Turkish İ/ı: ışık, Işık, ISIK and isik all find each other; İmza finds imza", () => {
+    const s = new ContextStore(":memory:");
+    s.addApproved({ project: "p", kind: "decision", title: "Işık ayarı panelde", body: "Karanlık tema" }, "me");
+    s.addApproved({ project: "p", kind: "convention", title: "İmza her istekte doğrulanır", body: "Webhook" }, "me");
+    const titles = (q: string) => s.search("p", "codex", q).map((e) => e.title);
+    for (const q of ["ışık", "Işık", "IŞIK", "isik"]) expect(titles(q)).toEqual(["Işık ayarı panelde"]);
+    for (const q of ["imza", "İmza", "IMZA", "İMZA"]) expect(titles(q)).toEqual(["İmza her istekte doğrulanır"]);
+    expect(titles("karanlik")).toEqual(["Işık ayarı panelde"]);
+  });
+
+  it("a database from schema 7 is re-indexed on upgrade, so old records are found the new way", async () => {
+    const { mkdtempSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { DatabaseSync } = await import("node:sqlite");
+    const path = join(mkdtempSync(join(tmpdir(), "baglam-fold-")), "b.db");
+    const s1 = new ContextStore(path);
+    s1.addApproved({ project: "p", kind: "fact", title: "Işık sensörü", body: "x" }, "me");
+    s1.close();
+    // Make it look like schema 7: the old index without İ/ı folding.
+    const raw = new DatabaseSync(path);
+    raw.exec(`DROP TRIGGER entries_ai; DROP TRIGGER entries_ad; DROP TRIGGER entries_au; DROP TABLE entries_fts;
+      CREATE VIRTUAL TABLE entries_fts USING fts5(title, body, rationale, tags, content='entries', content_rowid='rowid');
+      INSERT INTO entries_fts(entries_fts) VALUES ('rebuild'); PRAGMA user_version = 7;`);
+    raw.close();
+    const s2 = new ContextStore(path);
+    expect(s2.search("p", "codex", "isik").map((e) => e.title)).toEqual(["Işık sensörü"]);
+    s2.close();
+  });
 });

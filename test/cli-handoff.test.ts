@@ -65,7 +65,7 @@ describe("baglam auto / handoff / review", () => {
 
   it("handoff --copy puts a resume prompt on the clipboard", async () => {
     store.checkpoint({ project: P, branch: "main", agent: "claude-code", goal: "Stripe checkout", next: ["tests"] });
-    const clip = process.platform === "win32" ? "clip" : process.platform === "darwin" ? "pbcopy" : "xclip";
+    const clip = process.platform === "win32" ? "powershell" : process.platform === "darwin" ? "pbcopy" : "xclip";
     let copied = "";
     host = testHost({ commands: { [clip]: (_args, input) => ((copied = input ?? ""), { code: 0 }) } });
     expect(await runAsync(["handoff", "--branch", "main", "--copy"])).toBe(0);

@@ -101,7 +101,7 @@ describe.skipIf(!hasGit)("git is read-only and fast", () => {
     store.checkpoint({ project: P, branch: "main", dir: d, agent: "claude-code", goal: "G" });
     writeFileSync(join(d, "late.ts"), "x");
     let copied = "";
-    const clip = process.platform === "win32" ? "clip" : process.platform === "darwin" ? "pbcopy" : "xclip";
+    const clip = process.platform === "win32" ? "powershell" : process.platform === "darwin" ? "pbcopy" : "xclip";
     const host = testHost({ commands: { [clip]: (_a, input) => ((copied = input ?? ""), { code: 0 }) } });
     const out: string[] = [];
     const code = await runCli(["handoff", "--branch", "main", "--copy"], { store, project: P, user: "u", print: (s) => out.push(s), host });

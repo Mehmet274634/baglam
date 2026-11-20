@@ -15,6 +15,8 @@ interface JsonClientOptions {
   key?: "mcpServers" | "servers";
   /** VS Code wants `"type": "stdio"` on each server. */
   vscodeStyle?: boolean;
+  /** Older config files of the same tool: undo removes Bağlam from them too (install leaves them). */
+  legacyPaths?: (h: HostEnv) => string[];
 }
 
 const SERVER_NAME = "baglam";
@@ -77,14 +79,22 @@ export function jsonClient(o: JsonClientOptions): ClientAdapter {
 
     uninstall(h: HostEnv, opts: WriteOptions = {}): Change {
       const file = o.configPath(h);
-      const cur = read(file);
-      if (!cur.ok) return { client: o.id, file, action: "skipped", note: cur.error };
-      const s = serversOf(cur.data, key, file);
-      if (!s.ok) return { client: o.id, file, action: "skipped", note: s.error };
-      if (!(SERVER_NAME in s.servers)) return { client: o.id, file, action: "absent" };
-      const { [SERVER_NAME]: _removed, ...rest } = s.servers;
-      if (!opts.dryRun) write(file, { ...cur.data, [key]: rest }, cur.bom);
-      return { client: o.id, file, action: "removed" };
+      /** Removes our entry from `f`: true when it was there, a note when the file cannot be read. */
+      const removeFrom = (f: string): boolean | string => {
+        const cur = read(f);
+        if (!cur.ok) return cur.error;
+        const s = serversOf(cur.data, key, f);
+        if (!s.ok) return s.error;
+        if (!(SERVER_NAME in s.servers)) return false;
+        const { [SERVER_NAME]: _removed, ...rest } = s.servers;
+        if (!opts.dryRun) write(f, { ...cur.data, [key]: rest }, cur.bom);
+        return true;
+      };
+      const main = removeFrom(file);
+      if (typeof main === "string") return { client: o.id, file, action: "skipped", note: main };
+      // Old files are tidied on a best-effort basis: one that cannot be read is left as it is.
+      const legacy = (o.legacyPaths?.(h) ?? []).filter((f) => f !== file && existsSync(f)).map((f) => removeFrom(f) === true);
+      return { client: o.id, file, action: main || legacy.some(Boolean) ? "removed" : "absent" };
     },
 
     status(h: HostEnv): ClientStatus {
@@ -123,6 +133,7 @@ export const antigravity = jsonClient({
       ? join(h.home, ".gemini", "config", "mcp_config.json")
       : join(h.home, ".gemini", "antigravity", "mcp_config.json"),
   detectPath: (h) => (antigravityV2(h) ? join(h.home, ".gemini", "config") : join(h.home, ".gemini", "antigravity")),
+  legacyPaths: (h) => [join(h.home, ".gemini", "antigravity", "mcp_config.json")],
 });
 
 export const geminiCli = jsonClient({

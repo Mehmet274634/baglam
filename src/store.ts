@@ -133,9 +133,17 @@ function requireText(value: string | undefined, field: string, max: number): str
   return v;
 }
 
+/**
+ * Turkish dotted İ and dotless ı both become "i", the same fold the search index applies (schema 8),
+ * so "Işık", "ışık", "ISIK" and "isik" match each other and "İmza".toLowerCase() stays one word.
+ */
+export function foldTurkishI(text: string): string {
+  return text.normalize("NFC").replace(/[İı]/g, "i");
+}
+
 /** Turn free text into a safe FTS5 query: every word must match, no operators. */
 export function toFtsQuery(text: string): string | null {
-  const words = text.match(/[\p{L}\p{N}_]+/gu);
+  const words = foldTurkishI(text).match(/[\p{L}\p{N}_]+/gu);
   if (!words?.length) return null;
   // Prefix match from 3 letters: Turkish words take suffixes ("imza" → "imzasını"), English ones
   // endings ("deploy" → "deployment"). Shorter words stay exact so "go" does not match everything.
@@ -170,8 +178,8 @@ function toEntry(r: Row): Entry {
 
 /** Lower-cased words of 3+ letters/digits (Unicode-aware), as a set. */
 function wordSet(text: string): Set<string> {
-  // Plain toLowerCase, not Turkish locale: words feed an FTS query whose tokenizer folds I→i.
-  return new Set(text.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []);
+  // İ/ı folded first, then plain toLowerCase: "İmza" would otherwise become "i̇mza" and split.
+  return new Set(foldTurkishI(text).toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []);
 }
 
 function jaccard(a: Set<string>, b: Set<string>): number {
@@ -550,7 +558,10 @@ export class ContextStore {
     });
   }
 
-  /** Permanently delete a project's records (history stays). Returns deleted record count. */
+  /**
+   * Permanently delete a project: its records (their audit events stay), its tasks in progress and
+   * their history, its settings and trust rules. Returns the deleted record count.
+   */
   deleteProject(key: string, by: string): number {
     let n = 0;
     this.transaction(() => {
@@ -559,6 +570,10 @@ export class ContextStore {
       n = Number(this.db.prepare("DELETE FROM entries WHERE project = ?").run(key).changes);
       this.db.prepare("DELETE FROM projects WHERE id = ?").run(key);
       this.db.prepare("DELETE FROM trust_rules WHERE project_id = ?").run(key);
+      // Otherwise a deleted project's task stays in the inbox as a card named by its id.
+      this.db.prepare("DELETE FROM handoffs WHERE project = ?").run(key);
+      this.db.prepare("DELETE FROM handoff_history WHERE project = ?").run(key);
+      this.db.prepare("DELETE FROM project_settings WHERE project = ?").run(key);
     });
     return n;
   }

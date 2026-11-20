@@ -19,6 +19,12 @@ describe("findSimilar", () => {
     expect(hits.map((h) => h.id)).toEqual([a.id]);
   });
 
+  it("Turkish İ/ı do not break look-alike checks (İmza → imza, Işık → ışık)", () => {
+    const a = add("İmza doğrulaması zorunlu", "İstekteki imza her zaman sunucuda doğrulanır; Işık modu buna dahil değil.");
+    const hits = store.findSimilar(P, { title: "imza doğrulaması zorunlu", body: "istekteki imza her zaman sunucuda doğrulanır; ışık modu buna dahil değil." });
+    expect(hits.map((h) => h.id)).toEqual([a.id]);
+  });
+
   it("flags a duplicate of a pending proposal", () => {
     const a = add("Prod database is read-only", "Never run migrations against production from an agent session.");
     const hits = store.findSimilar(P, { title: "Prod database is read-only", body: "Never run migrations against production from an agent." });

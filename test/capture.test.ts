@@ -127,6 +127,34 @@ describe("the agent's own checkpoint right after a captured request", () => {
     expect(live()!.requests).toEqual(["Tıp Kartları yapıyoruz.", "devam et"]);
   });
 
+  it("a detailed plan sent after a short first message is kept in full; a later one-liner keeps it", () => {
+    const { cap, live } = setup();
+    const plan = "Plan:\n1. Login\n2. Payments\n3. Reports";
+    cap("codex", { kind: "prompt", text: "projeye bir bak" });
+    expect(live()!.request).toBeNull();
+    cap("codex", { kind: "prompt", text: plan });
+    expect(live()!.request).toBe(plan);
+    cap("codex", { kind: "prompt", text: "devam et" });
+    expect(live()!.request).toBe(plan);
+    const newer = "New plan:\n- only reports";
+    cap("codex", { kind: "prompt", text: newer });
+    expect(live()!.request).toBe(newer);
+  });
+
+  it("an agent's new task carries the detailed request that started it, never an older one", () => {
+    const { store, cap, live } = setup();
+    store.checkpoint({ project: "p", branch: "main", agent: "codex", agentVerified: true, goal: "Old work" });
+    const plan = "Build reports:\n- monthly\n- yearly";
+    cap("codex", { kind: "prompt", text: plan });
+    store.checkpoint({ project: "p", branch: "main", agent: "codex", agentVerified: true, goal: "Reports", newTask: true });
+    expect(live()!.request).toBe(plan);
+    // An older detailed plan, then a one-line request that starts the next task: nothing detailed to carry.
+    cap("codex", { kind: "prompt", text: "now fix the footer" });
+    store.checkpoint({ project: "p", branch: "main", agent: "codex", agentVerified: true, goal: "Footer", newTask: true });
+    expect(live()!.goal).toBe("Footer");
+    expect(live()!.request).toBeNull();
+  });
+
   it("a one-line request is not stored twice; a long one is capped; a secret in it is hidden", () => {
     const { cap, live, clock } = setup();
     cap("codex", { kind: "prompt", text: "Fix the login bug" });
@@ -250,7 +278,7 @@ describe("auto-capture: switch and bookkeeping", () => {
     expect(store.hookSeen()).toEqual({ cursor: { at: 1_700_000_000_010, event: "edit" } });
   });
 
-  it("migrates a v6 database to v7 keeping handoffs", () => {
+  it("migrates a v6 database to the current schema keeping handoffs", () => {
     const path = join(mkdtempSync(join(tmpdir(), "baglam-cap-mig-")), "b.db");
     const s = new ContextStore(path);
     s.checkpoint({ project: "p", branch: "main", agent: "claude-code", agentVerified: true, goal: "Kept" });
@@ -267,7 +295,7 @@ describe("auto-capture: switch and bookkeeping", () => {
     db.close();
     const again = new ContextStore(path);
     const h = again.getHandoff("p", "main")!;
-    expect(SCHEMA_VERSION).toBe(7);
+    expect(SCHEMA_VERSION).toBe(8);
     expect(h.goal).toBe("Kept");
     expect(h.requests).toEqual([]);
     expect(again.isAutoCapture("p")).toBe(true);

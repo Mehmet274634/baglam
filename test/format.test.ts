@@ -103,6 +103,31 @@ describe("automatic saving in the brief", () => {
     expect(after).toMatch(/Asked: devam et/);
   });
 
+  it("a long task never loses its blockers, next steps, other branches or closing line to the size cap", async () => {
+    const { ContextStore } = await import("../src/store.js");
+    const { formatHandoff } = await import("../src/format.js");
+    const s = new ContextStore(":memory:");
+    const long = (w: string) => `${w} `.repeat(200);
+    s.autoCapture({ project: "p", branch: "main", dir: "/tmp/p", agent: "codex", event: { kind: "prompt", text: `Plan\n${long("plan")}` } });
+    s.checkpoint({
+      project: "p", branch: "main", agent: "codex", agentVerified: true, goal: "Big task",
+      done: Array.from({ length: 30 }, (_, i) => `done ${i} ${long("d").slice(0, 250)}`),
+      now: long("now").slice(0, 900), next: Array.from({ length: 20 }, (_, i) => `next ${i} ${long("n").slice(0, 250)}`),
+      files: Array.from({ length: 50 }, (_, i) => `src/file-${i}.ts`),
+      blockers: "BLOCKED: the API key is missing", notes: `NOTES: ${long("note").slice(0, 1500)}`,
+    });
+    s.checkpoint({ project: "p", branch: "feature", agent: "cursor", agentVerified: true, goal: "Other work" });
+    for (const max of [1500, 3000, 6000]) {
+      const all = s.listHandoffs("p");
+      const text = formatHandoff({ live: all.find((h) => h.branch === "main")!, git: null, otherBranches: all.filter((h) => h.branch !== "main") }, max);
+      expect(text.length).toBeLessThanOrEqual(max);
+      expect(text).toContain("Blockers: BLOCKED: the API key is missing");
+      expect(text).toMatch(/Next: 1\) next 0/);
+      expect(text).toContain("→ If you continue this task, keep calling context_checkpoint");
+      expect(text).toContain('Other branches with tasks in progress: feature ("Other work"');
+    }
+  });
+
   it("shows the full request that started the task, its lines kept", async () => {
     const { ContextStore } = await import("../src/store.js");
     const { formatHandoff } = await import("../src/format.js");
@@ -111,7 +136,7 @@ describe("automatic saving in the brief", () => {
     s.autoCapture({ project: "p", branch: "main", dir: "/tmp/p", agent: "antigravity", event: { kind: "prompt", text: plan } });
     s.checkpoint({ project: "p", branch: "main", agent: "antigravity", agentVerified: true, goal: "Tıp Kartları", next: ["Part 2"] });
     const text = formatHandoff({ live: s.getHandoff("p", "main")!, git: null, otherBranches: [] }, 6000);
-    expect(text).toContain(`The user's request that started this task:\n${plan}`);
+    expect(text).toContain(`The user's latest detailed request (in full):\n${plan}`);
   });
 });
 

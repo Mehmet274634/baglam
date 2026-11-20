@@ -26,7 +26,7 @@ export interface Handoff {
   agentVerified: boolean;
   /** The user's latest requests, saved by tool hooks (newest last). */
   requests: string[];
-  /** The full request that started this task (automatic saving only; null when it was one line). */
+  /** The user's latest detailed (multi-line) request in full (automatic saving only; null when none). */
   request: string | null;
   /** Last checkpoint the agent made itself; null when only the tool's hooks saved this task. */
   agentAt: number | null;
@@ -156,6 +156,14 @@ const payload = (h: Handoff) =>
     agentVerified: h.agentVerified, requests: h.requests, request: h.request, agentAt: h.agentAt, autoAt: h.autoAt, requestAt: h.requestAt,
   });
 
+/** The task's detailed request is the carried (latest) request, not an older one. */
+function carriesRequest(existing: Handoff | undefined, carried: string[]): boolean {
+  const r = existing?.request;
+  if (!r || !carried.length) return false;
+  const firstLine = r.split(/\r?\n/).map((l) => l.replace(/\s+/g, " ").trim()).find(Boolean);
+  return firstLine !== undefined && carried[0] === firstLine.slice(0, LIMITS.goal);
+}
+
 /** Storage for handoffs; used through ContextStore. */
 export class HandoffRepo {
   constructor(
@@ -262,7 +270,8 @@ export class HandoffRepo {
           project: i.project, branch: i.branch, dir: i.dir ?? existing?.dir ?? null,
           taskId: `t${randomBytes(6).toString("hex")}`, goal: i.goal!, status: "in_progress",
           done: [], now: null, next: [], files: [], blockers: null, notes: null,
-          requests: carried, request: null, agentAt: null, autoAt: null, requestAt: carried.length ? existing!.requestAt : null,
+          // The detailed request too, but only when it is that same carried request.
+          requests: carried, request: carriesRequest(existing, carried) ? existing!.request : null, agentAt: null, autoAt: null, requestAt: carried.length ? existing!.requestAt : null,
           agent: i.agent, agentVerified: false, createdAt: now, updatedAt: now, expiresAt: 0,
         }
       : existing!;

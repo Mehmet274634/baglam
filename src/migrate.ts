@@ -116,6 +116,37 @@ CREATE TABLE hook_seen (
 );
 `;
 
+/**
+ * The search index folds Turkish İ and ı to "i" (the tokenizer folds only ASCII I and leaves ı a
+ * separate letter, so "Işık" never found "ışık"). Queries apply the same fold (foldTurkishI).
+ * Triggers and the index are rebuilt from the records; never use FTS 'rebuild', it would index
+ * the unfolded text.
+ */
+const FOLD = (x: string) => `replace(replace(${x}, 'İ', 'i'), 'ı', 'i')`;
+const ftsValues = (row: "new" | "old") =>
+  `${row}.rowid, ${FOLD(`${row}.title`)}, ${FOLD(`${row}.body`)}, ${FOLD(`coalesce(${row}.rationale, '')`)}, ${FOLD(`${row}.tags`)}`;
+const V8_SCHEMA = `
+DROP TRIGGER IF EXISTS entries_ai;
+DROP TRIGGER IF EXISTS entries_ad;
+DROP TRIGGER IF EXISTS entries_au;
+DROP TABLE IF EXISTS entries_fts;
+CREATE VIRTUAL TABLE entries_fts USING fts5(
+  title, body, rationale, tags, content='entries', content_rowid='rowid'
+);
+CREATE TRIGGER entries_ai AFTER INSERT ON entries BEGIN
+  INSERT INTO entries_fts(rowid, title, body, rationale, tags) VALUES (${ftsValues("new")});
+END;
+CREATE TRIGGER entries_ad AFTER DELETE ON entries BEGIN
+  INSERT INTO entries_fts(entries_fts, rowid, title, body, rationale, tags) VALUES ('delete', ${ftsValues("old")});
+END;
+CREATE TRIGGER entries_au AFTER UPDATE OF title, body, rationale, tags ON entries BEGIN
+  INSERT INTO entries_fts(entries_fts, rowid, title, body, rationale, tags) VALUES ('delete', ${ftsValues("old")});
+  INSERT INTO entries_fts(rowid, title, body, rationale, tags) VALUES (${ftsValues("new")});
+END;
+INSERT INTO entries_fts(rowid, title, body, rationale, tags)
+  SELECT rowid, ${FOLD("title")}, ${FOLD("body")}, ${FOLD("coalesce(rationale, '')")}, ${FOLD("tags")} FROM entries;
+`;
+
 const V5_SCHEMA = `
 CREATE INDEX IF NOT EXISTS entries_visible ON entries(project, status, kind, decided_at);
 CREATE INDEX IF NOT EXISTS events_project_at ON events(project, at);
@@ -138,6 +169,7 @@ const STEPS: ((db: DatabaseSync) => void)[] = [
   (db) => db.exec(V5_SCHEMA),
   (db) => db.exec(V6_SCHEMA),
   (db) => db.exec(V7_SCHEMA),
+  (db) => db.exec(V8_SCHEMA),
 ];
 
 export const SCHEMA_VERSION = STEPS.length;

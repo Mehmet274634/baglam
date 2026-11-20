@@ -69,6 +69,19 @@ describe("store: panel support", () => {
     expect(store.listProjects({ includeArchived: true }).map((r) => r.key)).not.toContain(A);
   });
 
+  it("delete also removes the project's tasks, task history and settings (no ghost card in the inbox)", () => {
+    store.touchProject({ key: A, name: "app", dir: "c:/work/app" });
+    store.checkpoint({ project: A, branch: "main", agent: "codex", agentVerified: true, goal: "Half done" });
+    store.checkpoint({ project: A, branch: "main", agent: "codex", agentVerified: true, goal: "Next one", newTask: true });
+    store.setAutonomous(A, true, "human");
+    store.checkpoint({ project: "other", branch: "main", agent: "codex", agentVerified: true, goal: "Keep me" });
+    store.deleteProject(A, "human");
+    expect(store.listHandoffs(A)).toEqual([]);
+    expect(store.handoffHistory(A, "main")).toEqual([]);
+    expect(store.isAutonomous(A)).toBe(false);
+    expect(store.listHandoffs("other").map((h) => h.goal)).toEqual(["Keep me"]);
+  });
+
   it("query filters and paginates", () => {
     for (let i = 0; i < 5; i++) {
       now += 1000;

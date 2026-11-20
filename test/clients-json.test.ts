@@ -57,6 +57,19 @@ describe("JSON client adapters", () => {
     expect(antigravity.install(host)).toMatchObject({ action: "added", file: join(host.home, ".gemini", "config", "mcp_config.json") });
   });
 
+  it("Antigravity undo also removes Bağlam from the old ~/.gemini/antigravity file, keeping other servers", () => {
+    const host = testHost();
+    const old = join(host.home, ".gemini", "antigravity", "mcp_config.json");
+    const now = join(host.home, ".gemini", "config", "mcp_config.json");
+    write(old, JSON.stringify({ mcpServers: { baglam: serverEntry(host, "antigravity"), other: { command: "x" } } }));
+    write(now, JSON.stringify({ mcpServers: {} }));
+    antigravity.install(host);
+    expect(antigravity.uninstall(host).action).toBe("removed");
+    expect(readJson(now).mcpServers).toEqual({});
+    expect(readJson(old).mcpServers).toEqual({ other: { command: "x" } });
+    expect(antigravity.uninstall(host).action).toBe("absent");
+  });
+
   it("is idempotent", () => {
     const host = testHost();
     const file = join(host.home, ".cursor", "mcp.json");

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { copyToClipboard } from "./clipboard.js";
 import { parseArgs } from "node:util";
 import { userInfo } from "node:os";
 import { pathToFileURL } from "node:url";
@@ -398,10 +399,7 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
           const host = ctx.host ?? realHost();
           return (live.dir && existsSync(live.dir) ? gitSnapshot(live.dir, live.updatedAt) : Promise.resolve(null)).then((git) => {
           const text = resumePrompt({ projectName, dir: live.dir, handoff: live, git, records });
-          const [cmd, cmdArgs] =
-            host.platform === "win32" ? ["clip", []] : host.platform === "darwin" ? ["pbcopy", []] : ["xclip", ["-selection", "clipboard"]];
-          const r = host.run(cmd, cmdArgs as string[], text);
-          if (r.code === 0) {
+          if (copyToClipboard(host, text)) {
             print("Copied a resume prompt to the clipboard. Paste it into any AI tool to continue this task.");
           } else {
             print("Could not reach the clipboard; here is the resume prompt to copy:\n");

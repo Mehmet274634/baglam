@@ -2,7 +2,7 @@
 
 > **Türkçe özet:** Bağlam, yapay zekâ kod ajanlarına (Claude Code, Codex, Cursor, Gemini, Antigravity,
 > VS Code · Copilot, Windsurf) ortak ve insan onaylı bir hafıza ile ajanlar arası devir veren yerel bir
-> MCP sunucusu, CLI ve paneldir. npm'de **1.0.0-rc.4** yayında (20 Kasım), site Vercel'de canlı. Sıradaki
+> MCP sunucusu, CLI ve paneldir. npm'de **1.0.0-rc.4** yayında; **1.0.0-rc.5** hazır (dış inceleme düzeltmeleri). Site Vercel'de canlı. Sıradaki
 > büyük adımlar: arkadaşının Mac'inde test, ardından 1.0.0 sürümü. Son durum raporu: [rapor-2026-11-20.tr.md](rapor-2026-11-20.tr.md). Tasarım işleri için
 > [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) dosyasına bak.
 
@@ -18,12 +18,12 @@ panel logic). Design and website work lives in [DESIGN-SYSTEM.md](DESIGN-SYSTEM.
   creating accounts or anything outward-facing; pushing `main` deploys the website (see below).
 - No fabricated social proof (no fake users, stars or quotes).
 
-## What exists (1.0.0-rc.4)
+## What exists (1.0.0-rc.5, prepared)
 
 | Part | Where | What it does |
 |---|---|---|
 | MCP server | `src/server.ts` | `context_brief`, `context_search`, `context_get`, `context_propose`, `context_checkpoint`, `context_handoff`; prompt `baglam_resume`; connection-scoped checkpoint nudges (5 min) |
-| Store | `src/store.ts`, `src/migrate.ts` | `node:sqlite` (WAL), schema **v7**, FTS5 prefix search, automatic backup on upgrade |
+| Store | `src/store.ts`, `src/migrate.ts` | `node:sqlite` (WAL), schema **v8**, FTS5 prefix search (Turkish İ/ı folded to i in index and queries), automatic backup on upgrade |
 | Handoff | `src/handoff.ts` | per project + branch task: goal, done, now, next, files, blockers, notes, latest request; `checkpointPlanned` under `BEGIN IMMEDIATE` |
 | Automatic saving | `src/hook.ts`, `src/capture.ts`, `src/hooks/normalize.ts`, `src/clients/hooks.ts` | tool hooks save request, edited files and last reply even when the agent forgets; always exits 0, ≤1 MB stdin, 3 s deadline, secrets hidden, only in `baglam init` folders |
 | CLI | `src/cli.ts` | `setup`, `init`, `doctor`, `add`, `list`, `show`, `pending`, `approve`, `reject`, `review`, `keep`, `undo`, `trust`, `auto`, `capture`, `handoff`, `projects`, `export`, `import`, `ui` (opens the panel) |
@@ -66,17 +66,26 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 
 ## Next steps (in order)
 
-0. **Confirm on the owner's machine** that Cursor's copies of Claude Code hooks are ignored when Cursor's
+0. **Publish 1.0.0-rc.5** (prepared 2026-11-20): fixes from an outside review (Gemini): Turkish İ/ı in
+   search and look-alikes, project delete leaving tasks, brief cut-off, Windows/Wayland clipboard, later
+   detailed requests, Antigravity undo. Still open from that review, for 1.0.x: `init` writes no VS Code
+   Copilot (`.github/copilot-instructions.md`) or Windsurf (`.windsurf/rules/`) instructions; `doctor`
+   checks only AGENTS.md; `init --local` (exclude via `.git/info/exclude`) and `--name`; `init` warns
+   when no tool is set up; partial redaction of secrets instead of hiding the whole text; panel: add a
+   record, export/import, task history and full request, hook health in Settings, a `baglam ui` that
+   survives a closed tab. 1.1: inject the live task through hooks (additionalContext), path/topic-aware
+   briefs, Turkish token estimate, `handoff move <branch>`, agents proposing to retire a record.
+1. **Confirm on the owner's machine** that Cursor's copies of Claude Code hooks are ignored when Cursor's
    quota is back (Cursor's payload to them should carry `cursor_version` / `workspace_roots`; taken
    from a Cursor forum report and Bağlam's own Cursor payloads, not yet recorded live).
-1. **Mac test** with the owner's friend: `npm i -g baglam`, `baglam setup`, `baglam init`, a Claude
+2. **Mac test** with the owner's friend: `npm i -g baglam`, `baglam setup`, `baglam init`, a Claude
    Code → Codex/Cursor handoff, `baglam doctor`. Fix whatever the Mac run shows. Turkish step-by-step
    list for the tester: [mac-test-checklist.tr.md](mac-test-checklist.tr.md). Watch for: apps opened
    from the Dock (Cursor, VS Code) get launchd's PATH; rc.4 starts hooks with the absolute Node path
    off Windows, and step 9b checks it. The tester should install rc.4 or newer.
-2. **1.0.0 release** after the Mac test: changelog, version bump, staged publish (owner approves).
+3. **1.0.0 release** after the Mac test: changelog, version bump, staged publish (owner approves).
    CI must be fully green first (rc.4 at `a0faa51`: all six jobs ran and passed, macOS included).
-3. Custom domain if `vercel.app` stays blocked for Turkish visitors.
+4. Custom domain if `vercel.app` stays blocked for Turkish visitors.
 
 ## In 1.0.0-rc.4 (see CHANGELOG)
 

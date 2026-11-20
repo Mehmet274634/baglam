@@ -2,6 +2,18 @@
 
 All notable changes to Bağlam. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.0-rc.5] - 2026-11-20
+
+Fixes from an outside code review. Schema v8 (automatic backup and upgrade; the search index is rebuilt once).
+
+### Fixed
+- **Turkish İ and ı:** search finds "ışık" from "Işık", "IŞIK" or "isik", and "İmza" from "imza"; look-alike checks no longer split "İmza" into "i" + "mza".
+- Deleting a project also deletes its tasks in progress, their history and its settings, so no nameless task card is left in the inbox.
+- A long task no longer loses its blockers, next steps, other branches or the closing instruction in the brief: when everything does not fit, the least important parts give way instead of the end being cut.
+- `baglam handoff --copy` keeps Turkish letters and arrows on Windows (PowerShell instead of `clip`), and works on Linux with Wayland (`wl-copy`) or `xsel` as well as `xclip`.
+- A detailed (multi-line) request is kept in full even when it is not the first message of the task; the latest detailed request wins, and a new task started right after it takes it along.
+- `baglam setup --undo` also removes Bağlam from the old Antigravity file (`~/.gemini/antigravity/mcp_config.json`).
+
 ## [1.0.0-rc.4] - 2026-11-20
 
 Fixes from reviews and from a real run of Antigravity → Codex → Cursor → Antigravity on one project. **Re-run `baglam setup` after upgrading**; it keeps your own settings, and `baglam doctor` tells you when it is needed.
