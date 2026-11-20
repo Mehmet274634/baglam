@@ -2,9 +2,8 @@
 
 > **Türkçe özet:** Bağlam, yapay zekâ kod ajanlarına (Claude Code, Codex, Cursor, Gemini, Antigravity,
 > VS Code · Copilot, Windsurf) ortak ve insan onaylı bir hafıza ile ajanlar arası devir veren yerel bir
-> MCP sunucusu, CLI ve paneldir. npm'de **1.0.0-rc.3** yayında; **1.0.0-rc.4** hazır, sahibinin onayını
-> bekliyor. Site Vercel'de canlı. Sıradaki büyük adımlar: rc.4 yayını, arkadaşının Mac'inde test, ardından
-> 1.0.0 sürümü. Son durum raporu: [rapor-2026-11-20.tr.md](rapor-2026-11-20.tr.md). Tasarım işleri için
+> MCP sunucusu, CLI ve paneldir. npm'de **1.0.0-rc.4** yayında (20 Kasım), site Vercel'de canlı. Sıradaki
+> büyük adımlar: arkadaşının Mac'inde test, ardından 1.0.0 sürümü. Son durum raporu: [rapor-2026-11-20.tr.md](rapor-2026-11-20.tr.md). Tasarım işleri için
 > [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) dosyasına bak.
 
 Last updated: 2026-11-20. Read this first when you pick up work on the product (MCP server, CLI, hooks,
@@ -19,7 +18,7 @@ panel logic). Design and website work lives in [DESIGN-SYSTEM.md](DESIGN-SYSTEM.
   creating accounts or anything outward-facing; pushing `main` deploys the website (see below).
 - No fabricated social proof (no fake users, stars or quotes).
 
-## What exists (1.0.0-rc.4, prepared)
+## What exists (1.0.0-rc.4)
 
 | Part | Where | What it does |
 |---|---|---|
@@ -52,10 +51,11 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 
 ## Release and hosting
 
-- npm: package `baglam`, `latest` = `next` = `1.0.0-rc.3`; `1.0.0-rc.4` is prepared, not published.
-  Publishing is staged: the owner approves each release on npmjs.com. `publishConfig.tag` is `next`, so
-  after approving, `latest` has to be moved too (`npm dist-tag add baglam@<version> latest`, owner's
-  login) or `npm i -g baglam` keeps installing the old version. Licence MIT, author "Bağlam contributors".
+- npm: package `baglam`, `latest` = `next` = `1.0.0-rc.4` (2026-11-20). How a release goes out: the
+  owner runs `npm login`, `npm publish` (from the repo root; `publishConfig.tag` is `next`) and
+  `npm dist-tag add baglam@<version> latest`. npm then shows the version as "Validating" (its own
+  automated review) for a few minutes; nothing to approve, it goes live by itself and the tags follow.
+  Check with `npm view baglam dist-tags` and a clean `npm i -g baglam@latest --prefix <temp>`. Licence MIT, author "Bağlam contributors".
 - GitHub: `Mehmet274634/baglam`, branch `main`. Remote URL carries the user name
   (`https://Mehmet274634@github.com/...`) because a cached credential belongs to another account.
 - CI (`.github/workflows/ci.yml`): macOS, Linux, Windows × Node 22/24 plus a site job; the perf step
@@ -66,20 +66,16 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 
 ## Next steps (in order)
 
-0. **Publish 1.0.0-rc.4** (prepared 2026-11-20: version, changelog, checks): it carries the fixes from the
-   real three-agent test, above all Antigravity 2 (rc.3 users on Antigravity 2 get no Bağlam tools).
-   Order: merge to `main`, push, CI green (macOS too), owner publishes and approves, move `latest`.
-   Then on the owner's machine: confirm Cursor's copies of Claude Code hooks are ignored (Cursor's
-   payload to them should carry `cursor_version` / `workspace_roots`; taken from a Cursor forum report
-   and Bağlam's own Cursor payloads, not yet recorded live).
+0. **Confirm on the owner's machine** that Cursor's copies of Claude Code hooks are ignored when Cursor's
+   quota is back (Cursor's payload to them should carry `cursor_version` / `workspace_roots`; taken
+   from a Cursor forum report and Bağlam's own Cursor payloads, not yet recorded live).
 1. **Mac test** with the owner's friend: `npm i -g baglam`, `baglam setup`, `baglam init`, a Claude
    Code → Codex/Cursor handoff, `baglam doctor`. Fix whatever the Mac run shows. Turkish step-by-step
    list for the tester: [mac-test-checklist.tr.md](mac-test-checklist.tr.md). Watch for: apps opened
    from the Dock (Cursor, VS Code) get launchd's PATH; rc.4 starts hooks with the absolute Node path
    off Windows, and step 9b checks it. The tester should install rc.4 or newer.
 2. **1.0.0 release** after the Mac test: changelog, version bump, staged publish (owner approves).
-   Before it, CI must be fully green: on 2026-11-19 the macOS jobs for `010e3f7` / `2f62567` never
-   got a runner (GitHub macOS capacity), so macOS · Node 22 has no result for the latest fixes yet.
+   CI must be fully green first (rc.4 at `a0faa51`: all six jobs ran and passed, macOS included).
 3. Custom domain if `vercel.app` stays blocked for Turkish visitors.
 
 ## In 1.0.0-rc.4 (see CHANGELOG)
