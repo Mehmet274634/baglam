@@ -2,11 +2,12 @@
 
 > **Türkçe özet:** Bağlam, yapay zekâ kod ajanlarına (Claude Code, Codex, Cursor, Gemini, Antigravity,
 > VS Code · Copilot, Windsurf) ortak ve insan onaylı bir hafıza ile ajanlar arası devir veren yerel bir
-> MCP sunucusu, CLI ve paneldir. Şu an **1.0.0-rc.3** npm'de yayında, site Vercel'de canlı. Sıradaki
-> büyük adımlar: arkadaşının Mac'inde test, ardından 1.0.0 sürümü. Tasarım işleri için
+> MCP sunucusu, CLI ve paneldir. npm'de **1.0.0-rc.3** yayında; **1.0.0-rc.4** hazır, sahibinin onayını
+> bekliyor. Site Vercel'de canlı. Sıradaki büyük adımlar: rc.4 yayını, arkadaşının Mac'inde test, ardından
+> 1.0.0 sürümü. Son durum raporu: [rapor-2026-11-20.tr.md](rapor-2026-11-20.tr.md). Tasarım işleri için
 > [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) dosyasına bak.
 
-Last updated: 2026-11-19. Read this first when you pick up work on the product (MCP server, CLI, hooks,
+Last updated: 2026-11-20. Read this first when you pick up work on the product (MCP server, CLI, hooks,
 panel logic). Design and website work lives in [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md).
 
 ## Working with the owner
@@ -18,7 +19,7 @@ panel logic). Design and website work lives in [DESIGN-SYSTEM.md](DESIGN-SYSTEM.
   creating accounts or anything outward-facing; pushing `main` deploys the website (see below).
 - No fabricated social proof (no fake users, stars or quotes).
 
-## What exists (1.0.0-rc.3)
+## What exists (1.0.0-rc.4, prepared)
 
 | Part | Where | What it does |
 |---|---|---|
@@ -34,8 +35,10 @@ Hook installers: Claude `~/.claude/settings.json`, Codex `~/.codex/hooks.json` (
 `/hooks`), Gemini `~/.gemini/settings.json`, Cursor `~/.cursor/hooks.json`, Antigravity
 `~/.gemini/config/hooks.json`, VS Code `~/.copilot/hooks/baglam.json`.
 
-Verified with real tools: Claude Code (headless), Codex (after `/hooks` trust) and Cursor auto-capture;
-the npm package installs and runs from the registry.
+Verified with real tools: Claude Code (headless), Codex (after `/hooks` trust), Cursor and Antigravity 2
+(MCP tools, checkpoints, proposals, automatic saving of requests and edited files; 2026-11-19 run); the npm
+package installs and runs from the registry. Not yet verified with the real tool: Gemini CLI, VS Code,
+Windsurf automatic saving, and Cursor's copies of Claude Code hooks being ignored.
 
 ## Commands
 
@@ -49,8 +52,10 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 
 ## Release and hosting
 
-- npm: package `baglam`, `latest` = `1.0.0-rc.3`. Publishing is staged: the owner approves each
-  release on npmjs.com. Licence MIT, author "Bağlam contributors".
+- npm: package `baglam`, `latest` = `next` = `1.0.0-rc.3`; `1.0.0-rc.4` is prepared, not published.
+  Publishing is staged: the owner approves each release on npmjs.com. `publishConfig.tag` is `next`, so
+  after approving, `latest` has to be moved too (`npm dist-tag add baglam@<version> latest`, owner's
+  login) or `npm i -g baglam` keeps installing the old version. Licence MIT, author "Bağlam contributors".
 - GitHub: `Mehmet274634/baglam`, branch `main`. Remote URL carries the user name
   (`https://Mehmet274634@github.com/...`) because a cached credential belongs to another account.
 - CI (`.github/workflows/ci.yml`): macOS, Linux, Windows × Node 22/24 plus a site job; the perf step
@@ -61,30 +66,29 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 
 ## Next steps (in order)
 
-0. **Fix what the real three-agent test found** (2026-11-19, Windows, project `Desktop\tip-kartlari`,
-   Antigravity → Codex → Cursor (stopped mid-edit, then a fresh chat) → Antigravity; the app works and
-   every handoff resumed the right task). Already fixed and on local `main` (not pushed): Antigravity 2
-   reads MCP only from `~/.gemini/config/mcp_config.json`, and its file tools are `write_file` /
-   `edit_file` with `Path`. The other four findings are fixed on the branch too (Codex tool
-   approvals kept by setup; the task's first request kept in full and shown in the brief; a repeated
-   request after a minute counts, from any tool; Cursor's copies of Claude Code's hooks ignored).
-   Still to verify on the owner's machine: Cursor's payload to Claude Code hooks has `cursor_version`
-   or `workspace_roots` (taken from a Cursor forum report and Bağlam's Cursor payloads; Cursor's free
-   quota ran out before it could be recorded), and a full `baglam setup` leaves Codex "unchanged".
+0. **Publish 1.0.0-rc.4** (prepared 2026-11-20: version, changelog, checks): it carries the fixes from the
+   real three-agent test, above all Antigravity 2 (rc.3 users on Antigravity 2 get no Bağlam tools).
+   Order: merge to `main`, push, CI green (macOS too), owner publishes and approves, move `latest`.
+   Then on the owner's machine: confirm Cursor's copies of Claude Code hooks are ignored (Cursor's
+   payload to them should carry `cursor_version` / `workspace_roots`; taken from a Cursor forum report
+   and Bağlam's own Cursor payloads, not yet recorded live).
 1. **Mac test** with the owner's friend: `npm i -g baglam`, `baglam setup`, `baglam init`, a Claude
    Code → Codex/Cursor handoff, `baglam doctor`. Fix whatever the Mac run shows. Turkish step-by-step
    list for the tester: [mac-test-checklist.tr.md](mac-test-checklist.tr.md). Watch for: apps opened
-   from the Dock (Cursor, VS Code) get launchd's PATH, so rc.3's hook command with a bare `node` may
-   not run there (step 9b checks it). Fixed for 1.0.0 (absolute Node path off Windows); the
-   tester installs rc.3 from npm, so a failure in 9b confirms the cause rather than a new bug.
+   from the Dock (Cursor, VS Code) get launchd's PATH; rc.4 starts hooks with the absolute Node path
+   off Windows, and step 9b checks it. The tester should install rc.4 or newer.
 2. **1.0.0 release** after the Mac test: changelog, version bump, staged publish (owner approves).
    Before it, CI must be fully green: on 2026-11-19 the macOS jobs for `010e3f7` / `2f62567` never
    got a runner (GitHub macOS capacity), so macOS · Node 22 has no result for the latest fixes yet.
 3. Custom domain if `vercel.app` stays blocked for Turkish visitors.
 
-## Done since rc.3 (unreleased, in CHANGELOG)
+## In 1.0.0-rc.4 (see CHANGELOG)
 
-The four deferred review minors are fixed (2026-11-19): the hook's busy wait is capped at
+The real three-agent test (2026-11-19, `Desktop\tip-kartlari`, Antigravity → Codex → Cursor stopped
+mid-edit → fresh Cursor chat → Antigravity) found six problems, all fixed with tests: Antigravity 2's
+MCP file and file-tool names, Codex approvals kept by setup, the task's first request kept in full,
+repeated requests from another tool, Cursor's copies of Claude Code hooks. The four deferred review
+minors are fixed too: the hook's busy wait is capped at
 `HOOK_BUSY_MS` (700 ms per write; SQLite waits block the deadline timer), `isOurs` checks that an
 existing `hook.js` belongs to the `baglam` package, reminders count from the agent's own checkpoint
 or the task's start (never `updatedAt`, which hooks refresh), and `baglam doctor` flags hand-made

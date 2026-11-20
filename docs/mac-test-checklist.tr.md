@@ -38,7 +38,7 @@ Sonra:
 ```
 baglam --version
 ```
-- **Beklenen:** `1.0.0-rc.3` 📸
+- **Beklenen:** `1.0.0-rc.4` veya daha yeni bir sürüm 📸
 
 ## 4. Araçlara bağla
 ```

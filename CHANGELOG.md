@@ -2,7 +2,9 @@
 
 All notable changes to Bağlam. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.0-rc.4] - 2026-11-20
+
+Fixes from reviews and from a real run of Antigravity → Codex → Cursor → Antigravity on one project. **Re-run `baglam setup` after upgrading**; it keeps your own settings, and `baglam doctor` tells you when it is needed.
 
 ### Fixed
 - A tool hook meeting a locked database now gives up within about a second (and logs it) instead of holding the tool for five seconds or more; the save itself is tried first.
