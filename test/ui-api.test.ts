@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { EVENT_TYPES } from "../src/portable.js";
 import { apiHarness, type ApiHarness } from "./ui-helpers.js";
 
 const A = "11111111-2222-4333-8444-555555555555";
@@ -207,5 +208,12 @@ describe("panel API: automatic saving", () => {
     expect((await h.call("POST", `/api/projects/${enc(A)}/capture`, { on: false })).json).toEqual({ on: false });
     expect(h.store.isAutoCapture(A)).toBe(false);
     expect((await h.call("POST", `/api/projects/${enc(A)}/capture`, { on: "yes" })).status).toBe(400);
+  });
+
+  it("panel i18n defines a label for every history event the store writes", () => {
+    const src = readFileSync(join(import.meta.dirname, "..", "ui", "src", "i18n.tsx"), "utf8");
+    for (const type of EVENT_TYPES) {
+      expect(src, type).toContain(`"history.${type}":`);
+    }
   });
 });

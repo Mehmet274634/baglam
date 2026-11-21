@@ -1,13 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/preact";
-import { dict, pickLanguage, I18nProvider } from "../ui/src/i18n.js";
+import { dict, historyLabel, pickLanguage, translator, I18nProvider } from "../ui/src/i18n.js";
 import { EntryCard } from "../ui/src/components/EntryCard.js";
 import { Inbox } from "../ui/src/screens/Inbox.js";
 import { ApiError, type Api } from "../ui/src/api.js";
 import { ToastProvider } from "../ui/src/toast.js";
 import type { Entry, PendingEntry } from "../ui/src/types.js";
-import { EVENT_TYPES } from "../src/portable.js";
 
 afterEach(cleanup);
 
@@ -40,10 +39,10 @@ describe("i18n", () => {
     for (const v of [...Object.values(dict.tr), ...Object.values(dict.en)]) expect(v.trim()).not.toBe("");
   });
 
-  it("names every kind of history event the store writes (no raw keys like history.imported)", () => {
-    for (const type of EVENT_TYPES) {
-      expect(Object.keys(dict.en), type).toContain(`history.${type}`);
-    }
+  it("translates imported history events and falls back cleanly for unknown event types", () => {
+    expect(historyLabel(translator("en"), "imported")).toBe("imported");
+    expect(historyLabel(translator("tr"), "imported")).toBe("içe aktardı");
+    expect(historyLabel(translator("en"), "future_event")).toBe("future_event");
   });
 
   it("picks Turkish for tr-TR, English otherwise", () => {
