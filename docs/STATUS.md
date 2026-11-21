@@ -2,7 +2,7 @@
 
 > **Türkçe özet:** Bağlam, yapay zekâ kod ajanlarına (Claude Code, Codex, Cursor, Gemini, Antigravity,
 > VS Code · Copilot, Windsurf) ortak ve insan onaylı bir hafıza ile ajanlar arası devir veren yerel bir
-> MCP sunucusu, CLI ve paneldir. npm'de **1.0.0-rc.5** yayında; **1.0.0-rc.6** hazır (otomatik bağlam enjeksiyonu, çapraz platform sağlamlaştırma, kısmi gizli bilgi maskelemesi, init/doctor/panel geliştirmeleri). Site Vercel'de canlı. Sıradaki
+> MCP sunucusu, CLI ve paneldir. npm'de **1.0.0-rc.6** yayında (otomatik bağlam enjeksiyonu, çapraz platform sağlamlaştırma, kısmi gizli bilgi maskelemesi, init/doctor/panel geliştirmeleri, 2026-11-21). Site Vercel'de canlı. Sıradaki
 > büyük adımlar: arkadaşının Mac'inde test, ardından 1.0.0 sürümü. Son durum raporu: [rapor-2026-11-20.tr.md](rapor-2026-11-20.tr.md). Tasarım işleri için
 > [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) dosyasına bak.
 
@@ -18,7 +18,7 @@ panel logic). Design and website work lives in [DESIGN-SYSTEM.md](DESIGN-SYSTEM.
   creating accounts or anything outward-facing; pushing `main` deploys the website (see below).
 - No fabricated social proof (no fake users, stars or quotes).
 
-## What exists (1.0.0-rc.6, prepared)
+## What exists (1.0.0-rc.6, on npm)
 
 | Part | Where | What it does |
 |---|---|---|
@@ -51,7 +51,7 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 
 ## Release and hosting
 
-- npm: package `baglam`, `latest` = `next` = `1.0.0-rc.5` (2026-11-21, CI green at `67fba56`). How a
+- npm: package `baglam`, `latest` = `next` = `1.0.0-rc.6` (2026-11-21, CI green at `01cbd66`). How a
   release goes out: the owner runs `npm login`, `npm publish` (from the repo root; `publishConfig.tag`
   is `next`) and, once the version shows up, `npm dist-tag add baglam@<version> latest`. Each command
   asks for browser authentication. npm shows the version as "Validating" for a few minutes; nothing to
@@ -69,7 +69,7 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 
 ## Next steps (in order)
 
-0. **Publish 1.0.0-rc.6** (prepared 2026-11-21): automatic context injection via `SessionStart`/`sessionStart`
+0. **1.0.0-rc.6 is published** (2026-11-21): automatic context injection via `SessionStart`/`sessionStart`
    and cross-agent prompt hooks (`additionalContext` / `additional_context`), Linux `wl-copy`/`xclip`
    stdio hang fix, `history.imported` panel i18n, export/import `request` + `autoCapture: false` fidelity,
    higher git priority in handoff brief, partial secret redaction + expanded secret patterns, `init` for
@@ -86,7 +86,7 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
    Code → Codex/Cursor handoff, `baglam doctor`. Fix whatever the Mac run shows. Turkish step-by-step
    list for the tester: [mac-test-checklist.tr.md](mac-test-checklist.tr.md). Watch for: apps opened
    from the Dock (Cursor, VS Code) get launchd's PATH; rc.4 starts hooks with the absolute Node path
-   off Windows, and step 9b checks it. The tester should install rc.5 or newer. The friend's review of
+   off Windows, and step 9b checks it. The tester should install rc.6 or newer. The friend's review of
    the list (2026-11-21) led to: no `sudo` first (user-level npm prefix instead), comparing
    `baglam --version` with `npm view baglam version`, a hint for `claude: command not found`, the
    reason for opening Cursor from the Dock, and step 9c to find which link broke when "devam et"
@@ -95,7 +95,7 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
    the task at session start; it has to call Bağlam itself. If the Mac run shows the agent knows only
    when asked explicitly (9c step 1), move the 1.1 hook injection (additionalContext) into 1.0.x.
 3. **1.0.0 release** after the Mac test: changelog, version bump, staged publish (owner approves).
-   CI must be fully green first (rc.5 at `67fba56`: all six jobs and the site job passed, macOS included).
+   CI must be fully green first (rc.6 at `01cbd66`: all six jobs and the site job passed, macOS included).
 4. Custom domain if `vercel.app` stays blocked for Turkish visitors.
 
 ## In 1.0.0-rc.4 (see CHANGELOG)
