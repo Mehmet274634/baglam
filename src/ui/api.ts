@@ -66,24 +66,45 @@ export function panelApi(ctx: PanelContext): Route[] {
     similar: e.similarTo.map((id) => store.get(id)).filter((x): x is Entry => !!x),
   });
 
+  // Detecting tools and probing CLI configs (like `claude mcp get`) spawns subprocesses (~1-2 s);
+  // cache that static setup probe briefly so approve/reject/SSE refreshes stay instant (<5 ms),
+  // while hookSeen() is always read live from SQLite.
+  const TOOLS_CACHE_MS = 30_000;
+  let toolsCache: {
+    at: number;
+    items: { id: string; label: string; registered: boolean; hooks: { installed: boolean; problem?: string } | null }[];
+  } | null = null;
+  const probeTools = (fresh: boolean) => {
+    const now = Date.now();
+    if (!fresh && toolsCache && now - toolsCache.at < TOOLS_CACHE_MS) return toolsCache.items;
+    const items = detectClients(host).map((c) => {
+      const hooks = HOOK_INSTALLERS[c.id as HookClient];
+      const hs = hooks?.status(host);
+      return {
+        id: c.id,
+        label: c.label,
+        registered: c.status(host).registered,
+        hooks: hs ? { installed: hs.installed, ...(hs.problem ? { problem: hs.problem } : {}) } : null,
+      };
+    });
+    toolsCache = { at: now, items };
+    return items;
+  };
+
   return [
-    route("GET", "/api/overview", () => {
+    route("GET", "/api/overview", ({ query }) => {
       const projects = store.listProjects();
       const seen = store.hookSeen();
       return {
         user,
         projects,
         pendingTotal: projects.reduce((n, p) => n + p.pending, 0),
-        tools: detectClients(host).map((c) => {
-          const hooks = HOOK_INSTALLERS[c.id as HookClient];
-          const hs = hooks?.status(host);
-          return {
-            id: c.id,
-            label: c.label,
-            registered: c.status(host).registered,
-            autoSave: hs ? { installed: hs.installed, ...(hs.problem ? { problem: hs.problem } : {}), lastSeen: seen[c.id]?.at ?? null } : null,
-          };
-        }),
+        tools: probeTools(query.get("fresh") === "1").map((t) => ({
+          id: t.id,
+          label: t.label,
+          registered: t.registered,
+          autoSave: t.hooks ? { ...t.hooks, lastSeen: seen[t.id]?.at ?? null } : null,
+        })),
       };
     }),
 

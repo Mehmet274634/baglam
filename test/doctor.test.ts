@@ -161,6 +161,28 @@ describe("baglam doctor", () => {
       fix: "baglam setup",
     });
   });
+
+  it("doctor runs MCP handshakes concurrently while keeping deterministic client order", async () => {
+    const { host, dbPath, project } = machine();
+    mkdirSync(join(host.home, ".codex"));
+    mkdirSync(join(host.home, ".gemini", "config"), { recursive: true });
+    writeFileSync(join(host.home, ".gemini", "config", ".migrated"), "");
+    runSetup(host, { confirm: () => true });
+
+    let active = 0;
+    let peak = 0;
+    const handshake = async () => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((r) => setTimeout(r, 120));
+      active--;
+      return null;
+    };
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake });
+    expect(peak).toBeGreaterThanOrEqual(3);
+    const connects = checks.filter((c) => c.name.endsWith(": connects")).map((c) => c.name);
+    expect(connects).toEqual(["Codex CLI: connects", "Antigravity: connects", "Cursor: connects"]);
+  });
 });
 
 describe("doctor: automatic saving", () => {

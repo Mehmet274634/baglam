@@ -2,6 +2,13 @@
 
 All notable changes to Bağlam. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **Instant panel updates:** `GET /api/overview` caches slow CLI tool probes (such as `claude mcp get`) for 30 s while still reading pending counts and hook activity live from SQLite, eliminating the ~1.5 s badge lag after approving or rejecting proposals (`?fresh=1` bypasses the cache).
+- **Faster `baglam doctor`:** MCP server handshakes now run concurrently across detected tools instead of sequentially (preserving deterministic output order).
+- **`baglam handoff` CLI:** also lists other branches with tasks in progress when the current branch has a live task.
+
 ## [1.0.0-rc.6] - 2026-11-21
 
 Automatic context injection through hooks, cross-platform reliability fixes (macOS/Linux/Windows), partial secret redaction, and init/doctor/panel upgrades. **Re-run `baglam setup` after upgrading** to install the new session-start hooks.

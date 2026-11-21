@@ -81,6 +81,16 @@ describe("baglam auto / handoff / review", () => {
     expect(out.join("\n")).toContain("Stripe checkout");
   });
 
+  it("handoff also lists other branches with tasks in progress when the current branch has one", () => {
+    store.checkpoint({ project: P, branch: "main", agent: "claude-code", goal: "Billing module" });
+    store.checkpoint({ project: P, branch: "feature/pdf", agent: "codex", goal: "Export PDF" });
+    expect(run(["handoff", "--branch", "feature/pdf"])).toBe(0);
+    const text = out.join("\n");
+    expect(text).toContain("Export PDF");
+    expect(text).toContain("Other branches with tasks in progress");
+    expect(text).toContain('main ("Billing module"');
+  });
+
   it("review, keep and undo", () => {
     const share = (title: string) =>
       store.approve(store.propose({ project: P, kind: "decision", title, body: `${title} body`, sourceAgent: "codex" }).id, "autonomous-mode", undefined, { auto: true, review: true });

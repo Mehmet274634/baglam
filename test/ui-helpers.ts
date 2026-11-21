@@ -21,14 +21,14 @@ export interface ApiHarness {
 }
 
 /** Start a panel with the real API on a temp database and sign in. */
-export async function apiHarness(): Promise<ApiHarness> {
+export async function apiHarness(customHost?: TestHost): Promise<ApiHarness> {
   const dir = mkdtempSync(join(tmpdir(), "baglam-api-"));
   const staticDir = join(dir, "static");
   mkdirSync(staticDir);
   writeFileSync(join(staticDir, "index.html"), "<!doctype html>");
   const dbPath = join(dir, "t.db");
   const store = new ContextStore(dbPath);
-  const host = testHost();
+  const host = customHost ?? testHost();
   const panel = await startPanel({ store, user: "human:ev", host, dbPath, staticDir, routes: panelApi });
   const raw = (method: string, path: string, headers: Record<string, string>, body?: unknown) =>
     new Promise<{ status: number; headers: Record<string, unknown>; text: string }>((resolve, reject) => {

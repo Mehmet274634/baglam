@@ -139,57 +139,70 @@ export async function runDoctor(opts: {
   }
 
   const seen = hookSeenReadOnly(opts.dbPath);
+  const clientSlots: { base: Check[]; connect?: Promise<Check> }[] = [];
   for (const client of detectClients(host)) {
+    const base: Check[] = [];
     const hooks = HOOK_INSTALLERS[client.id as HookClient];
-    if (hooks) checks.push(autoSaveCheck(client.id, client.label, hooks.status(host), seen[client.id]));
+    if (hooks) base.push(autoSaveCheck(client.id, client.label, hooks.status(host), seen[client.id]));
     const s = client.status(host);
     const pointsHere = !!s.entry?.args?.some((a) => samePath(a, host.cliPath));
     if (s.problem) {
-      checks.push({ name: `${client.label}: registered`, ok: false, detail: s.problem, fix: "baglam setup" });
+      base.push({ name: `${client.label}: registered`, ok: false, detail: s.problem, fix: "baglam setup" });
+      clientSlots.push({ base });
       continue;
     }
     if (!s.registered) {
-      checks.push({ name: `${client.label}: registered`, ok: false, detail: "Bağlam is not connected to it", fix: "baglam setup" });
+      base.push({ name: `${client.label}: registered`, ok: false, detail: "Bağlam is not connected to it", fix: "baglam setup" });
+      clientSlots.push({ base });
       continue;
     }
     if (!pointsHere) {
-      checks.push({
+      base.push({
         name: `${client.label}: registered`,
         ok: false,
         detail: `points at ${s.entry?.args?.join(" ") ?? "an unknown command"}, not this install`,
         fix: "baglam setup",
       });
+      clientSlots.push({ base });
       continue;
     }
     if (s.entry?.command && looksAbs(s.entry.command) && !samePath(s.entry.command, host.nodePath)) {
-      checks.push({
+      base.push({
         name: `${client.label}: registered`,
         ok: false,
         detail: `points at a different Node (${s.entry.command}), not this install`,
         fix: "baglam setup",
       });
+      clientSlots.push({ base });
       continue;
     }
     const agentId = s.entry?.env?.BAGLAM_AGENT;
     if (!agentId) {
       // Added by hand: the server then runs under the tool's own client name as an unverified agent
       // (no trust rules or autonomous mode, and it may not change a task the hooks saved).
-      checks.push({
+      base.push({
         name: `${client.label}: registered`,
         ok: false,
         detail: "added without BAGLAM_AGENT, so it runs as an unverified agent under the tool's own name",
         fix: "baglam setup",
       });
+      clientSlots.push({ base });
       continue;
     }
-    checks.push({ name: `${client.label}: registered`, ok: true, detail: `as ${agentId}` });
-    const error = await handshake(s.entry!);
-    checks.push({
+    base.push({ name: `${client.label}: registered`, ok: true, detail: `as ${agentId}` });
+    // Start MCP handshakes concurrently so doctor finishes in ~1-2 s instead of scaling linearly with tool count.
+    const connect = handshake(s.entry!).then((error): Check => ({
       name: `${client.label}: connects`,
       ok: !error,
       detail: error ?? "server starts and answers",
       fix: error ? "baglam setup, then restart the app" : undefined,
-    });
+    }));
+    clientSlots.push({ base, connect });
+  }
+  const connected = await Promise.all(clientSlots.map((slot) => slot.connect ?? Promise.resolve(null)));
+  for (let i = 0; i < clientSlots.length; i++) {
+    checks.push(...clientSlots[i].base);
+    if (connected[i]) checks.push(connected[i]!);
   }
 
   if (isUnsafeProjectDir(opts.cwd)) {

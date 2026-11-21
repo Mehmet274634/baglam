@@ -216,4 +216,40 @@ describe("panel API: automatic saving", () => {
       expect(src, type).toContain(`"history.${type}":`);
     }
   });
+
+  it("overview caches slow tool probes (like claude mcp get) while keeping pendingTotal and hook lastSeen live", async () => {
+    const { testHost } = await import("./helpers.js");
+    let claudeCalls = 0;
+    const host = testHost({
+      commands: {
+        claude: (args) => {
+          if (args[1] === "get") claudeCalls++;
+          return { code: 0, stdout: `Command: C:/node/node.exe\nArgs: C:/baglam/dist/cli.js mcp\nBAGLAM_AGENT=claude-code\n` };
+        },
+      },
+    });
+    const h2 = await apiHarness(host);
+    try {
+      h2.store.touchProject({ key: A, name: "app", dir: "c:/work/app" });
+      const p = h2.store.propose({ project: A, kind: "fact", title: "T", body: "B", sourceAgent: "codex" });
+      const r1 = await h2.call("GET", "/api/overview");
+      expect(r1.json.pendingTotal).toBe(1);
+      expect(r1.json.tools[0].registered).toBe(true);
+      expect(claudeCalls).toBe(1);
+
+      // Approving + new hook_seen updates immediately without re-spawning claude CLI.
+      await h2.call("POST", `/api/entries/${p.id}/approve`, {});
+      h2.store.noteHookSeen("claude-code", "prompt");
+      const r2 = await h2.call("GET", "/api/overview");
+      expect(r2.json.pendingTotal).toBe(0);
+      expect(r2.json.tools[0].autoSave.lastSeen).toBeTypeOf("number");
+      expect(claudeCalls).toBe(1);
+
+      // Explicit ?fresh=1 bypasses the cache.
+      await h2.call("GET", "/api/overview?fresh=1");
+      expect(claudeCalls).toBe(2);
+    } finally {
+      await h2.close();
+    }
+  });
 });

@@ -412,7 +412,8 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
           return 0;
           });
         }
-        print(formatHandoff({ live, git: null, otherBranches: [] }, 20_000));
+        const otherBranches = ctx.store.listHandoffs(project).filter((h) => h.branch !== branch && h.status !== "done");
+        print(formatHandoff({ live, git: null, otherBranches }, 20_000));
         return 0;
       }
       case "review": {
