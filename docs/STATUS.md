@@ -2,8 +2,8 @@
 
 > **Türkçe özet:** Bağlam, yapay zekâ kod ajanlarına (Claude Code, Codex, Cursor, Gemini, Antigravity,
 > VS Code · Copilot, Windsurf) ortak ve insan onaylı bir hafıza ile ajanlar arası devir veren yerel bir
-> MCP sunucusu, CLI ve paneldir. npm'de **1.0.0-rc.6** yayında (otomatik bağlam enjeksiyonu, çapraz platform sağlamlaştırma, kısmi gizli bilgi maskelemesi, init/doctor/panel geliştirmeleri, 2026-11-21). Site Vercel'de canlı. Sıradaki
-> büyük adımlar: arkadaşının Mac'inde test, ardından 1.0.0 sürümü. Son durum raporu: [rapor-2026-11-20.tr.md](rapor-2026-11-20.tr.md). Tasarım işleri için
+> MCP sunucusu, CLI ve paneldir. npm'de **1.0.0-rc.6** yayında; canlı gerçeklik denetimi tamamlandı ve denetim sonrası 3 hız/UX düzeltmesi `main`'de (`d22a016`, 513 test, 7/7 CI yeşil). Site Vercel'de canlı. Sıradaki
+> büyük adımlar: arkadaşının Mac'inde test, ardından 1.0.0 sürümü. Canlı denetim ve son durum raporu: [audit-2026-11-21.md](audit-2026-11-21.md). Tasarım işleri için
 > [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) dosyasına bak.
 
 Last updated: 2026-11-21. Read this first when you pick up work on the product (MCP server, CLI, hooks,
@@ -34,10 +34,13 @@ Hook installers: Claude `~/.claude/settings.json`, Codex `~/.codex/hooks.json` (
 `/hooks`), Gemini `~/.gemini/settings.json`, Cursor `~/.cursor/hooks.json`, Antigravity
 `~/.gemini/config/hooks.json`, VS Code `~/.copilot/hooks/baglam.json`.
 
-Verified with real tools: Claude Code (headless), Codex (after `/hooks` trust), Cursor and Antigravity 2
-(MCP tools, checkpoints, proposals, automatic saving of requests and edited files; 2026-11-19 run); the npm
-package installs and runs from the registry. Not yet verified with the real tool: Gemini CLI, VS Code,
-Windsurf automatic saving, and Cursor's copies of Claude Code hooks being ignored.
+Verified with real tools: Antigravity 2, Codex CLI (v0.167.0, including live `SessionStart` context
+injection with zero instruction files and zero MCP calls), Cursor (including live confirmation that
+Cursor's copies of Claude Code hooks are ignored), Claude Code (hooks fired cleanly; model reply awaits
+weekly quota reset 2026-11-24), and live `baglam ui` browser audit (2026-11-21; full details in
+[audit-2026-11-21.md](audit-2026-11-21.md)). The npm package installs and runs cleanly from the registry.
+Not yet verified with the real tool: macOS desktop apps (friend's test), Linux desktop clipboard,
+Gemini CLI (account tier blocked), VS Code Copilot, and Windsurf live hooks.
 
 ## Commands
 
@@ -69,34 +72,27 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 
 ## Next steps (in order)
 
-0. **1.0.0-rc.6 is published** (2026-11-21): automatic context injection via `SessionStart`/`sessionStart`
-   and cross-agent prompt hooks (`additionalContext` / `additional_context`), Linux `wl-copy`/`xclip`
-   stdio hang fix, `history.imported` panel i18n, export/import `request` + `autoCapture: false` fidelity,
-   higher git priority in handoff brief, partial secret redaction + expanded secret patterns, `init` for
-   VS Code Copilot & Windsurf + `--local` + `--name` + no-tools warning, `doctor` full instruction scan
-   + stale Node path detection, `~/.claude.json` backup + Node path check, Settings hook health &
-   ContinueCard full request + checkpoint history, website security headers & honest panel copy.
-   Still open for 1.0.x / 1.1: panel `+ Add record`, panel export/import, `baglam ui` surviving a closed
-   tab; path/topic-aware briefs, Turkish token estimate, `handoff move <branch>`, agents proposing to
-   retire a record, `og:image` + `sitemap.xml` + `robots.txt` on custom domain.
-1. **Confirm on the owner's machine** that Cursor's copies of Claude Code hooks are ignored when Cursor's
-   quota is back (Cursor's payload to them should carry `cursor_version` / `workspace_roots`; taken
-   from a Cursor forum report and Bağlam's own Cursor payloads, not yet recorded live).
-2. **Mac test** with the owner's friend: `npm i -g baglam`, `baglam setup`, `baglam init`, a Claude
+0. **1.0.0-rc.6 is published & live-audited** (2026-11-21, see [audit-2026-11-21.md](audit-2026-11-21.md)):
+   automatic context injection via `SessionStart`/`sessionStart` and cross-agent prompt hooks, Linux
+   clipboard hang fix, partial secret redaction + expanded secret patterns, `init` for Copilot/Windsurf +
+   `--local` + `--name`, `doctor` full instruction scan + stale Node detection, panel hook health + full
+   request + checkpoint history, website security headers. Post-audit polish landed on `main` (`d22a016`,
+   `[Unreleased]` for `1.0.0`): cached `/api/overview` tool probes (<5 ms badge updates), parallel
+   `baglam doctor` handshakes (7.35 s → 3.17 s on 6 tools), and other active branches shown in
+   `baglam handoff` CLI.
+1. **Mac test** with the owner's friend: `npm i -g baglam`, `baglam setup`, `baglam init`, a Claude
    Code → Codex/Cursor handoff, `baglam doctor`. Fix whatever the Mac run shows. Turkish step-by-step
    list for the tester: [mac-test-checklist.tr.md](mac-test-checklist.tr.md). Watch for: apps opened
-   from the Dock (Cursor, VS Code) get launchd's PATH; rc.4 starts hooks with the absolute Node path
-   off Windows, and step 9b checks it. The tester should install rc.6 or newer. The friend's review of
-   the list (2026-11-21) led to: no `sudo` first (user-level npm prefix instead), comparing
-   `baglam --version` with `npm view baglam version`, a hint for `claude: command not found`, the
-   reason for opening Cursor from the Dock, and step 9c to find which link broke when "devam et"
-   fails. Rejected from that review: a `claude-code` command (it does not exist) and dropping the Dock
-   requirement (it is the point of the test). Open question it raised: nothing gives the second agent
-   the task at session start; it has to call Bağlam itself. If the Mac run shows the agent knows only
-   when asked explicitly (9c step 1), move the 1.1 hook injection (additionalContext) into 1.0.x.
-3. **1.0.0 release** after the Mac test: changelog, version bump, staged publish (owner approves).
-   CI must be fully green first (rc.6 at `01cbd66`: all six jobs and the site job passed, macOS included).
-4. Custom domain if `vercel.app` stays blocked for Turkish visitors.
+   from the Dock (Cursor, VS Code) get launchd's PATH; rc.4+ starts hooks with the absolute Node path
+   off Windows, and step 9b checks it. The tester should install rc.6 or newer.
+2. **1.0.0 release** after the Mac test: changelog (promote `[Unreleased]` + Mac fixes), version bump,
+   staged publish (owner approves), GitHub Release tag `v1.0.0`. CI must be fully green first
+   (`d22a016`: all 6 OS×Node jobs and the site job passed, 513 tests).
+3. **Post-1.0.0 roadmap (core first, custom domain deferred until product matures):**
+   - `1.0.x` panel completeness: `+ Add record`, `Supersede/Replace`, panel export/import, tag/audience editing.
+   - `1.1` smart memory: folder/path-scoped records (`paths`), `propose_retire`, `baglam handoff move <branch>`, Turkish token calibration.
+   - `1.2` multi-machine & zero-server team sync: `.baglam/shared.json` (`baglam sync`), `baglam status`, Turkish CLI (`BAGLAM_LANG=tr`).
+   - Later: custom domain + `og:image` + `sitemap.xml` + `robots.txt`, 30 s demo video, Homebrew/winget.
 
 ## In 1.0.0-rc.4 (see CHANGELOG)
 
