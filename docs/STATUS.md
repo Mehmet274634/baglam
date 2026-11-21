@@ -2,11 +2,11 @@
 
 > **Türkçe özet:** Bağlam, yapay zekâ kod ajanlarına (Claude Code, Codex, Cursor, Gemini, Antigravity,
 > VS Code · Copilot, Windsurf) ortak ve insan onaylı bir hafıza ile ajanlar arası devir veren yerel bir
-> MCP sunucusu, CLI ve paneldir. npm'de **1.0.0-rc.4** yayında; **1.0.0-rc.5** hazır (dış inceleme düzeltmeleri). Site Vercel'de canlı. Sıradaki
+> MCP sunucusu, CLI ve paneldir. npm'de **1.0.0-rc.5** yayında (dış inceleme düzeltmeleri, 2026-11-21). Site Vercel'de canlı. Sıradaki
 > büyük adımlar: arkadaşının Mac'inde test, ardından 1.0.0 sürümü. Son durum raporu: [rapor-2026-11-20.tr.md](rapor-2026-11-20.tr.md). Tasarım işleri için
 > [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) dosyasına bak.
 
-Last updated: 2026-11-20. Read this first when you pick up work on the product (MCP server, CLI, hooks,
+Last updated: 2026-11-21. Read this first when you pick up work on the product (MCP server, CLI, hooks,
 panel logic). Design and website work lives in [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md).
 
 ## Working with the owner
@@ -18,7 +18,7 @@ panel logic). Design and website work lives in [DESIGN-SYSTEM.md](DESIGN-SYSTEM.
   creating accounts or anything outward-facing; pushing `main` deploys the website (see below).
 - No fabricated social proof (no fake users, stars or quotes).
 
-## What exists (1.0.0-rc.5, prepared)
+## What exists (1.0.0-rc.5, on npm)
 
 | Part | Where | What it does |
 |---|---|---|
@@ -51,11 +51,14 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 
 ## Release and hosting
 
-- npm: package `baglam`, `latest` = `next` = `1.0.0-rc.4` (2026-11-20). How a release goes out: the
-  owner runs `npm login`, `npm publish` (from the repo root; `publishConfig.tag` is `next`) and
-  `npm dist-tag add baglam@<version> latest`. npm then shows the version as "Validating" (its own
-  automated review) for a few minutes; nothing to approve, it goes live by itself and the tags follow.
-  Check with `npm view baglam dist-tags` and a clean `npm i -g baglam@latest --prefix <temp>`. Licence MIT, author "Bağlam contributors".
+- npm: package `baglam`, `latest` = `next` = `1.0.0-rc.5` (2026-11-21, CI green at `67fba56`). How a
+  release goes out: the owner runs `npm login`, `npm publish` (from the repo root; `publishConfig.tag`
+  is `next`) and, once the version shows up, `npm dist-tag add baglam@<version> latest`. Each command
+  asks for browser authentication. npm shows the version as "Validating" for a few minutes; nothing to
+  approve. Give the owner the commands one per block: pasting a second command onto an unfinished line
+  once created a stray `latestnpm` tag (removed with `npm dist-tag rm baglam latestnpm`). Check with
+  `npm view baglam dist-tags` and a clean `npm i -g baglam@latest --prefix <temp>`. Licence MIT, author
+  "Bağlam contributors".
 - GitHub: `Mehmet274634/baglam`, branch `main`. Remote URL carries the user name
   (`https://Mehmet274634@github.com/...`) because a cached credential belongs to another account.
 - CI (`.github/workflows/ci.yml`): macOS, Linux, Windows × Node 22/24 plus a site job; the perf step
@@ -66,7 +69,7 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 
 ## Next steps (in order)
 
-0. **Publish 1.0.0-rc.5** (prepared 2026-11-20): fixes from an outside review (Gemini): Turkish İ/ı in
+0. **1.0.0-rc.5 is published** (2026-11-21): fixes from an outside review (Gemini): Turkish İ/ı in
    search and look-alikes, project delete leaving tasks, brief cut-off, Windows/Wayland clipboard, later
    detailed requests, Antigravity undo. Still open from that review, for 1.0.x: `init` writes no VS Code
    Copilot (`.github/copilot-instructions.md`) or Windsurf (`.windsurf/rules/`) instructions; `doctor`
@@ -82,9 +85,16 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
    Code → Codex/Cursor handoff, `baglam doctor`. Fix whatever the Mac run shows. Turkish step-by-step
    list for the tester: [mac-test-checklist.tr.md](mac-test-checklist.tr.md). Watch for: apps opened
    from the Dock (Cursor, VS Code) get launchd's PATH; rc.4 starts hooks with the absolute Node path
-   off Windows, and step 9b checks it. The tester should install rc.4 or newer.
+   off Windows, and step 9b checks it. The tester should install rc.5 or newer. The friend's review of
+   the list (2026-11-21) led to: no `sudo` first (user-level npm prefix instead), comparing
+   `baglam --version` with `npm view baglam version`, a hint for `claude: command not found`, the
+   reason for opening Cursor from the Dock, and step 9c to find which link broke when "devam et"
+   fails. Rejected from that review: a `claude-code` command (it does not exist) and dropping the Dock
+   requirement (it is the point of the test). Open question it raised: nothing gives the second agent
+   the task at session start; it has to call Bağlam itself. If the Mac run shows the agent knows only
+   when asked explicitly (9c step 1), move the 1.1 hook injection (additionalContext) into 1.0.x.
 3. **1.0.0 release** after the Mac test: changelog, version bump, staged publish (owner approves).
-   CI must be fully green first (rc.4 at `a0faa51`: all six jobs ran and passed, macOS included).
+   CI must be fully green first (rc.5 at `67fba56`: all six jobs and the site job passed, macOS included).
 4. Custom domain if `vercel.app` stays blocked for Turkish visitors.
 
 ## In 1.0.0-rc.4 (see CHANGELOG)

@@ -1,8 +1,8 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to Bağlam. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [1.0.0-rc.5] - 2026-11-20
+## [1.0.0-rc.5] - 2026-11-21
 
 Fixes from an outside code review. Schema v8 (automatic backup and upgrade; the search index is rebuilt once).
 
