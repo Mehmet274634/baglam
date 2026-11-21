@@ -29,16 +29,24 @@ node -v
 ```
 npm i -g baglam
 ```
-- "EACCES" / "permission denied" hatası çıkarsa şunu yaz; Mac'in kendi şifreni ister (yazarken ekranda
-  görünmez, normal):
+- "EACCES" / "permission denied" hatası çıkarsa `sudo` **kullanma**; npm'in global klasörünü kendi
+  kullanıcı klasörüne taşı. Şu dört satırı tek tek yaz, sonra kurulumu tekrarla:
   ```
-  sudo npm i -g baglam
+  mkdir -p ~/.npm-global
+  npm config set prefix ~/.npm-global
+  echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> ~/.zshrc
+  source ~/.zshrc
+  npm i -g baglam
   ```
+  (nvm, fnm veya Homebrew ile Node kurduysan bu hatayı zaten görmezsin.) `sudo npm i -g baglam` yalnızca
+  son çare; o zaman sonraki güncelleme ve kaldırmalarda da `sudo` gerekir.
 Sonra:
 ```
 baglam --version
+npm view baglam version
 ```
-- **Beklenen:** `1.0.0-rc.4` veya daha yeni bir sürüm 📸
+- **Beklenen:** iki satırda da **aynı** sürüm. Sürüm `1.0.0-rc.4` veya daha yeni olmalı (ör. `1.0.0-rc.5`,
+  `1.0.0`); daha yeni bir sürüm görmek normal. 📸
 
 ## 4. Araçlara bağla
 ```
@@ -80,6 +88,9 @@ baglam doctor
 cd ~/baglam-test
 claude
 ```
+- `claude: command not found` çıkarsa Claude Code kurulu değil ya da Terminal onu bulamıyor. Kurulum için:
+  <https://docs.anthropic.com/en/docs/claude-code/setup>. Kurduktan sonra Terminal'i kapatıp yeniden aç.
+
 Claude Code açılınca şunu yaz:
 
 > Tek bir HTML dosyası olarak basit bir yapılacaklar listesi uygulaması yaz. Şimdilik sadece ekleme
@@ -93,6 +104,9 @@ baglam handoff
 ```
 - **Beklenen:** yapılacaklar uygulamasıyla ilgili bir görev (başlığı senin isteğin veya Claude'un
   özeti olabilir) ve değişen dosya adı (ör. `index.html`). 📸
+- Bu komut bir şey kaydetmez, sadece Claude Code çalışırken **otomatik** kaydedileni gösterir. "No task in
+  progress" yazıyorsa otomatik kayıt çalışmamış demektir: 11. adımdaki komutu da çalıştır ve ikisinin
+  ekran görüntüsünü al. Bu, bozukluğun nerede olduğunu gösteren değerli bir bulgu; 9. adıma yine de geç.
 
 ## 9. Başka bir ajanla devam et ("devir")
 
@@ -108,17 +122,20 @@ codex
 
 > devam et
 
-- **Beklenen:** Codex, yapılacaklar uygulamasından bahsetmeden bilmeli ve **silme özelliğini** eklemeye
-  girişmeli. 📸 (Codex'in ilk cevabı)
+- **Hedef:** Codex, sen anlatmadan yapılacaklar uygulamasını bilmeli ve **silme özelliğini** eklemeye
+  girişmeli. 📸 (Codex'in ilk cevabı) Bilmiyorsa aşağıdaki **9c**'ye geç.
 
 ### 9b. Cursor varsa (Mac için en önemli adım)
-- Cursor'ı **Dock'tan veya Uygulamalar'dan** aç (Terminal'den değil).
+- Cursor'ı **Dock'tan veya Uygulamalar'dan** aç; bu adımda Terminal'deki `cursor .` komutunu kullanma.
+  - **Neden:** Mac'te Dock'tan açılan uygulamalar Terminal'in ayarlarını (PATH) görmez. Çoğu kullanıcı
+    Cursor'ı böyle açar ve Bağlam'ın bu zor durumda da çalıştığını görmek istiyoruz. `cursor .` ile açmak
+    da çalışır ama bu durumu test etmez. İstersen Dock testinden sonra onu da ayrıca dene.
 - File → Open Folder → `baglam-test` klasörünü seç.
 - Sohbet penceresine şunu yaz:
 
 > devam et
 
-- **Beklenen:** Cursor görevi bilmeli. 📸
+- **Hedef:** Cursor görevi bilmeli. 📸 Bilmiyorsa aşağıdaki **9c**'ye geç.
 - Cursor bir dosyayı değiştirdikten sonra Terminal'e dön:
   ```
   cd ~/baglam-test
@@ -126,6 +143,16 @@ codex
   ```
 - **Bak:** "Cursor: auto-save" satırında **"last automatic save …"** (en son ne zaman otomatik
   kaydettiği) yazıyor mu? Hâlâ "no automatic save yet" yazıyorsa bu çok değerli bir bulgu. 📸
+
+### 9c. Ajan görevi bilmiyorsa: hangi halka koptu?
+"devam et" bir zincire dayanır: Claude Code'da otomatik kayıt → Bağlam veritabanı → ikinci ajanın Bağlam'a
+bağlanıp oraya bakması. Ajan bilmiyorsa bu "Bağlam bozuk" anlamına gelmeyebilir. Sırayla dene ve her
+birinin ekran görüntüsünü al:
+1. Ajana şunu yaz: **"Bağlam'daki devam eden görevi getir (context_handoff aracını kullan)."**
+   - Şimdi biliyorsa: bağlantı çalışıyor, ajan sadece kendiliğinden bakmadı. Bunu not et.
+   - "Böyle bir araç yok" diyorsa: ajan Bağlam'a bağlanmamış. 2. maddeye geç.
+2. Terminal'de `cd ~/baglam-test` ve `baglam doctor`. Bu ajanın satırında ✗ veya uyarı var mı?
+3. Terminal'de `baglam handoff`. Görev görünmüyorsa sorun ilk halkada (8. adımdaki kayıt); 11. adıma bak.
 
 ## 10. Paneli aç
 ```
@@ -149,7 +176,8 @@ cat ~/.baglam/hook-errors.log
 1. Bütün 📸 ekran görüntüleri (adım numarasıyla birlikte, ör. "adım 7").
 2. Mac modeli ve macOS sürümü ( menüsü → Bu Mac Hakkında).
 3. Hangi araçlar kullanıldı (Claude Code, Codex, Cursor) ve hangi adımda takılındı.
-4. Kısaca: "devam et" deyince ikinci ajan işi gerçekten bildi mi?
+4. Kısaca: "devam et" deyince ikinci ajan işi gerçekten bildi mi? Bilmediyse 9c'de hangi maddede ne oldu?
+5. Node'u nasıl kurdun (nodejs.org, Homebrew, nvm…) ve 3. adımda izin hatası aldın mı?
 
 ## İsteğe bağlı: temizlik
 Denemeden sonra her şeyi kaldırmak için:
