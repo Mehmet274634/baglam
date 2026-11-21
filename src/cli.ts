@@ -37,7 +37,8 @@ const USAGE = `Usage: baglam <command> [options]
 
 Get started:
   setup [--yes] [--dry-run] [--undo]  Connect Bağlam to every AI tool installed on this machine
-  init [--here] [--undo]              Prepare this folder: project id + instructions for agents
+  init [--name n] [--local] [--here] [--undo]
+                                      Prepare this folder: project id + instructions for agents
   ui [--port n] [--no-open]           Open the review panel in your browser
   doctor                              Check that everything is connected, with fixes
 
@@ -84,7 +85,8 @@ Environment:
   BAGLAM_AGENT         agent id (set by setup for each tool)
   BAGLAM_USER          name recorded for your approvals (default human:<os user>)
   BAGLAM_FLOOD_LIMIT   pending proposals allowed per agent (default 20)
-  BAGLAM_BRIEF_BUDGET  token budget of context_brief (default 2000)`;
+  BAGLAM_BRIEF_BUDGET  token budget of context_brief (default 2000)
+  BAGLAM_HOOK_INJECT   set to 0 to disable automatic context injection in hooks`;
 
 export interface CliContext {
   store: ContextStore;
@@ -149,6 +151,8 @@ export function runCli(argv: string[], ctx: CliContext): number | Promise<number
         "dry-run": { type: "boolean" },
         undo: { type: "boolean" },
         here: { type: "boolean" },
+        local: { type: "boolean" },
+        name: { type: "string" },
         branch: { type: "string" },
         history: { type: "boolean" },
         copy: { type: "boolean" },
@@ -493,11 +497,24 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
       case "init": {
         const host = ctx.host ?? realHost();
         const dir = o.project ?? process.cwd();
-        const r = runInit(dir, { store: ctx.store, host, undo: o.undo, here: o.here });
+        const r = runInit(dir, { store: ctx.store, host, undo: o.undo, here: o.here, local: o.local, name: o.name });
         print(`Project: ${r.project.name}  (id ${r.project.key})`);
         print(`Folder:  ${r.project.dir}`);
         if (r.moved) print(`Moved ${r.moved} existing record(s) to this project id.`);
         for (const c of r.changes) print(formatChange(c, basename(c.file)));
+        if (r.excluded?.length) print(`Added to .git/info/exclude (local only): ${r.excluded.join(", ")}`);
+        if (!o.undo) {
+          const connected = detectClients(host).some((c) => {
+            try {
+              return c.status(host).registered;
+            } catch {
+              return false;
+            }
+          });
+          if (!connected) {
+            print('\nNote: no AI tools are connected to Bağlam yet. Run "baglam setup" to connect Claude Code, Codex, Cursor, etc.');
+          }
+        }
         if (!o.undo && !insideGitRepo(r.project.dir)) {
           print(
             "\nNote: this folder is not a git repository. Handoffs between agents work much better with git: Bağlam then\n" +
@@ -506,6 +523,7 @@ Restart these apps so they load the change.${failed ? ` ${failed} tool(s) need a
           );
         }
         if (o.undo) print("\nInstructions removed. The project id (.baglam/project.json) is kept so its history stays linked.");
+        else if (o.local) print("\nAgents in this folder will now load the shared context at the start of each task (kept local via .git/info/exclude).");
         else print("\nAgents in this folder will now load the shared context at the start of each task.\nCommit .baglam/project.json so the project keeps its identity everywhere.");
         return 0;
       }

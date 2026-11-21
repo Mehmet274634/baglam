@@ -47,7 +47,7 @@ export function hookCommand(h: HostEnv, client: HookClient, event: HookEvent, sh
   return shell === "powershell" ? `& ${line}` : line;
 }
 
-const OURS = new RegExp(String.raw`(?:"([^"]*hook\.js)"|(\S*hook\.js))\s+(?:${HOOK_CLIENTS.join("|")})\s+(?:prompt|edit|stop)\b`);
+const OURS = new RegExp(String.raw`(?:"([^"]*hook\.js)"|(\S*hook\.js))\s+(?:${HOOK_CLIENTS.join("|")})\s+(?:start|prompt|edit|stop)\b`);
 
 /**
  * Our command shape, and the hook.js it runs is Bağlam's: its package (dist/../package.json) is
@@ -219,6 +219,7 @@ export const HOOK_INSTALLERS: Record<HookClient, HookInstaller> = {
     ownFile: false,
     file: (h) => join(h.home, ".claude", "settings.json"),
     entries: (h) => ({
+      SessionStart: [group(hookCommand(h, "claude-code", "start", "posix"))],
       UserPromptSubmit: [group(hookCommand(h, "claude-code", "prompt", "posix"))],
       PostToolUse: [group(hookCommand(h, "claude-code", "edit", "posix"), {}, "Write|Edit|MultiEdit|NotebookEdit")],
       Stop: [group(hookCommand(h, "claude-code", "stop", "posix"))],
@@ -238,6 +239,7 @@ export const HOOK_INSTALLERS: Record<HookClient, HookInstaller> = {
         timeout: TIMEOUT_S,
       });
       return {
+        SessionStart: [{ hooks: [handler("start")] }],
         UserPromptSubmit: [{ hooks: [handler("prompt")] }],
         PostToolUse: [{ matcher: "apply_patch|Edit|Write", hooks: [handler("edit")] }],
         Stop: [{ hooks: [handler("stop")] }],
@@ -258,6 +260,7 @@ export const HOOK_INSTALLERS: Record<HookClient, HookInstaller> = {
         timeout: TIMEOUT_S * 1000,
       });
       return {
+        SessionStart: [{ matcher: "*", hooks: [handler("start")] }],
         BeforeAgent: [{ matcher: "*", hooks: [handler("prompt")] }],
         AfterTool: [{ matcher: "write_file|replace", hooks: [handler("edit")] }],
         AfterAgent: [{ matcher: "*", hooks: [handler("stop")] }],
@@ -275,7 +278,12 @@ export const HOOK_INSTALLERS: Record<HookClient, HookInstaller> = {
       // The Cursor desktop app runs hook commands through PowerShell on Windows.
       const shell: Shell = win(h) ? "powershell" : "posix";
       const handler = (event: HookEvent): Json => ({ command: hookCommand(h, "cursor", event, shell), timeout: TIMEOUT_S });
-      return { beforeSubmitPrompt: [handler("prompt")], afterFileEdit: [handler("edit")], afterAgentResponse: [handler("stop")] };
+      return {
+        sessionStart: [handler("start")],
+        beforeSubmitPrompt: [handler("prompt")],
+        afterFileEdit: [handler("edit")],
+        afterAgentResponse: [handler("stop")],
+      };
     },
   }),
 
@@ -302,7 +310,12 @@ export const HOOK_INSTALLERS: Record<HookClient, HookInstaller> = {
     file: (h) => join(h.home, ".copilot", "hooks", "baglam.json"),
     entries: (h) => {
       const handler = (event: HookEvent): Json => ({ type: "command", command: hookCommand(h, "vscode", event, "posix"), timeoutSec: TIMEOUT_S });
-      return { userPromptSubmitted: [handler("prompt")], postToolUse: [handler("edit")], agentStop: [handler("stop")] };
+      return {
+        sessionStart: [handler("start")],
+        userPromptSubmitted: [handler("prompt")],
+        postToolUse: [handler("edit")],
+        agentStop: [handler("stop")],
+      };
     },
   }),
 };

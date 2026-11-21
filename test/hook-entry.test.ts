@@ -187,3 +187,102 @@ describe("hooks firing at the same time", () => {
     s.close();
   }, 60_000);
 });
+
+describe("automatic context injection through hooks", () => {
+  it("SessionStart / sessionStart injects live task and approved records in each tool's exact schema", () => {
+    const p = project({ git: true });
+    const s = p.open();
+    s.addApproved({ project: p.key, kind: "warning", title: "Never touch prod DB", body: "Read-only." }, "human:ev");
+    s.checkpoint({ project: p.key, branch: "main", agent: "claude-code", agentVerified: true, goal: "Todo app", next: ["Add delete button"] });
+    s.close();
+
+    const claude = JSON.parse(p.run("claude-code", "start", { cwd: p.dir }).stdout);
+    expect(claude.hookSpecificOutput.hookEventName).toBe("SessionStart");
+    expect(claude.hookSpecificOutput.additionalContext).toContain("Todo app");
+    expect(claude.hookSpecificOutput.additionalContext).toContain("Add delete button");
+    expect(claude.hookSpecificOutput.additionalContext).toContain("Never touch prod DB");
+
+    const codex = JSON.parse(p.run("codex", "start", { cwd: p.dir }).stdout);
+    expect(codex.hookSpecificOutput.hookEventName).toBe("SessionStart");
+    expect(codex.hookSpecificOutput.additionalContext).toContain("Todo app");
+
+    const gemini = JSON.parse(p.run("gemini-cli", "start", { cwd: p.dir }).stdout);
+    expect(gemini.hookSpecificOutput.hookEventName).toBe("SessionStart");
+    expect(gemini.hookSpecificOutput.additionalContext).toContain("Todo app");
+
+    const cursor = JSON.parse(p.run("cursor", "start", { workspace_roots: [p.dir] }).stdout);
+    expect(cursor.additional_context).toContain("Todo app");
+    expect(cursor.additional_context).toContain("Never touch prod DB");
+
+    const vscode = JSON.parse(p.run("vscode", "start", { cwd: p.dir }).stdout);
+    expect(vscode.hookSpecificOutput.additionalContext).toContain("Todo app");
+    expect(vscode.hookSpecificOutput.hookEventName).toBeUndefined();
+  });
+
+  it("SessionStart stays neutral when the project has no live task and no records", () => {
+    const p = project({ git: true });
+    expect(p.run("claude-code", "start", { cwd: p.dir })).toEqual({ stdout: "", code: 0 });
+    expect(p.run("cursor", "start", { workspace_roots: [p.dir] })).toEqual({ stdout: "{}", code: 0 });
+    expect(p.run("vscode", "start", { cwd: p.dir })).toEqual({ stdout: "{}", code: 0 });
+  });
+
+  it("prompt injects the live task when switching from another agent, without spamming the same agent or repeating after SessionStart", () => {
+    let now = 1_700_000_000_000;
+    const p = project({ git: true });
+    const runAt = (client: string, event: string, payload: unknown, env: NodeJS.ProcessEnv = {}) =>
+      runHook([client, event], { stdin: JSON.stringify(payload), env, dbPath: p.dbPath, cwd: p.dir, now: () => now });
+
+    // 1. Claude Code works on the task.
+    runAt("claude-code", "prompt", { cwd: p.dir, prompt: "Build a todo app\nAdd delete later." });
+    runAt("claude-code", "edit", { cwd: p.dir, tool_name: "Write", tool_input: { file_path: join(p.dir, "index.html") } });
+
+    // Same agent next prompt -> no injection spam.
+    now += 1000;
+    expect(runAt("claude-code", "prompt", { cwd: p.dir, prompt: "style the header" }).stdout).toBe("");
+
+    // 2. Codex already open (or without SessionStart): user types "devam et" -> injects Claude Code's task!
+    now += 1000;
+    const sw = runAt("codex", "prompt", { cwd: p.dir, prompt: "devam et" });
+    const parsed = JSON.parse(sw.stdout);
+    expect(parsed.hookSpecificOutput.hookEventName).toBe("UserPromptSubmit");
+    expect(parsed.hookSpecificOutput.additionalContext).toContain("Build a todo app");
+    expect(parsed.hookSpecificOutput.additionalContext).toContain("index.html");
+    expect(parsed.hookSpecificOutput.additionalContext).toContain("saved by claude-code");
+
+    // 3. Codex next prompt -> already owns the task -> no redundant injection.
+    now += 1000;
+    expect(runAt("codex", "prompt", { cwd: p.dir, prompt: "make buttons red" }).stdout).toBe("");
+
+    // 4. Fresh Claude Code session: SessionStart injects once, immediate first prompt does NOT double-inject!
+    now += 1000;
+    const freshStart = JSON.parse(runAt("claude-code", "start", { cwd: p.dir }).stdout);
+    expect(freshStart.hookSpecificOutput.additionalContext).toContain("Build a todo app");
+    now += 1000;
+    expect(runAt("claude-code", "prompt", { cwd: p.dir, prompt: "devam et" }).stdout).toBe("");
+
+    // 5. Cursor beforeSubmitPrompt ALWAYS stays {"continue":true} even when switching agents.
+    now += 1000;
+    expect(runAt("cursor", "prompt", { workspace_roots: [p.dir], prompt: "devam et" }).stdout).toBe('{"continue":true}');
+  });
+
+  it("BAGLAM_HOOK_INJECT=0 disables context injection while keeping auto-capture", () => {
+    const p = project({ git: true });
+    p.run("claude-code", "prompt", { cwd: p.dir, prompt: "Todo app" });
+    const r = runHook(["codex", "prompt"], {
+      stdin: JSON.stringify({ cwd: p.dir, prompt: "devam et" }),
+      env: { BAGLAM_HOOK_INJECT: "0" },
+      dbPath: p.dbPath,
+      cwd: p.dir,
+    });
+    expect(r).toEqual({ stdout: "", code: 0 });
+    const s = p.open();
+    expect(s.getHandoff(p.key, "main")?.requests.at(-1)).toBe("devam et");
+    s.close();
+  });
+
+  it("Cursor running Claude Code's SessionStart hook is ignored", () => {
+    const p = project({ git: true });
+    p.run("claude-code", "prompt", { cwd: p.dir, prompt: "Todo app" });
+    expect(p.run("claude-code", "start", { workspace_roots: [p.dir], cursor_version: "2.4.0" })).toEqual({ stdout: "", code: 0 });
+  });
+});

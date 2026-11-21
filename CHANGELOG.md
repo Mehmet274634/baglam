@@ -2,6 +2,24 @@
 
 All notable changes to Bağlam. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.0-rc.6] - 2026-11-21
+
+Automatic context injection through hooks, cross-platform reliability fixes (macOS/Linux/Windows), partial secret redaction, and init/doctor/panel upgrades. **Re-run `baglam setup` after upgrading** to install the new session-start hooks.
+
+### Added
+- **Automatic context injection via hooks:** `baglam setup` now installs `SessionStart` / `sessionStart` hooks for Claude Code, Codex CLI, Gemini CLI, Cursor and VS Code Copilot. When you open a new session (or switch directly from another agent in an already-open session), Bağlam injects the live task in progress and approved project memory automatically — so typing `"devam et"` / `"continue"` works without relying on the agent remembering to call MCP first. Set `BAGLAM_HOOK_INJECT=0` to disable injection while keeping auto-capture.
+- **`baglam init` improvements:** writes VS Code Copilot (`.github/copilot-instructions.md`) and Windsurf (`.windsurf/rules/baglam.md`) instructions when those tools are installed, adds `--local` (keeps Bağlam files untracked via `.git/info/exclude`) and `--name <name>`, and warns when no AI tools have been connected via `baglam setup` yet.
+- **Panel upgrades:** Settings now shows each tool's auto-save hook health and last activity time alongside MCP connection status; Continue cards now include collapsible views for the full multi-line request and recent checkpoint history.
+- **Broader secret detection and partial redaction:** detects npm (`npm_`), Hugging Face (`hf_`), Supabase (`sbp_`), Groq (`gsk_`), Resend (`re_`), Telegram bot tokens, `Bearer` tokens and `.env`-style secret assignments; automatic capture now redacts only the secret (`[redacted]`) instead of erasing the entire task plan.
+
+### Fixed
+- **Linux clipboard hang:** `baglam handoff --copy` no longer waits 60 seconds when `wl-copy` or `xclip` forks a background process holding stdout/stderr open.
+- **Export / import fidelity and privacy:** `baglam import` now restores a task's full multi-line `request`, `requests` list and auto-only state; `baglam export` / `import` now preserves per-project `autoCapture: false` so automatic saving never silently turns back on after restoring a backup.
+- **Panel history i18n:** added missing `history.imported` translations (`imported` / `içe aktardı`) and removed the unsafe type cast in `Records.tsx`.
+- **Handoff brief priority:** raised `Since then (git)` priority above `Notes`, `Files` and `Done` so real uncommitted changes survive tight size budgets.
+- **Cross-platform `claude` setup & `doctor` checks:** `baglam setup` backs up `~/.claude.json` before modifying it and updates Claude Code when the Node binary path changes (e.g. nvm/Homebrew upgrades); `baglam doctor` now checks every expected agent instruction file and flags stale Node binary paths.
+- **Website & docs:** removed the unimplemented "replace" claim from the panel page, added Vercel security headers and Twitter Card metadata, dropped unused `site/panel.jpg`, and corrected step 10 in the Turkish Mac test checklist.
+
 ## [1.0.0-rc.5] - 2026-11-21
 
 Fixes from an outside code review. Schema v8 (automatic backup and upgrade; the search index is rebuilt once).

@@ -74,20 +74,20 @@ This project uses Bağlam to share decisions between AI agents.
 
 After upgrading Bağlam, run `baglam init` again in each project to refresh this block; `baglam doctor` tells you when it is outdated.
 
-## Automatic saving hooks
+## Automatic saving & context injection hooks
 
-`baglam setup` also adds hooks that run `node <install>/dist/hook.js <tool> <prompt|edit|stop>`. Your own hooks in the same files are kept; `setup --undo` removes only Bağlam's.
+`baglam setup` also adds hooks that run `node <install>/dist/hook.js <tool> <start|prompt|edit|stop>`. Your own hooks in the same files are kept; `setup --undo` removes only Bağlam's.
 
 | Tool | File | Events |
 |---|---|---|
-| Claude Code | `~/.claude/settings.json` | UserPromptSubmit, PostToolUse (Write/Edit/MultiEdit/NotebookEdit), Stop |
-| Codex CLI | `~/.codex/hooks.json` | UserPromptSubmit, PostToolUse (apply_patch), Stop; trust them once with `/hooks` |
-| Gemini CLI | `~/.gemini/settings.json` | BeforeAgent, AfterTool (write_file/replace), AfterAgent |
-| Cursor | `~/.cursor/hooks.json` | beforeSubmitPrompt, afterFileEdit, afterAgentResponse |
+| Claude Code | `~/.claude/settings.json` | SessionStart, UserPromptSubmit, PostToolUse (Write/Edit/MultiEdit/NotebookEdit), Stop |
+| Codex CLI | `~/.codex/hooks.json` | SessionStart, UserPromptSubmit, PostToolUse (apply_patch/Edit/Write), Stop; trust them once with `/hooks` |
+| Gemini CLI | `~/.gemini/settings.json` | SessionStart, BeforeAgent, AfterTool (write_file/replace), AfterAgent |
+| Cursor | `~/.cursor/hooks.json` | sessionStart, beforeSubmitPrompt, afterFileEdit, afterAgentResponse |
 | Antigravity | `~/.gemini/config/hooks.json` (entry `baglam`) | PreInvocation, PostToolUse (file tools: `write_file`, `edit_file`, `create_file` with `Path`; older `write_to_file`, `replace_file_content` with `TargetFile`) |
-| VS Code | `~/.copilot/hooks/baglam.json` | userPromptSubmitted, postToolUse, agentStop |
+| VS Code | `~/.copilot/hooks/baglam.json` | sessionStart, userPromptSubmitted, postToolUse, agentStop |
 
-A hook never blocks or changes the tool: it always exits 0, prints only an empty or neutral reply, and does nothing in folders without `.baglam/project.json`. Problems are written to `~/.baglam/hook-errors.log`. Turn saving off per project with `baglam capture off`, or everywhere with `BAGLAM_AUTO_CAPTURE=0`.
+At session start (and when control switches from another agent on a prompt), hooks inject the live task in progress and approved project memory using each tool's structured context output. A hook never blocks the tool: it always exits 0 within 3 s and does nothing in folders without `.baglam/project.json`. Problems are written to `~/.baglam/hook-errors.log`. Turn saving off per project with `baglam capture off` or everywhere with `BAGLAM_AUTO_CAPTURE=0`; turn context injection off with `BAGLAM_HOOK_INJECT=0`.
 
 ## Undo
 

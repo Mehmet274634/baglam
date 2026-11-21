@@ -805,6 +805,12 @@ export class ContextStore {
     return Number(r?.autonomous ?? 0) === 1;
   }
 
+  /** Stored per-project settings as saved in the database (ignoring runtime env overrides). */
+  projectSettings(project: string): { autonomous: boolean; autoCapture: boolean } {
+    const r = this.db.prepare("SELECT autonomous, auto_capture FROM project_settings WHERE project = ?").get(project) as Row | undefined;
+    return { autonomous: Number(r?.autonomous ?? 0) === 1, autoCapture: Number(r?.auto_capture ?? 1) === 1 };
+  }
+
   /** Records autonomous mode shared before the owner looked at them, newest first. */
   unreviewed(project?: string): Entry[] {
     const rows = this.db

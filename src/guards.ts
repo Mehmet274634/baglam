@@ -6,13 +6,25 @@ export interface SecretFinding {
   masked: string;
 }
 
-/** A URL password that is clearly a placeholder in docs or config templates. */
-const PLACEHOLDER_PASSWORD = /^(?:\$\{[^}]*\}|\$[A-Z_][A-Z0-9_]*|<[^>]*>|\{[^}]*\}|\*+|password|passwd|pass|pwd|secret|changeme|xxx+)$/i;
+/** A value that is clearly a placeholder in docs or config templates. */
+const PLACEHOLDER_VALUE =
+  /^(?:\[redacted\]|\$\{[^}]*\}|\$[A-Z_][A-Z0-9_]*|<[^>]*>|\{[^}]*\}|\*+|password|passwd|pass|pwd|secret|token|apikey|api_key|changeme|example|placeholder|dummy|fake|test|none|null|true|false|xxx+|your[_-].*)$/i;
+
+interface SecretPattern {
+  type: string;
+  re: RegExp;
+  accept?: (m: RegExpMatchArray) => boolean;
+  /** Sub-range [offsetFromMatchStart, length] to replace when redacting (defaults to whole match). */
+  redactPart?: (m: RegExpMatchArray) => [number, number];
+}
 
 // Order matters: more specific patterns first; overlapping later matches are ignored.
 // `accept` filters out matches that only look like secrets.
-const PATTERNS: { type: string; re: RegExp; accept?: (m: RegExpMatchArray) => boolean }[] = [
-  { type: "Private key", re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/g },
+const PATTERNS: SecretPattern[] = [
+  {
+    type: "Private key",
+    re: /-----BEGIN [A-Z ]*PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----|(?:[\r\n]+[A-Za-z0-9+/=]{16,})+)?/g,
+  },
   { type: "AWS access key", re: /\bAKIA[0-9A-Z]{16}\b/g },
   { type: "GitHub token", re: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})/g },
   { type: "Anthropic API key", re: /\bsk-ant-[A-Za-z0-9_-]{20,}/g },
@@ -21,11 +33,36 @@ const PATTERNS: { type: string; re: RegExp; accept?: (m: RegExpMatchArray) => bo
   { type: "Google API key", re: /\bAIza[0-9A-Za-z_-]{35}/g },
   { type: "Stripe key", re: /\b(?:sk|rk)_(?:live|test)_[0-9A-Za-z]{16,}/g },
   { type: "Slack token", re: /\bxox[abprs]-[0-9A-Za-z-]{10,}/g },
+  { type: "npm token", re: /\bnpm_[A-Za-z0-9]{36}\b/g },
+  { type: "Hugging Face token", re: /\bhf_[A-Za-z0-9]{20,}\b/g },
+  { type: "Supabase token", re: /\bsbp_[a-f0-9]{40}\b/g },
+  { type: "Groq API key", re: /\bgsk_[A-Za-z0-9]{20,}\b/g },
+  { type: "Resend API key", re: /\bre_[A-Za-z0-9_]{20,}\b/g },
+  { type: "Telegram bot token", re: /\b[0-9]{8,10}:AA[A-Za-z0-9_-]{30,38}\b/g },
   { type: "JWT", re: /\beyJ[\w-]{10,}\.eyJ[\w-]{10,}\.[\w-]{10,}/g },
   {
     type: "Password in URL",
     re: /\b[a-z][a-z0-9+.-]*:\/\/([^\s:/@]+):([^\s@/]+)@/gi,
-    accept: (m) => !PLACEHOLDER_PASSWORD.test(m[2]) && !/^<.*>$/.test(m[1]),
+    accept: (m) => !PLACEHOLDER_VALUE.test(m[2]) && !/^<.*>$/.test(m[1]),
+    redactPart: (m) => [m[0].lastIndexOf(m[2]), m[2].length],
+  },
+  {
+    type: "Bearer token",
+    re: /\bBearer\s+([A-Za-z0-9._~+/=-]{20,})\b/g,
+    accept: (m) => !PLACEHOLDER_VALUE.test(m[1]) && !/^[a-z]+(?:[_-][a-z]+)+$/i.test(m[1]),
+    redactPart: (m) => [m[0].lastIndexOf(m[1]), m[1].length],
+  },
+  {
+    type: "Secret assignment",
+    re: /\b([A-Z0-9_]*(?:PASSWORD|PASSWD|SECRET|API_KEY|APIKEY|ACCESS_TOKEN|AUTH_TOKEN|PRIVATE_KEY|DB_PASS))\s*[:=]\s*["']?([^\s"'`,;]{8,})["']?/gi,
+    accept: (m) => {
+      const val = m[2];
+      if (PLACEHOLDER_VALUE.test(val)) return false;
+      if (val.includes("://") || val.startsWith("/") || val.startsWith(".")) return false;
+      if (/^[a-z]+(?:[A-Z][a-z]+)+$/.test(val)) return false; // camelCase identifier
+      return true;
+    },
+    redactPart: (m) => [m[0].lastIndexOf(m[2]), m[2].length],
   },
 ];
 
@@ -67,12 +104,22 @@ function looksRandom(token: string): boolean {
 
 const mask = (s: string) => `${s.slice(0, 4)}…`;
 
-export function scanSecrets(text: string): SecretFinding[] {
-  const findings: SecretFinding[] = [];
+export const REDACTED = "[redacted]";
+
+interface MatchSpan {
+  type: string;
+  masked: string;
+  /** Exact span to replace in text when redacting. */
+  redactStart: number;
+  redactEnd: number;
+}
+
+function findSecretSpans(text: string): MatchSpan[] {
+  const spans: MatchSpan[] = [];
   const taken: [number, number][] = [];
   const overlaps = (a: number, b: number) => taken.some(([s, e]) => a < e && b > s);
 
-  for (const { type, re, accept } of PATTERNS) {
+  for (const { type, re, accept, redactPart } of PATTERNS) {
     for (const m of text.matchAll(re)) {
       const start = m.index!, end = start + m[0].length;
       if (overlaps(start, end)) continue;
@@ -81,16 +128,37 @@ export function scanSecrets(text: string): SecretFinding[] {
         continue;
       }
       taken.push([start, end]);
-      findings.push({ type, masked: mask(m[0]) });
+      const [relOff, relLen] = redactPart ? redactPart(m) : [0, m[0].length];
+      spans.push({ type, masked: mask(m[0]), redactStart: start + relOff, redactEnd: start + relOff + relLen });
     }
   }
   for (const m of text.matchAll(CANDIDATE)) {
     const start = m.index!, end = start + m[0].length;
     if (overlaps(start, end) || !looksRandom(m[0])) continue;
     taken.push([start, end]);
-    findings.push({ type: "High-entropy string", masked: mask(m[0]) });
+    spans.push({ type: "High-entropy string", masked: mask(m[0]), redactStart: start, redactEnd: end });
   }
-  return findings;
+  return spans;
+}
+
+export function scanSecrets(text: string): SecretFinding[] {
+  return findSecretSpans(text).map(({ type, masked }) => ({ type, masked }));
+}
+
+/** Replace only the secret parts in `text` with `[redacted]`, preserving the surrounding plan/notes. */
+export function redactSecrets(text: string): { text: string; redacted: boolean; findings: SecretFinding[] } {
+  const spans = findSecretSpans(text);
+  if (!spans.length) return { text, redacted: false, findings: [] };
+  const ordered = [...spans].sort((a, b) => a.redactStart - b.redactStart);
+  let out = "";
+  let pos = 0;
+  for (const s of ordered) {
+    if (s.redactStart < pos) continue;
+    out += text.slice(pos, s.redactStart) + REDACTED;
+    pos = s.redactEnd;
+  }
+  out += text.slice(pos);
+  return { text: out, redacted: true, findings: spans.map(({ type, masked }) => ({ type, masked })) };
 }
 
 export function scanEntryFields(f: {

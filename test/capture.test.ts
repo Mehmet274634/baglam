@@ -95,9 +95,13 @@ describe("auto-capture: requests", () => {
     expect(live()).toBeUndefined();
   });
 
-  it("a secret in a request is stored hidden, never refused", () => {
-    const { cap, live } = setup();
+  it("a secret in a request is partially redacted, keeping the rest of the text, and pure secrets are hidden", () => {
+    const { cap, live, clock } = setup();
     cap("claude-code", { kind: "prompt", text: `use key ${AWS} for s3` });
+    expect(live()!.goal).toBe("use key [redacted] for s3");
+    expect(JSON.stringify(live())).not.toContain(AWS);
+    clock.tick(12 * 3_600_000 + 1);
+    cap("claude-code", { kind: "prompt", text: AWS });
     expect(live()!.goal).toBe("(hidden: looked like a secret)");
     expect(JSON.stringify(live())).not.toContain(AWS);
   });
@@ -163,8 +167,9 @@ describe("the agent's own checkpoint right after a captured request", () => {
     cap("codex", { kind: "prompt", text: `Big plan\n${"x".repeat(5000)}` });
     expect(live()!.request).toHaveLength(2000);
     clock.tick(12 * 3_600_000 + 1);
-    cap("codex", { kind: "prompt", text: `Deploy it\nkey ${AWS}` });
-    expect(live()!.request).toBe("(hidden: looked like a secret)");
+    cap("codex", { kind: "prompt", text: `Deploy it\nkey ${AWS}\nThen run smoke tests` });
+    expect(live()!.request).toBe("Deploy it\nkey [redacted]\nThen run smoke tests");
+    expect(JSON.stringify(live())).not.toContain(AWS);
   });
 
   it("a real new task keeps the request that started it", () => {
@@ -183,17 +188,21 @@ describe("the agent's own checkpoint right after a captured request", () => {
 });
 
 describe("auto-capture: secrets cut by a size limit", () => {
-  it("a secret straddling the request limit is not stored in part", () => {
+  it("a secret straddling the request limit is never stored even in part", () => {
     const { cap, live } = setup();
     cap("claude-code", { kind: "prompt", text: "x".repeat(290) + " " + AWS });
-    expect(live()!.goal).toBe("(hidden: looked like a secret)");
+    expect(live()!.goal).not.toContain("AKIA");
+    expect(live()!.goal).not.toContain(AWS.slice(0, 6));
+    expect(live()!.goal.startsWith("x".repeat(290))).toBe(true);
   });
 
-  it("a secret straddling the reply limit is not stored in part", () => {
+  it("a secret straddling the reply limit is never stored even in part", () => {
     const { cap, live } = setup();
     cap("claude-code", { kind: "prompt", text: "Build it" });
     cap("claude-code", { kind: "stop", reply: "y".repeat(980) + " " + AWS });
-    expect(live()!.now).toBe("(hidden: looked like a secret)");
+    expect(live()!.now).not.toContain("AKIA");
+    expect(live()!.now).not.toContain(AWS.slice(0, 6));
+    expect(live()!.now!.startsWith("Last reply: " + "y".repeat(900))).toBe(true);
   });
 });
 

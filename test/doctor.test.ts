@@ -130,6 +130,37 @@ describe("baglam doctor", () => {
     const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
     expect(checks.find((x) => x.name === "Agent instructions")).toMatchObject({ ok: false, detail: expect.stringMatching(/outdated/), fix: "baglam init" });
   });
+
+  it("doctor checks every expected instruction file (e.g. missing Cursor rule or Copilot instructions)", async () => {
+    const { host, dbPath, project } = machine();
+    mkdirSync(join(host.appData, "Code", "User"), { recursive: true });
+    const store = new ContextStore(dbPath);
+    runInit(project, { store, host });
+    store.close();
+    // Simulate a tool added after init: remove its instruction file.
+    const { rmSync } = await import("node:fs");
+    rmSync(join(project, ".github", "copilot-instructions.md"));
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    expect(checks.find((x) => x.name === "Agent instructions")).toMatchObject({
+      ok: false,
+      detail: expect.stringMatching(/\.github\/copilot-instructions\.md/),
+      fix: "baglam init",
+    });
+  });
+
+  it("doctor flags a stale Node binary path after a Node upgrade", async () => {
+    const { host, dbPath, project } = machine();
+    writeFileSync(
+      join(host.home, ".cursor", "mcp.json"),
+      JSON.stringify({ mcpServers: { baglam: { command: "/old/nvm/v20/bin/node", args: [host.cliPath, "mcp"], env: { BAGLAM_AGENT: "cursor" } } } }),
+    );
+    const checks = await runDoctor({ host, dbPath, cwd: project, handshake: async () => null });
+    expect(checks.find((x) => x.name === "Cursor: registered")).toMatchObject({
+      ok: false,
+      detail: expect.stringMatching(/different Node/),
+      fix: "baglam setup",
+    });
+  });
 });
 
 describe("doctor: automatic saving", () => {

@@ -146,6 +146,22 @@ describe("Claude Code adapter", () => {
   it("claude missing is not detected", () => {
     expect(claudeCode.detect(testHost())).toBe(false);
   });
+
+  it("claude backs up ~/.claude.json once and updates when Node path changed (e.g. nvm/Homebrew upgrade)", () => {
+    const host = testHost({
+      commands: {
+        claude: (args) =>
+          args[1] === "get"
+            ? { code: 0, stdout: `Command: /old/nvm/v22/bin/node\nArgs: ${"C:/baglam/dist/cli.js"} mcp\nBAGLAM_AGENT=claude-code` }
+            : { code: 0 },
+      },
+    });
+    const cfg = join(host.home, ".claude.json");
+    writeFileSync(cfg, '{"existing":true}\n');
+    expect(claudeCode.install(host).action).toBe("updated");
+    expect(readFileSync(`${cfg}.baglam-backup`, "utf8")).toBe('{"existing":true}\n');
+    expect(host.calls.map((c) => c.slice(0, 3).join(" "))).toEqual(["claude mcp get", "claude mcp remove", "claude mcp add"]);
+  });
 });
 
 describe("client registry", () => {

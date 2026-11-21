@@ -47,6 +47,8 @@ export interface Handoff {
   agent: string;
   /** The user's latest requests, saved by tool hooks. */
   requests?: string[];
+  /** The user's latest detailed (multi-line) request in full. */
+  request?: string | null;
   /** Last checkpoint by the agent itself; null when only the tool's hooks saved the task. */
   agentAt?: number | null;
   createdAt: number;
@@ -97,6 +99,7 @@ export interface Tool {
   id: string;
   label: string;
   registered: boolean;
+  autoSave?: { installed: boolean; problem?: string; lastSeen: number | null } | null;
 }
 
 export interface Overview {

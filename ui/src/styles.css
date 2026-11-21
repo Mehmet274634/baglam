@@ -882,6 +882,27 @@ textarea {
   background: var(--warn-bg);
   border-color: color-mix(in srgb, var(--warn) 25%, transparent);
 }
+.card-details {
+  margin-top: 0.65rem;
+  font-size: 0.86rem;
+}
+.card-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 500;
+}
+.request-full {
+  margin: 0.45rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--field-bg);
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .review {
   margin-bottom: 2rem;
 }

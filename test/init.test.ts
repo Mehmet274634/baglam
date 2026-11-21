@@ -152,6 +152,52 @@ describe("baglam init", () => {
     expect(instructionBlock()).toMatch(/context_checkpoint/);
     expect(instructionBlock()).toMatch(/new_task/);
   });
+
+  it("writes VS Code Copilot and Windsurf rules when detected, and undo removes both", () => {
+    mkdirSync(join(host.appData, "Code", "User"), { recursive: true });
+    mkdirSync(join(host.home, ".codeium", "windsurf"), { recursive: true });
+    runInit(dir, { store, host });
+    expect(readFileSync(join(dir, ".github", "copilot-instructions.md"), "utf8")).toContain(instructionBlock());
+    const ws = readFileSync(join(dir, ".windsurf", "rules", "baglam.md"), "utf8");
+    expect(ws.startsWith("---\ntrigger: always_on\n---\n")).toBe(true);
+    expect(ws).toContain(instructionBlock());
+    runInit(dir, { store, host, undo: true });
+    expect(existsSync(join(dir, ".github", "copilot-instructions.md"))).toBe(false);
+    expect(existsSync(join(dir, ".windsurf", "rules", "baglam.md"))).toBe(false);
+  });
+
+  it("--name sets and updates the project name in marker and store", () => {
+    const first = runInit(dir, { store, host, name: "Billing API" });
+    expect(first.project.name).toBe("Billing API");
+    expect(JSON.parse(readFileSync(join(dir, ".baglam", "project.json"), "utf8")).name).toBe("Billing API");
+    expect(store.projectInfo(first.project.key)?.name).toBe("Billing API");
+    const renamed = runInit(dir, { store, host, name: "Payments Core" });
+    expect(renamed.project.key).toBe(first.project.key);
+    expect(renamed.project.name).toBe("Payments Core");
+    expect(store.projectInfo(first.project.key)?.name).toBe("Payments Core");
+  });
+
+  it("--local excludes Bağlam files via .git/info/exclude without touching .gitignore", () => {
+    mkdirSync(join(dir, ".git", "info"), { recursive: true });
+    const r = runInit(dir, { store, host, local: true });
+    expect(r.excluded).toEqual(expect.arrayContaining([".baglam/", "AGENTS.md", "CLAUDE.md"]));
+    const exclude = readFileSync(join(dir, ".git", "info", "exclude"), "utf8");
+    expect(exclude).toContain(".baglam/");
+    expect(exclude).toContain("AGENTS.md");
+    expect(existsSync(join(dir, ".gitignore"))).toBe(false);
+    // Idempotent: re-running adds nothing duplicate.
+    const again = runInit(dir, { store, host, local: true });
+    expect(again.excluded).toEqual([]);
+  });
+
+  it("cli: init warns when no AI tools are connected yet", () => {
+    const out: string[] = [];
+    const bareHost = testHost();
+    const code = runCli(["init", "--project", dir, "--name", "Demo"], { store, project: "x", user: "ev", print: (s) => out.push(s), host: bareHost });
+    expect(code).toBe(0);
+    expect(out.join("\n")).toContain("Project: Demo");
+    expect(out.join("\n")).toContain('Run "baglam setup"');
+  });
 });
 
 describe("init repairs a broken marker without losing the project", () => {

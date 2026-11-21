@@ -1,17 +1,22 @@
 #!/usr/bin/env node
 /**
- * Entry for AI tool hooks: `node hook.js <client> <prompt|edit|stop>` with the tool's JSON on stdin.
- * Saves what the tool saw into the live handoff. It must never block, slow down or change the tool:
- * it always exits 0 and prints only the tool's neutral reply. Kept small on purpose (no MCP SDK).
+ * Entry for AI tool hooks: `node hook.js <client> <start|prompt|edit|stop>` with the tool's JSON on stdin.
+ * Saves what the tool saw into the live handoff, and injects the live task and approved memory at
+ * session start or when control switches from another agent. Never blocks or slows down the tool:
+ * always exits 0 within the deadline. Kept small on purpose (no MCP SDK).
  */
 import { appendFileSync, mkdirSync, realpathSync, statSync, truncateSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { resolveDbPath } from "./config.js";
+import { formatBrief, formatHandoff } from "./format.js";
 import { fastBranch } from "./git.js";
-import { HOOK_CLIENTS, HOOK_EVENTS, neutralOutput, normalize, type HookClient, type HookEvent } from "./hooks/normalize.js";
+import { contextOutput, HOOK_CLIENTS, HOOK_EVENTS, neutralOutput, normalize, type HookClient, type HookEvent } from "./hooks/normalize.js";
 import { resolveDirectory } from "./project.js";
 import { ContextStore } from "./store.js";
+
+const HOOK_START_BUDGET_TOKENS = 900;
+const HOOK_SWITCH_MAX_CHARS = 2400;
 
 const MAX_STDIN = 1024 * 1024;
 const DEADLINE_MS = 3000;
@@ -58,7 +63,7 @@ export function runHook(argv: string[], io: HookIo): { stdout: string; code: 0 }
   const [c, e] = argv;
   const client = (HOOK_CLIENTS as readonly string[]).includes(c) ? (c as HookClient) : undefined;
   const event = (HOOK_EVENTS as string[]).includes(e) ? (e as HookEvent) : undefined;
-  const stdout = client ? neutralOutput(client, event ?? "edit") : "";
+  let stdout = client ? neutralOutput(client, event ?? "edit") : "";
   if (!client || !event) return { stdout, code: 0 };
 
   try {
@@ -69,19 +74,55 @@ export function runHook(argv: string[], io: HookIo): { stdout: string; code: 0 }
       payload = {};
     }
     // Cursor also runs Claude Code's hooks (~/.claude/settings.json), with its own payload shape.
-    // Cursor's own hook saves the same event under the right name, so this copy is skipped.
+    // Cursor's own hook handles the same event under the right name, so this copy is skipped.
     if (client === "claude-code" && fromCursor(payload)) return { stdout, code: 0 };
     const n = normalize(client, event, payload);
     const project = resolveDirectory(n.cwd ?? io.cwd ?? process.cwd());
     // Hooks fire in every folder; only projects set up with `baglam init` are touched.
     if (!project.initialized) return { stdout, code: 0 };
+    const canInject = io.env.BAGLAM_HOOK_INJECT !== "0";
     const store = new ContextStore(io.dbPath, io.now, { busyTimeoutMs: HOOK_BUSY_MS });
     try {
-      // The save first: if the database stays locked, it is the write worth its one wait.
-      if (n.event && store.isAutoCapture(project.key)) {
-        store.autoCapture({ project: project.key, branch: fastBranch(project.dir), dir: project.dir, agent: client, event: n.event });
+      const branch = fastBranch(project.dir);
+      if (event === "start") {
+        if (canInject) {
+          const live = store.getHandoff(project.key, branch);
+          const activeLive = live && live.status !== "done" ? live : undefined;
+          const otherBranches = store.listHandoffs(project.key).filter((h) => h.branch !== branch && h.status !== "done");
+          const entries = store.visible(project.key, client, { limit: 30, byPriority: true });
+          if (activeLive || otherBranches.length > 0 || entries.length > 0) {
+            const brief = formatBrief({
+              project,
+              agent: client,
+              entries,
+              pendingCount: 0,
+              budgetTokens: HOOK_START_BUDGET_TOKENS,
+              handoff: activeLive || otherBranches.length > 0 ? { live: activeLive, git: null, otherBranches } : undefined,
+            });
+            stdout = contextOutput(client, "start", brief);
+          }
+        }
+        store.noteHookSeen(client, "start");
+      } else {
+        // Check handoff state before autoCapture overwrites live.agent with the current client.
+        const before = event === "prompt" && canInject ? store.getHandoff(project.key, branch) : undefined;
+        const lastSeen = before && before.status !== "done" && before.agent !== client ? store.hookSeen()[client] : undefined;
+        // The save first: if the database stays locked, it is the write worth its one wait.
+        if (n.event && store.isAutoCapture(project.key)) {
+          store.autoCapture({ project: project.key, branch, dir: project.dir, agent: client, event: n.event });
+        }
+        if (
+          before &&
+          before.status !== "done" &&
+          before.agent !== client &&
+          !(lastSeen?.event === "start" && lastSeen.at >= before.updatedAt)
+        ) {
+          const otherBranches = store.listHandoffs(project.key).filter((h) => h.branch !== branch && h.status !== "done");
+          const handoffText = formatHandoff({ live: before, git: null, otherBranches }, HOOK_SWITCH_MAX_CHARS);
+          stdout = contextOutput(client, "prompt", handoffText);
+        }
+        store.noteHookSeen(client, event);
       }
-      store.noteHookSeen(client, event);
     } finally {
       store.close();
     }

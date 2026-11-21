@@ -45,7 +45,7 @@ Sonra:
 baglam --version
 npm view baglam version
 ```
-- **Beklenen:** iki satırda da **aynı** sürüm. Sürüm `1.0.0-rc.4` veya daha yeni olmalı (ör. `1.0.0-rc.5`,
+- **Beklenen:** iki satırda da **aynı** sürüm. Sürüm `1.0.0-rc.6` veya daha yeni olmalı (ör. `1.0.0-rc.6`,
   `1.0.0`); daha yeni bir sürüm görmek normal. 📸
 
 ## 4. Araçlara bağla
@@ -159,8 +159,9 @@ birinin ekran görüntüsünü al:
 cd ~/baglam-test
 baglam ui
 ```
-- Tarayıcıda Bağlam paneli açılır. **Projects** bölümüne bak: `baglam-test` ve "Continue from here"
-  kartı görünüyor mu? 📸
+- Tarayıcıda Bağlam paneli açılır (Mac Türkçe ise panel de Türkçe açılır).
+  - İlk açılan **Gelen kutusu (Inbox)** ekranında **"Buradan devam et" (Continue from here)** kartı görünüyor mu? 📸
+  - **Projeler (Projects)** sekmesine geç: `baglam-test` listede görünüyor mu? 📸
 - İşin bitince Terminal'e dönüp Ctrl + C'ye bas.
 
 ## 11. Bir şey ters gittiyse

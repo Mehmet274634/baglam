@@ -390,7 +390,7 @@ export const tr: Dict = {
     inboxPoints: ["j / k ile gezin, a onayla, e düzenle, r reddet", "Benzer kayıtlar kopya olmadan önce işaretlenir", "Bir projenin hepsini tek seferde onayla"],
     recordsTitle: "Bütün hafıza, aranabilir",
     recordsText: "Her kayıt geçmişiyle birlikte: kim önerdi, kim onayladı, neyin yerine geçti. Arama kelime başlarını bulur; “imza” yazınca “imzasını” da gelir.",
-    recordsPoints: ["Duruma, türe ve ajana göre süz", "Bir kaydı düzenle, yenisiyle değiştir ya da kaldır", "Her değişikliğin geçmişi"],
+    recordsPoints: ["Duruma, türe ve ajana göre süz", "Bir kaydı düzenle ya da kaldır", "Her değişikliğin geçmişi"],
     settingsTitle: "Anlaşılır düğmeler",
     settingsText: "Otomatik kayıt, otonom mod ve güven kuralları, proje bazında ve her biri için sade bir açıklamayla. Bağlı araçlar durumlarıyla listelenir.",
     settingsPoints: ["Otomatik kayıt varsayılan olarak açık", "Otonom mod açılmadan önce sorar", "Seçtiğin ajanlar ve türler için güven kuralları"],

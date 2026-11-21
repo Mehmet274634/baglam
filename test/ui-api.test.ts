@@ -25,7 +25,10 @@ describe("panel API", () => {
     expect(r.json.user).toBe("human:ev");
     expect(r.json.pendingTotal).toBe(1);
     expect(r.json.projects.map((p: { key: string }) => p.key)).toEqual([A]);
-    expect(r.json.tools).toEqual([{ id: "cursor", label: "Cursor", registered: false }]);
+    expect(r.json.tools).toEqual([{ id: "cursor", label: "Cursor", registered: false, autoSave: { installed: false, lastSeen: null } }]);
+    h.store.noteHookSeen("cursor", "start");
+    const r2 = await h.call("GET", "/api/overview");
+    expect(r2.json.tools[0].autoSave.lastSeen).toBeTypeOf("number");
   });
 
   it("pending includes similar records", async () => {

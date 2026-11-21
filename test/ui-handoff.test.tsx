@@ -58,6 +58,20 @@ describe("ContinueCard", () => {
     expect(onCopy).toHaveBeenCalled();
     expect(onDone).toHaveBeenCalled();
   });
+
+  it("shows the full multi-line request and recent checkpoint history when present", () => {
+    const h = handoff({ request: "Line 1\nLine 2: details" });
+    const history = [h, handoff({ agent: "codex", now: "Initial scaffolding", updatedAt: Date.now() - 600_000 })];
+    const { container } = render(
+      <I18nProvider lang="tr">
+        <ContinueCard handoff={h} history={history} onCopy={() => {}} onDone={() => {}} />
+      </I18nProvider>,
+    );
+    expect(container.textContent).toContain("Tam istek");
+    expect(container.textContent).toContain("Line 2: details");
+    expect(container.textContent).toContain("Son kayıtlar (2)");
+    expect(container.textContent).toContain("Initial scaffolding");
+  });
 });
 
 describe("ReviewList", () => {

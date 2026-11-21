@@ -2,7 +2,7 @@
 
 > **Türkçe özet:** Bağlam, yapay zekâ kod ajanlarına (Claude Code, Codex, Cursor, Gemini, Antigravity,
 > VS Code · Copilot, Windsurf) ortak ve insan onaylı bir hafıza ile ajanlar arası devir veren yerel bir
-> MCP sunucusu, CLI ve paneldir. npm'de **1.0.0-rc.5** yayında (dış inceleme düzeltmeleri, 2026-11-21). Site Vercel'de canlı. Sıradaki
+> MCP sunucusu, CLI ve paneldir. npm'de **1.0.0-rc.5** yayında; **1.0.0-rc.6** hazır (otomatik bağlam enjeksiyonu, çapraz platform sağlamlaştırma, kısmi gizli bilgi maskelemesi, init/doctor/panel geliştirmeleri). Site Vercel'de canlı. Sıradaki
 > büyük adımlar: arkadaşının Mac'inde test, ardından 1.0.0 sürümü. Son durum raporu: [rapor-2026-11-20.tr.md](rapor-2026-11-20.tr.md). Tasarım işleri için
 > [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) dosyasına bak.
 
@@ -18,7 +18,7 @@ panel logic). Design and website work lives in [DESIGN-SYSTEM.md](DESIGN-SYSTEM.
   creating accounts or anything outward-facing; pushing `main` deploys the website (see below).
 - No fabricated social proof (no fake users, stars or quotes).
 
-## What exists (1.0.0-rc.5, on npm)
+## What exists (1.0.0-rc.6, prepared)
 
 | Part | Where | What it does |
 |---|---|---|
@@ -69,15 +69,16 @@ cd site && npm run build   # Astro build + site checks (links, EN/TR parity, no 
 
 ## Next steps (in order)
 
-0. **1.0.0-rc.5 is published** (2026-11-21): fixes from an outside review (Gemini): Turkish İ/ı in
-   search and look-alikes, project delete leaving tasks, brief cut-off, Windows/Wayland clipboard, later
-   detailed requests, Antigravity undo. Still open from that review, for 1.0.x: `init` writes no VS Code
-   Copilot (`.github/copilot-instructions.md`) or Windsurf (`.windsurf/rules/`) instructions; `doctor`
-   checks only AGENTS.md; `init --local` (exclude via `.git/info/exclude`) and `--name`; `init` warns
-   when no tool is set up; partial redaction of secrets instead of hiding the whole text; panel: add a
-   record, export/import, task history and full request, hook health in Settings, a `baglam ui` that
-   survives a closed tab. 1.1: inject the live task through hooks (additionalContext), path/topic-aware
-   briefs, Turkish token estimate, `handoff move <branch>`, agents proposing to retire a record.
+0. **Publish 1.0.0-rc.6** (prepared 2026-11-21): automatic context injection via `SessionStart`/`sessionStart`
+   and cross-agent prompt hooks (`additionalContext` / `additional_context`), Linux `wl-copy`/`xclip`
+   stdio hang fix, `history.imported` panel i18n, export/import `request` + `autoCapture: false` fidelity,
+   higher git priority in handoff brief, partial secret redaction + expanded secret patterns, `init` for
+   VS Code Copilot & Windsurf + `--local` + `--name` + no-tools warning, `doctor` full instruction scan
+   + stale Node path detection, `~/.claude.json` backup + Node path check, Settings hook health &
+   ContinueCard full request + checkpoint history, website security headers & honest panel copy.
+   Still open for 1.0.x / 1.1: panel `+ Add record`, panel export/import, `baglam ui` surviving a closed
+   tab; path/topic-aware briefs, Turkish token estimate, `handoff move <branch>`, agents proposing to
+   retire a record, `og:image` + `sitemap.xml` + `robots.txt` on custom domain.
 1. **Confirm on the owner's machine** that Cursor's copies of Claude Code hooks are ignored when Cursor's
    quota is back (Cursor's payload to them should carry `cursor_version` / `workspace_roots`; taken
    from a Cursor forum report and Bağlam's own Cursor payloads, not yet recorded live).

@@ -27,6 +27,7 @@ export function instructionBlock(): string {
 }
 
 export const CURSOR_RULE_HEADER = "---\ndescription: Shared project context (Bağlam)\nalwaysApply: true\n---\n";
+export const WINDSURF_RULE_HEADER = "---\ntrigger: always_on\n---\n";
 
 function findBlock(text: string): { start: number; end: number } | null {
   const start = text.indexOf(BLOCK_START);

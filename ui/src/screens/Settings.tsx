@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import type { Api } from "../api";
 import { KINDS, KNOWN_AGENTS, type Kind, type Tool, type TrustRule } from "../types";
-import { useI18n, type Lang } from "../i18n";
+import { relativeTime, useI18n, type Lang } from "../i18n";
 import { useToast } from "../toast";
 import { AutonomousSwitch } from "../components/AutonomousSwitch";
 import { AutoCaptureSwitch } from "../components/AutoCaptureSwitch";
@@ -157,13 +157,27 @@ export function Settings(props: {
           <p class="muted small">{t("settings.tools.none")}</p>
         ) : (
           <ul class="tools">
-            {props.tools.map((tool) => (
-              <li key={tool.id}>
-                <span class={`dot ${tool.registered ? "dot-ok" : "dot-off"}`} aria-hidden="true" />
-                <strong>{tool.label}</strong>
-                <span class="muted small">{tool.registered ? t("settings.tools.connected") : t("settings.tools.missing")}</span>
-              </li>
-            ))}
+            {props.tools.map((tool) => {
+              const hookLabel = !tool.autoSave
+                ? null
+                : tool.autoSave.problem
+                  ? t("settings.tools.hooksProblem")
+                  : !tool.autoSave.installed
+                    ? t("settings.tools.hooksMissing")
+                    : tool.autoSave.lastSeen
+                      ? t("settings.tools.hooksOk", { when: relativeTime(t, tool.autoSave.lastSeen) })
+                      : t("settings.tools.hooksReady");
+              return (
+                <li key={tool.id}>
+                  <span class={`dot ${tool.registered ? "dot-ok" : "dot-off"}`} aria-hidden="true" />
+                  <strong>{tool.label}</strong>
+                  <span class="muted small">
+                    {tool.registered ? t("settings.tools.connected") : t("settings.tools.missing")}
+                    {hookLabel ? ` · ${hookLabel}` : ""}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

@@ -128,6 +128,25 @@ describe("automatic saving in the brief", () => {
     }
   });
 
+  it("under a tight budget, git changes survive ahead of older Notes, Files and Done", async () => {
+    const { ContextStore } = await import("../src/store.js");
+    const { formatHandoff } = await import("../src/format.js");
+    const s = new ContextStore(":memory:");
+    s.autoCapture({ project: "p", branch: "main", dir: "/tmp/p", agent: "codex", event: { kind: "prompt", text: `Fix checkout\n${"plan ".repeat(80)}` } });
+    s.checkpoint({
+      project: "p", branch: "main", agent: "codex", agentVerified: true, goal: "Fix checkout",
+      done: Array.from({ length: 10 }, (_, i) => `finished step ${i} ${"d".repeat(120)}`),
+      now: `updating webhook ${"w".repeat(120)}`, next: [`run tests ${"t".repeat(180)}`],
+      files: Array.from({ length: 20 }, (_, i) => `src/old-${i}.ts`),
+      notes: "NOTES_BODY " + "n".repeat(600),
+    });
+    const git = { branch: "main", ahead: null, behind: null, changed: ["src/real-change.ts"], changedCount: 1, commitsSince: [] };
+    const text = formatHandoff({ live: s.getHandoff("p", "main")!, git, otherBranches: [] }, 1200);
+    expect(text.length).toBeLessThanOrEqual(1200);
+    expect(text).toContain("Since then (git): 1 file changed, not committed: src/real-change.ts");
+    expect(text).not.toContain("NOTES_BODY");
+  });
+
   it("shows the full request that started the task, its lines kept", async () => {
     const { ContextStore } = await import("../src/store.js");
     const { formatHandoff } = await import("../src/format.js");

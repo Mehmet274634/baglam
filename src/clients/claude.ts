@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { HostEnv } from "../host.js";
+import { backupOnce, type HostEnv } from "../host.js";
 import type { Change, ClientAdapter, ClientStatus, WriteOptions } from "./types.js";
 
 const ID = "claude-code";
@@ -12,7 +12,11 @@ function get(h: HostEnv) {
   return h.run("claude", ["mcp", "get", NAME]);
 }
 
+const samePath = (a: string, b: string) => a.replace(/\\/g, "/").toLowerCase() === b.replace(/\\/g, "/").toLowerCase();
+
 function matches(h: HostEnv, stdout: string): boolean {
+  const cmd = /Command:\s*(.*)/.exec(stdout)?.[1]?.trim();
+  if (cmd && !samePath(cmd, h.nodePath)) return false;
   return stdout.includes(h.cliPath) && stdout.includes(`BAGLAM_AGENT=${ID}`);
 }
 
@@ -30,6 +34,7 @@ export const claudeCode: ClientAdapter = {
     if (current.code === 0 && matches(h, current.stdout)) return { client: ID, file, action: "unchanged" };
     const action = current.code === 0 ? "updated" : "added";
     if (opts.dryRun) return { client: ID, file, action };
+    backupOnce(file);
     h.run("claude", ["mcp", "remove", NAME, "-s", "user"]);
     const add = h.run("claude", [
       "mcp", "add", NAME, "-s", "user", "-e", `BAGLAM_AGENT=${ID}`, "--", h.nodePath, h.cliPath, "mcp",

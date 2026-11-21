@@ -217,4 +217,40 @@ describe("export / import of work in progress", () => {
     expect(r.handoffs).toBe(0);
     expect(dst.getHandoff(P2, "main")).toBeUndefined();
   });
+
+  it("export/import keeps the full request, recent requests, auto-only state, and turned-off auto-capture", () => {
+    const src = new ContextStore(":memory:");
+    src.touchProject({ key: P2, name: "secret-app", dir: "c:/secret" });
+    const plan = "Build billing.\nPart 1: invoices.\nPart 2: refunds.";
+    src.autoCapture({ project: P2, branch: "main", dir: "c:/secret", agent: "claude-code", event: { kind: "prompt", text: plan } });
+    src.autoCapture({ project: P2, branch: "main", dir: "c:/secret", agent: "claude-code", event: { kind: "prompt", text: "devam et" } });
+    src.setAutoCapture(P2, false, "human:ev");
+
+    const data = exportJson(src, { project: P2 });
+    expect(data.settings).toEqual([{ project: P2, autonomous: false, autoCapture: false }]);
+
+    const dst = new ContextStore(":memory:");
+    const r = importJson(dst, JSON.parse(JSON.stringify(data)), { by: "human:ev" });
+    expect(r.handoffs).toBe(1);
+    const h = dst.getHandoff(P2, "main")!;
+    expect(h.request).toBe(plan);
+    expect(h.requests).toEqual(["Build billing.", "devam et"]);
+    expect(h.agentAt).toBeNull();
+    // Privacy setting survives backup/restore: auto-capture stays off on the new machine.
+    expect(dst.isAutoCapture(P2)).toBe(false);
+  });
+
+  it("BAGLAM_AUTO_CAPTURE=0 during export does not mark projects as auto-capture off", () => {
+    const src = new ContextStore(":memory:");
+    src.touchProject({ key: P2, name: "app", dir: "c:/app" });
+    const prev = process.env.BAGLAM_AUTO_CAPTURE;
+    process.env.BAGLAM_AUTO_CAPTURE = "0";
+    try {
+      const data = exportJson(src, { project: P2 });
+      expect(data.settings).toEqual([]);
+    } finally {
+      if (prev === undefined) delete process.env.BAGLAM_AUTO_CAPTURE;
+      else process.env.BAGLAM_AUTO_CAPTURE = prev;
+    }
+  });
 });

@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { HostEnv } from "../src/host.js";
+import type { HostEnv, RunOptions } from "../src/host.js";
 
 export interface TestHost extends HostEnv {
   calls: string[][];
@@ -10,7 +10,7 @@ export interface TestHost extends HostEnv {
 /** A HostEnv rooted in a fresh temp folder. `commands` decides which CLIs exist and what they return. */
 export function testHost(
   opts: {
-    commands?: Record<string, (args: string[], input?: string) => { code: number; stdout?: string; stderr?: string }>;
+    commands?: Record<string, (args: string[], input?: string, opts?: RunOptions) => { code: number; stdout?: string; stderr?: string }>;
   } = {},
 ): TestHost {
   const base = mkdtempSync(join(tmpdir(), "baglam-host-"));
@@ -28,11 +28,11 @@ export function testHost(
     cliPath: "C:/baglam/dist/cli.js",
     calls,
     hasCommand: (cmd) => cmd in commands,
-    run: (cmd, args, input) => {
+    run: (cmd, args, input, opts) => {
       calls.push([cmd, ...args]);
       const fn = commands[cmd];
       if (!fn) return { code: 127, stdout: "", stderr: `${cmd}: not found` };
-      const r = fn(args, input);
+      const r = fn(args, input, opts);
       return { code: r.code, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
     },
   };

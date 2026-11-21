@@ -101,6 +101,7 @@ const en = {
   "history.expired": "expired",
   "history.archived": "archived",
   "history.restored": "restored",
+  "history.imported": "imported",
 
   "projects.title": "Projects",
   "projects.subtitle": "Each folder where agents work is a project.",
@@ -185,6 +186,12 @@ const en = {
   "capture.off": "Off",
   "continue.asked": "Asked",
   "continue.auto": "Saved automatically",
+  "continue.fullRequest": "Full request",
+  "continue.history": "Recent checkpoints ({n})",
+  "settings.tools.hooksOk": "auto-save active ({when})",
+  "settings.tools.hooksReady": "auto-save installed",
+  "settings.tools.hooksMissing": "auto-save not installed",
+  "settings.tools.hooksProblem": "auto-save error",
   "projects.task": "In progress: {goal} ({agent})",
 };
 
@@ -288,6 +295,7 @@ const tr: Record<Key, string> = {
   "history.expired": "süresi doldu",
   "history.archived": "arşivledi",
   "history.restored": "geri getirdi",
+  "history.imported": "içe aktardı",
 
   "projects.title": "Projeler",
   "projects.subtitle": "Ajanların çalıştığı her klasör bir projedir.",
@@ -372,6 +380,12 @@ const tr: Record<Key, string> = {
   "capture.off": "Kapalı",
   "continue.asked": "İstenen",
   "continue.auto": "Otomatik kaydedildi",
+  "continue.fullRequest": "Tam istek",
+  "continue.history": "Son kayıtlar ({n})",
+  "settings.tools.hooksOk": "otomatik kayıt etkin ({when})",
+  "settings.tools.hooksReady": "otomatik kayıt kurulu",
+  "settings.tools.hooksMissing": "otomatik kayıt kurulu değil",
+  "settings.tools.hooksProblem": "otomatik kayıt hatası",
   "projects.task": "Devam eden: {goal} ({agent})",
 };
 
@@ -389,6 +403,12 @@ export function translator(lang: Lang): T {
     for (const [k, v] of Object.entries(vars ?? {})) s = s.replaceAll(`{${k}}`, String(v));
     return s;
   };
+}
+
+/** The label for a history event; an event type the panel does not know yet shows as the plain word. */
+export function historyLabel(t: T, type: string): string {
+  const key = `history.${type}`;
+  return key in en ? t(key as Key) : type;
 }
 
 const I18n = createContext<{ lang: Lang; t: T }>({ lang: "en", t: translator("en") });

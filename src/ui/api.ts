@@ -1,6 +1,8 @@
 import { KINDS, type Entry, type EntryPatch, type Kind, type Status } from "../store.js";
 import { scanEntryFields } from "../guards.js";
 import { detectClients } from "../setup.js";
+import { HOOK_INSTALLERS } from "../clients/hooks.js";
+import type { HookClient } from "../hooks/normalize.js";
 import { HttpError, route, type Route } from "./http.js";
 import { existsSync } from "node:fs";
 import { gitSnapshot } from "../git.js";
@@ -67,11 +69,21 @@ export function panelApi(ctx: PanelContext): Route[] {
   return [
     route("GET", "/api/overview", () => {
       const projects = store.listProjects();
+      const seen = store.hookSeen();
       return {
         user,
         projects,
         pendingTotal: projects.reduce((n, p) => n + p.pending, 0),
-        tools: detectClients(host).map((c) => ({ id: c.id, label: c.label, registered: c.status(host).registered })),
+        tools: detectClients(host).map((c) => {
+          const hooks = HOOK_INSTALLERS[c.id as HookClient];
+          const hs = hooks?.status(host);
+          return {
+            id: c.id,
+            label: c.label,
+            registered: c.status(host).registered,
+            autoSave: hs ? { installed: hs.installed, ...(hs.problem ? { problem: hs.problem } : {}), lastSeen: seen[c.id]?.at ?? null } : null,
+          };
+        }),
       };
     }),
 

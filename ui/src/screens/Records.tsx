@@ -2,7 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import type { Api, RecordQuery } from "../api";
 import { ApiError } from "../api";
 import { KINDS, KNOWN_AGENTS, type Entry, type EntryPatch, type HistoryEvent, type SecretFinding } from "../types";
-import { relativeTime, useI18n } from "../i18n";
+import { historyLabel, relativeTime, useI18n } from "../i18n";
 import { useToast } from "../toast";
 import { EntryCard } from "../components/EntryCard";
 import { EditForm } from "../components/EditForm";
@@ -148,7 +148,7 @@ export function Records(props: { api: Api; project: string | undefined; refresh:
                   <ol class="history" aria-label={t("records.history")}>
                     {history.map((h, i) => (
                       <li key={i}>
-                        <span class="history-actor">{h.actor}</span> {t(`history.${h.type}` as "history.proposed")}
+                        <span class="history-actor">{h.actor}</span> {historyLabel(t, h.type)}
                         {h.detail ? <span class="muted"> · {h.detail}</span> : null}
                         <span class="muted"> · {relativeTime(t, h.at)}</span>
                       </li>

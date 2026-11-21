@@ -5,6 +5,7 @@ import { relativeTime, useI18n } from "../i18n";
 export function ContinueCard(props: {
   handoff: Handoff;
   git?: GitSnapshot | null;
+  history?: Handoff[];
   projectName?: string;
   onCopy: () => void;
   onDone: () => void;
@@ -12,6 +13,7 @@ export function ContinueCard(props: {
   const { t } = useI18n();
   const h = props.handoff;
   const asked = h.requests?.at(-1);
+  const past = (props.history ?? []).slice(0, 8);
   return (
     <article class={`card continue${h.status === "blocked" ? " is-blocked" : ""}`}>
       <header class="card-head">
@@ -93,6 +95,25 @@ export function ContinueCard(props: {
         <p class="card-why">
           <strong>{t("continue.notes")}:</strong> {h.notes}
         </p>
+      )}
+      {h.request && (
+        <details class="card-details">
+          <summary>{t("continue.fullRequest")}</summary>
+          <pre class="request-full">{h.request}</pre>
+        </details>
+      )}
+      {past.length > 1 && (
+        <details class="card-details">
+          <summary>{t("continue.history", { n: past.length })}</summary>
+          <ol class="history">
+            {past.map((snap, i) => (
+              <li key={i}>
+                <span class="history-actor">{snap.agent}</span> {snap.now || snap.goal}
+                <span class="muted"> · {relativeTime(t, snap.updatedAt)}</span>
+              </li>
+            ))}
+          </ol>
+        </details>
       )}
       <div class="actions">
         <button class="btn btn-primary" onClick={props.onCopy}>

@@ -53,10 +53,11 @@ describe("hookCommand", () => {
 });
 
 describe("what each tool's hook file looks like", () => {
-  it("Claude Code: settings.json hooks for prompt, file edits and stop", () => {
+  it("Claude Code: settings.json hooks for session start, prompt, file edits and stop", () => {
     const h = testHost();
     HOOK_INSTALLERS["claude-code"].install(h);
     const s = read(join(h.home, ".claude", "settings.json"));
+    expect(s.hooks.SessionStart).toEqual([{ hooks: [{ type: "command", command: cmd("claude-code", "start"), timeout: 10 }] }]);
     expect(s.hooks.UserPromptSubmit).toEqual([{ hooks: [{ type: "command", command: cmd("claude-code", "prompt"), timeout: 10 }] }]);
     expect(s.hooks.PostToolUse).toEqual([{ matcher: "Write|Edit|MultiEdit|NotebookEdit", hooks: [{ type: "command", command: cmd("claude-code", "edit"), timeout: 10 }] }]);
     expect(s.hooks.Stop[0].hooks[0].command).toBe(cmd("claude-code", "stop"));
@@ -66,7 +67,7 @@ describe("what each tool's hook file looks like", () => {
     const h = testHost();
     HOOK_INSTALLERS.codex.install(h);
     const s = read(join(h.home, ".codex", "hooks.json"));
-    expect(Object.keys(s.hooks)).toEqual(["UserPromptSubmit", "PostToolUse", "Stop"]);
+    expect(Object.keys(s.hooks)).toEqual(["SessionStart", "UserPromptSubmit", "PostToolUse", "Stop"]);
     expect(s.hooks.PostToolUse[0].matcher).toBe("apply_patch|Edit|Write");
     const handler = s.hooks.UserPromptSubmit[0].hooks[0];
     expect(handler.command).toBe(cmd("codex", "prompt"));
@@ -78,7 +79,7 @@ describe("what each tool's hook file looks like", () => {
     const h = testHost();
     HOOK_INSTALLERS["gemini-cli"].install(h);
     const s = read(join(h.home, ".gemini", "settings.json"));
-    expect(Object.keys(s.hooks)).toEqual(["BeforeAgent", "AfterTool", "AfterAgent"]);
+    expect(Object.keys(s.hooks)).toEqual(["SessionStart", "BeforeAgent", "AfterTool", "AfterAgent"]);
     expect(s.hooks.AfterTool[0]).toEqual({
       matcher: "write_file|replace",
       hooks: [{ name: "baglam-edit", type: "command", command: cmd("gemini-cli", "edit"), timeout: 10000 }],
@@ -90,7 +91,7 @@ describe("what each tool's hook file looks like", () => {
     HOOK_INSTALLERS.cursor.install(h);
     const s = read(join(h.home, ".cursor", "hooks.json"));
     expect(s.version).toBe(1);
-    expect(Object.keys(s.hooks)).toEqual(["beforeSubmitPrompt", "afterFileEdit", "afterAgentResponse"]);
+    expect(Object.keys(s.hooks)).toEqual(["sessionStart", "beforeSubmitPrompt", "afterFileEdit", "afterAgentResponse"]);
     const c = s.hooks.beforeSubmitPrompt[0];
     expect(c.timeout).toBe(10);
     expect(c.command).toBe(process.platform === "win32" ? `& ${cmd("cursor", "prompt")}` : cmd("cursor", "prompt"));
@@ -113,7 +114,7 @@ describe("what each tool's hook file looks like", () => {
     HOOK_INSTALLERS.vscode.install(h);
     const s = read(join(h.home, ".copilot", "hooks", "baglam.json"));
     expect(s.version).toBe(1);
-    expect(Object.keys(s.hooks)).toEqual(["userPromptSubmitted", "postToolUse", "agentStop"]);
+    expect(Object.keys(s.hooks)).toEqual(["sessionStart", "userPromptSubmitted", "postToolUse", "agentStop"]);
     expect(s.hooks.postToolUse[0]).toEqual({ type: "command", command: cmd("vscode", "edit"), timeoutSec: 10 });
   });
 });

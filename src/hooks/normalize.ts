@@ -5,8 +5,8 @@ import type { AutoEvent } from "../capture.js";
 /** The tools whose hooks Bağlam installs (ids match BAGLAM_AGENT ids written by setup). */
 export const HOOK_CLIENTS = ["claude-code", "codex", "gemini-cli", "cursor", "antigravity", "vscode"] as const;
 export type HookClient = (typeof HOOK_CLIENTS)[number];
-export type HookEvent = "prompt" | "edit" | "stop";
-export const HOOK_EVENTS: HookEvent[] = ["prompt", "edit", "stop"];
+export type HookEvent = "start" | "prompt" | "edit" | "stop";
+export const HOOK_EVENTS: HookEvent[] = ["start", "prompt", "edit", "stop"];
 
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj | undefined => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : undefined);
@@ -79,6 +79,10 @@ export function normalize(client: HookClient, event: HookEvent, input: unknown):
   const files = (list: (string | undefined)[]) => list.filter((f): f is string => !!f).map((f) => resolve(base, asPath(f)));
   const wrap = (e: AutoEvent | undefined) => (e ? { cwd, event: e } : { cwd });
 
+  if (event === "start") {
+    return { cwd };
+  }
+
   if (event === "prompt") {
     if (client === "antigravity") {
       // PreInvocation fires before every model call; only the first one of a turn carries a new request.
@@ -124,5 +128,29 @@ export function normalize(client: HookClient, event: HookEvent, input: unknown):
 export function neutralOutput(client: HookClient, event: HookEvent): string {
   if (client === "cursor") return event === "prompt" ? '{"continue":true}' : "{}";
   if (client === "gemini-cli" || client === "antigravity") return "{}";
+  if (client === "vscode" && event === "start") return "{}";
   return "";
+}
+
+/**
+ * Structured hook reply that injects Bağlam context into the agent's turn/session.
+ * Only emits schemas explicitly supported by each tool; falls back to neutralOutput otherwise.
+ */
+export function contextOutput(client: HookClient, event: HookEvent, context: string): string {
+  if (!context.trim()) return neutralOutput(client, event);
+  if (client === "claude-code" || client === "codex") {
+    if (event === "start") return JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: context } });
+    if (event === "prompt") return JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: context } });
+  }
+  if (client === "gemini-cli") {
+    if (event === "start") return JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: context } });
+    if (event === "prompt") return JSON.stringify({ hookSpecificOutput: { hookEventName: "BeforeAgent", additionalContext: context } });
+  }
+  if (client === "cursor" && event === "start") {
+    return JSON.stringify({ additional_context: context });
+  }
+  if (client === "vscode" && event === "start") {
+    return JSON.stringify({ hookSpecificOutput: { additionalContext: context } });
+  }
+  return neutralOutput(client, event);
 }

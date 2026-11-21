@@ -7,6 +7,7 @@ import { Inbox } from "../ui/src/screens/Inbox.js";
 import { ApiError, type Api } from "../ui/src/api.js";
 import { ToastProvider } from "../ui/src/toast.js";
 import type { Entry, PendingEntry } from "../ui/src/types.js";
+import { EVENT_TYPES } from "../src/portable.js";
 
 afterEach(cleanup);
 
@@ -37,6 +38,12 @@ describe("i18n", () => {
   it("has the same keys in tr and en", () => {
     expect(Object.keys(dict.tr).sort()).toEqual(Object.keys(dict.en).sort());
     for (const v of [...Object.values(dict.tr), ...Object.values(dict.en)]) expect(v.trim()).not.toBe("");
+  });
+
+  it("names every kind of history event the store writes (no raw keys like history.imported)", () => {
+    for (const type of EVENT_TYPES) {
+      expect(Object.keys(dict.en), type).toContain(`history.${type}`);
+    }
   });
 
   it("picks Turkish for tr-TR, English otherwise", () => {

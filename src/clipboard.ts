@@ -22,7 +22,8 @@ function candidates(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): [string,
 export function copyToClipboard(host: HostEnv, text: string, env: NodeJS.ProcessEnv = process.env): boolean {
   for (const [cmd, args] of candidates(host.platform, env)) {
     if (!host.hasCommand(cmd)) continue;
-    if (host.run(cmd, args, text).code === 0) return true;
+    // background: wl-copy and xclip fork a process that owns the clipboard and keeps the output pipes open.
+    if (host.run(cmd, args, text, { background: true }).code === 0) return true;
   }
   return false;
 }

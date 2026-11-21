@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { relative } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { DatabaseSync } from "node:sqlite";
@@ -7,6 +7,7 @@ import { SCHEMA_VERSION } from "./migrate.js";
 import { normalizeProject } from "./config.js";
 import { isUnsafeProjectDir, resolveDirectory } from "./project.js";
 import { BLOCK_START, instructionBlock } from "./instructions.js";
+import { expectedInstructionTargets } from "./init.js";
 import { detectClients } from "./setup.js";
 import type { HostEnv } from "./host.js";
 import type { ServerEntryShape } from "./clients/types.js";
@@ -59,6 +60,7 @@ function nodeOk(version: string): boolean {
 }
 
 const samePath = (a: string, b: string) => normalizeProject(a) === normalizeProject(b);
+const looksAbs = (p: string) => p.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(p);
 
 /** When each tool's hook last fired; read-only, empty for a database older than schema 7. */
 function hookSeenReadOnly(dbPath: string): Record<string, number> {
@@ -159,6 +161,15 @@ export async function runDoctor(opts: {
       });
       continue;
     }
+    if (s.entry?.command && looksAbs(s.entry.command) && !samePath(s.entry.command, host.nodePath)) {
+      checks.push({
+        name: `${client.label}: registered`,
+        ok: false,
+        detail: `points at a different Node (${s.entry.command}), not this install`,
+        fix: "baglam setup",
+      });
+      continue;
+    }
     const agentId = s.entry?.env?.BAGLAM_AGENT;
     if (!agentId) {
       // Added by hand: the server then runs under the tool's own client name as an unverified agent
@@ -190,17 +201,32 @@ export async function runDoctor(opts: {
         ? { name: "This folder", ok: true, detail: `project "${ref.name}" (id ${ref.key})` }
         : { name: "This folder", ok: false, detail: ref.warning ?? `${ref.dir} is not initialised`, fix: "baglam init" },
     );
-    const agentsMd = join(ref.dir, "AGENTS.md");
-    const content = existsSync(agentsMd) ? readFileSync(agentsMd, "utf8").replace(/\r\n/g, "\n") : "";
-    const hasBlock = content.includes(BLOCK_START);
-    const current = content.includes(instructionBlock());
-    checks.push(
-      !hasBlock
-        ? { name: "Agent instructions", ok: false, detail: "agents in this folder are not told to use Bağlam", fix: "baglam init" }
-        : !current
-          ? { name: "Agent instructions", ok: false, detail: "AGENTS.md has an outdated Bağlam block (agents miss newer features such as handoffs)", fix: "baglam init" }
-          : { name: "Agent instructions", ok: true, detail: "AGENTS.md tells agents to use Bağlam" },
-    );
+    const expected = expectedInstructionTargets(ref.dir, host);
+    const want = instructionBlock();
+    const missing: string[] = [];
+    const outdated: string[] = [];
+    const names: string[] = [];
+    for (const t of expected) {
+      const rel = relative(ref.dir, t.file).replace(/\\/g, "/");
+      names.push(rel);
+      const content = existsSync(t.file) ? readFileSync(t.file, "utf8").replace(/\r\n/g, "\n") : "";
+      if (!content.includes(BLOCK_START)) missing.push(rel);
+      else if (!content.includes(want)) outdated.push(rel);
+    }
+    if (missing.length === expected.length) {
+      checks.push({ name: "Agent instructions", ok: false, detail: "agents in this folder are not told to use Bağlam", fix: "baglam init" });
+    } else if (missing.length || outdated.length) {
+      const parts: string[] = [];
+      if (missing.length) parts.push(`missing in ${missing.join(", ")}`);
+      if (outdated.length) parts.push(`outdated in ${outdated.join(", ")}`);
+      checks.push({ name: "Agent instructions", ok: false, detail: `Bağlam instructions ${parts.join("; ")}`, fix: "baglam init" });
+    } else {
+      checks.push({
+        name: "Agent instructions",
+        ok: true,
+        detail: names.length === 1 ? `${names[0]} tells agents to use Bağlam` : `${names.join(", ")} tell agents to use Bağlam`,
+      });
+    }
   }
   return checks;
 }

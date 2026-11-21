@@ -6,7 +6,8 @@ import type { Handoff } from "./handoff.js";
 
 export const EXPORT_FORMAT = "baglam/1";
 
-const EVENT_TYPES: EventType[] = [
+/** Every kind of history event the store writes (the panel has a label for each). */
+export const EVENT_TYPES: readonly EventType[] = [
   "proposed", "approved", "rejected", "superseded", "edited", "expired", "deleted", "retired", "archived", "restored", "imported",
 ];
 
@@ -40,7 +41,7 @@ export interface BaglamExport {
   /** Live tasks in progress (optional section). */
   handoffs?: Handoff[];
   /** Per-project settings (optional section). */
-  settings?: { project: string; autonomous: boolean }[];
+  settings?: { project: string; autonomous: boolean; autoCapture?: boolean }[];
 }
 
 /** Every record (all statuses) and its history, for one project or all of them. */
@@ -54,7 +55,11 @@ export function exportJson(store: ContextStore, opts: { project?: string } = {})
   const events = store.eventsOf(entries.map((e) => e.id)).map(({ project: _p, ...ev }) => ev);
   const keys = projects.map((p) => p.key);
   const handoffs = store.listHandoffs().filter((h) => keys.includes(h.project));
-  const settings = keys.filter((k) => store.isAutonomous(k)).map((project) => ({ project, autonomous: true }));
+  const settings = keys.flatMap((project) => {
+    const s = store.projectSettings(project);
+    if (!s.autonomous && s.autoCapture) return [];
+    return [{ project, autonomous: s.autonomous, ...(s.autoCapture ? {} : { autoCapture: false }) }];
+  });
   return { format: EXPORT_FORMAT, exportedAt: new Date().toISOString(), projects, entries, events, handoffs, settings };
 }
 
@@ -190,6 +195,9 @@ export function importJson(
         files: strs(raw.files),
         blockers: str(raw.blockers),
         notes: str(raw.notes),
+        requests: strs(raw.requests),
+        request: str(raw.request),
+        origin: raw.agentAt === null ? "auto" : undefined,
         newTask: true,
       });
       result.handoffs++;
@@ -199,7 +207,10 @@ export function importJson(
   }
   if (Array.isArray(data.settings)) {
     for (const s of data.settings.filter(isObj)) {
-      if (typeof s.project === "string" && s.autonomous === true) result.autonomousInFile.push(s.project);
+      if (typeof s.project !== "string") continue;
+      if (s.autonomous === true) result.autonomousInFile.push(s.project);
+      // Turning off automatic saving is privacy-preserving; keep it off on the new machine.
+      if (s.autoCapture === false) store.setAutoCapture(s.project, false, opts.by);
     }
   }
   return result;

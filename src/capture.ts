@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve } from "node:path";
-import { scanEntryFields } from "./guards.js";
+import { REDACTED, redactSecrets, scanSecrets } from "./guards.js";
 import { LIMITS, type CheckpointInput, type Handoff } from "./handoff.js";
 
 /** What a tool hook saw, already translated from the tool's own format. */
@@ -15,10 +15,17 @@ const REPLY_PREFIX = "Last reply: ";
 const DUPLICATE_MS = 60_000;
 
 const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
-/** Scan a bit past the cut, so a secret the size limit would split is still seen whole; then cut. */
+/** Scan a bit past the cut, redact any secrets in place, then cut; falls back to HIDDEN if unsafe. */
 const SCAN_MARGIN = 256;
-const keep = (s: string, max: number) =>
-  scanEntryFields({ title: s.slice(0, max + SCAN_MARGIN), body: "", tags: [] }).length ? HIDDEN : s.slice(0, max);
+function keep(s: string, max: number): string {
+  const window = s.slice(0, max + SCAN_MARGIN);
+  const { text, redacted } = redactSecrets(window);
+  if (!redacted) return s.slice(0, max);
+  // Drop an incomplete trailing "[redacte" if the size cap sliced through the marker itself.
+  const cut = text.slice(0, max).replace(/\[redacted?[^\]]*$/, "").trim();
+  if (!cut || cut === REDACTED || scanSecrets(cut).length > 0) return HIDDEN;
+  return cut;
+}
 
 /**
  * The checkpoint a hook event turns into, or null when there is nothing to save.

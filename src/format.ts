@@ -139,23 +139,23 @@ export function formatHandoff(h: BriefInput["handoff"], max: number, now = Date.
     const optional: [number, string][] = [];
     if (live.request) optional.push([4, `The user's latest detailed request (in full):\n${cut(live.request, budget(0.3))}`]);
     const asked = live.requests?.at(-1);
-    if (asked && asked !== live.goal) optional.push([5, `Asked: ${cut(asked, budget(0.08))}`]);
+    if (asked && asked !== live.goal) optional.push([6, `Asked: ${cut(asked, budget(0.08))}`]);
     if (live.agentAt === null) {
       optional.push([3, "Saved automatically from the tool; the agent has not checkpointed this task yet. Check the files and git changes below."]);
     }
     if (live.done.length) optional.push([9, `Done: ${listLine(live.done.slice(-12), budget(0.2))}`]);
     if (live.now) optional.push([2, `Now: ${cut(live.now, budget(0.12))}`]);
     if (live.next.length) optional.push([1, `Next: ${listLine(live.next.map((s, i) => `${i + 1}) ${s}`), budget(0.22))}`]);
-    if (live.files.length) optional.push([7, `Files: ${listLine(live.files, budget(0.1))}`]);
+    if (live.files.length) optional.push([8, `Files: ${listLine(live.files, budget(0.1))}`]);
     const g = h.git;
     if (g && (g.changedCount || g.commitsSince.length)) {
       const bits: string[] = [];
       if (g.changedCount) bits.push(`${g.changedCount} file${g.changedCount === 1 ? "" : "s"} changed, not committed: ${listLine(g.changed, budget(0.1))}`);
       if (g.commitsSince.length) bits.push(`${g.commitsSince.length} commit(s): ${listLine(g.commitsSince.map((c) => `${c.hash} ${c.subject}`), budget(0.08))}`);
-      optional.push([8, `Since then (git): ${bits.join(" · ")}`]);
+      optional.push([5, `Since then (git): ${bits.join(" · ")}`]);
     }
     if (live.blockers) optional.push([0, `Blockers: ${cut(live.blockers, budget(0.08))}`]);
-    if (live.notes) optional.push([6, `Notes: ${cut(live.notes, budget(0.1))}`]);
+    if (live.notes) optional.push([7, `Notes: ${cut(live.notes, budget(0.1))}`]);
 
     const othersLen = othersLine ? othersLine.length + SEP.length : 0;
     let room = max - othersLen - [...head, tail].join("\n").length;

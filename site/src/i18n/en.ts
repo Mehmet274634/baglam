@@ -388,7 +388,7 @@ export const en = {
     inboxPoints: ["j / k to move, a to approve, e to edit, r to reject", "Look-alikes flagged before they become duplicates", "Approve all at once for one project"],
     recordsTitle: "The whole memory, searchable",
     recordsText: "Every record with its history: who proposed it, who approved it, what it replaced. Search finds word beginnings, so “imza” finds “imzasını”.",
-    recordsPoints: ["Filter by status, kind and agent", "Edit, replace or retire a record", "History of every change"],
+    recordsPoints: ["Filter by status, kind and agent", "Edit or retire a record", "History of every change"],
     settingsTitle: "Switches you understand",
     settingsText: "Automatic saving, autonomous mode and trust rules, per project, with a plain sentence for each. Connected tools are listed with their status.",
     settingsPoints: ["Automatic saving on by default", "Autonomous mode asks before it turns on", "Trust rules for chosen agents and kinds"],

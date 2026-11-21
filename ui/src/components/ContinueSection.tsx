@@ -15,14 +15,16 @@ export function ContinueSection(props: {
 }) {
   const { t } = useI18n();
   const toast = useToast();
-  const [items, setItems] = useState<{ handoff: Handoff; git: GitSnapshot | null }[]>([]);
+  const [items, setItems] = useState<{ handoff: Handoff; git: GitSnapshot | null; history: Handoff[] }[]>([]);
 
   useEffect(() => {
     let live = true;
     props.api
       .handoffs(props.project)
-      .then((list) => Promise.all(list.map((h) => props.api.handoff(h.project, h.branch).catch(() => ({ handoff: h, git: null })))))
-      .then((rows) => live && setItems(rows.map((r) => ({ handoff: r.handoff, git: r.git ?? null }))))
+      .then((list) =>
+        Promise.all(list.map((h) => props.api.handoff(h.project, h.branch).catch(() => ({ handoff: h, git: null, history: [] as Handoff[] })))),
+      )
+      .then((rows) => live && setItems(rows.map((r) => ({ handoff: r.handoff, git: r.git ?? null, history: r.history ?? [] }))))
       .catch(() => live && setItems([]));
     return () => {
       live = false;
@@ -39,11 +41,12 @@ export function ContinueSection(props: {
         </div>
       </div>
       <div class="list">
-        {items.map(({ handoff, git }) => (
+        {items.map(({ handoff, git, history }) => (
           <ContinueCard
             key={`${handoff.project}/${handoff.branch}`}
             handoff={handoff}
             git={git}
+            history={history}
             projectName={props.project ? undefined : props.projectName(handoff.project)}
             onCopy={async () => {
               try {

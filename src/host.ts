@@ -14,8 +14,16 @@ export interface HostEnv {
   nodePath: string;
   cliPath: string;
   /** `input` is written to the command's stdin (used for the clipboard). */
-  run(cmd: string, args: string[], input?: string): { code: number; stdout: string; stderr: string };
+  run(cmd: string, args: string[], input?: string, opts?: RunOptions): { code: number; stdout: string; stderr: string };
   hasCommand(cmd: string): boolean;
+}
+
+export interface RunOptions {
+  /**
+   * The command may leave a process behind that keeps its stdout/stderr open (wl-copy and xclip stay
+   * alive to own the clipboard). Do not capture output, so the call returns when the command itself exits.
+   */
+  background?: boolean;
 }
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -34,8 +42,14 @@ export function realHost(): HostEnv {
     platform: process.platform,
     nodePath: process.execPath,
     cliPath: join(PACKAGE_ROOT, "dist", "cli.js"),
-    run(cmd, args, input) {
-      const opts = { encoding: "utf8" as const, timeout: 60_000, windowsHide: true, ...(input !== undefined ? { input } : {}) };
+    run(cmd, args, input, runOpts) {
+      const opts = {
+        encoding: "utf8" as const,
+        timeout: runOpts?.background ? 10_000 : 60_000,
+        windowsHide: true,
+        ...(input !== undefined ? { input } : {}),
+        ...(runOpts?.background ? { stdio: ["pipe", "ignore", "ignore"] as ("pipe" | "ignore")[] } : {}),
+      };
       let r;
       const script = process.platform === "win32" ? windowsScriptFor(cmd) : null;
       if (script) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { describeFindings, scanEntryFields, scanSecrets } from "../src/guards.js";
+import { describeFindings, redactSecrets, scanEntryFields, scanSecrets } from "../src/guards.js";
 
 // Fakes are assembled at runtime so this file itself never contains a real-looking secret.
 const join = (...p: string[]) => p.join("");
@@ -12,9 +12,17 @@ const FAKES: [string, string][] = [
   ["Google API key", join("AIza", "SyA1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q")],
   ["Stripe key", join("sk_", "live_", "4eC39HqLyjWDarjtT1zdp7dc")],
   ["Slack token", join("xoxb-", "123456789012-abcdefABCDEF")],
+  ["npm token", join("npm_", "a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8")],
+  ["Hugging Face token", join("hf_", "AbCdEfGhIjKlMnOpQrStUvWx12")],
+  ["Supabase token", join("sbp_", "0123456789abcdef0123456789abcdef01234567")],
+  ["Groq API key", join("gsk_", "AbCdEfGhIjKlMnOpQrStUvWx1234")],
+  ["Resend API key", join("re_", "AbCdEfGhIjKlMnOpQrStUvWx1234")],
+  ["Telegram bot token", join("123456789", ":AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw")],
   ["Private key", join("-----BEGIN ", "RSA PRIVATE KEY-----\nMIIEow")],
   ["JWT", join("eyJ", "hbGciOiJIUzI1NiJ9", ".", "eyJ", "zdWIiOiIxMjM0NTY3ODkwIn0", ".", "dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U")],
   ["Password in URL", join("postgres://", "admin:", "hunter2pass", "@db.example.com:5432/app")],
+  ["Bearer token", join("Bearer ", "AbCdEf1234567890GhIjKlMnOp")],
+  ["Secret assignment", join("DB_PASS", "=", "MyRealPass99!")],
   ["High-entropy string", join("Zx9", "Qw7rT2mN8vB4kL6pH3sD5fG1jA0cE9uY")],
 ];
 
@@ -60,8 +68,22 @@ describe("scanSecrets", () => {
       "DATABASE_URL=postgres://app:${DB_PASSWORD}@db:5432/app",
       "mysql://<user>:<pass>@host/db",
       "Prefix keys with sk-proj-placeholder-example-value in docs",
+      "DB_PASSWORD=changeme in .env.example",
+      "API_KEY=${MY_API_KEY} and PRIVATE_KEY=/etc/ssl/private.pem",
+      "Authorization: Bearer your_token_here_please",
     ];
     for (const text of benign) expect(scanSecrets(text), text).toEqual([]);
+  });
+
+  it("redactSecrets replaces only the secret, keeps the surrounding text, and leaves zero scan findings", () => {
+    const aws = join("AKIA", "IOSFODNN7EXAMPLE");
+    const db = join("postgres://", "admin:", "hunter2pass", "@db.example.com:5432/app");
+    const envLine = join("DB_PASSWORD", "=", "MyRealPass99!");
+    const text = `Plan:\n1. Use ${aws} for S3\n2. Connect ${db}\n3. Set ${envLine}\n4. Run tests.`;
+    const r = redactSecrets(text);
+    expect(r.redacted).toBe(true);
+    expect(r.text).toBe("Plan:\n1. Use [redacted] for S3\n2. Connect postgres://admin:[redacted]@db.example.com:5432/app\n3. Set DB_PASSWORD=[redacted]\n4. Run tests.");
+    expect(scanSecrets(r.text)).toEqual([]);
   });
 
   it("still catches a random token next to slashes", () => {
